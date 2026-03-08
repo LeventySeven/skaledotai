@@ -65,6 +65,9 @@ export const verification = pgTable("verification", {
 
 export const leads = pgTable("leads", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // Owner — every lead belongs to exactly one user
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+
   name: text("name").notNull(),
   handle: text("handle").notNull().default(""),
   bio: text("bio").notNull().default(""),
@@ -88,14 +91,21 @@ export const leads = pgTable("leads", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  uniqueIndex("leads_handle_platform_idx").on(table.handle, table.platform),
+  // Same person on same platform is unique per user (not globally)
+  uniqueIndex("leads_user_handle_platform_idx").on(table.userId, table.handle, table.platform),
+  index("leads_user_id_idx").on(table.userId),
 ]);
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // Owner
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("projects_user_id_idx").on(table.userId),
+]);
 
 export const projectLeads = pgTable("project_leads", {
   projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
@@ -119,9 +129,14 @@ export const postStats = pgTable("post_stats", {
 
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // Owner
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+
   name: text("name").notNull(),
   keyHash: text("key_hash").notNull().unique(),
   prefix: text("prefix").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastUsed: timestamp("last_used", { withTimezone: true }),
-});
+}, (table) => [
+  index("api_keys_user_id_idx").on(table.userId),
+]);
