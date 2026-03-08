@@ -2,6 +2,7 @@ import 'server-only'
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
+import * as schema from "@/db/schema";
 import { nextCookies } from "better-auth/next-js";
 
 export const auth = betterAuth({
@@ -11,6 +12,7 @@ export const auth = betterAuth({
     ].filter(Boolean),
     database: drizzleAdapter(db, {
         provider: "pg",
+        schema,
     }),
     account: {
         accountLinking: {
