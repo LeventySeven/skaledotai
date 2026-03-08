@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon } from "lucide-react";
+import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon, LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipPopup } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/lib/types";
+import { signOutAction } from "@/app/(auth)/actions";
 
 const navItems = [
   { href: "/search", label: "Search", icon: SearchIcon },
@@ -176,8 +177,20 @@ export function Sidebar() {
               </Tooltip>
             );
           })}
-          <ProjectsList />
+            <ProjectsList />
         </nav>
+
+        <div className="mt-auto p-2 border-t">
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"
+            >
+              <LogOutIcon className="size-4 shrink-0" />
+              Sign out
+            </button>
+          </form>
+        </div>
       </aside>
     </TooltipProvider>
   );
