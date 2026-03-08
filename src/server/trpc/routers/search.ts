@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { assertProject } from "./projects";
-import { importAccountNetwork, searchAndAddLeads } from "@/lib/lead-service";
+import { assertProject } from "@/server/services/projects";
+import { importAccountNetwork, searchAndAddLeads } from "@/server/services/search";
 
 export const searchRouter = router({
   run: protectedProcedure

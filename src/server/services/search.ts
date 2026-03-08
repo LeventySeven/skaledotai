@@ -1,12 +1,5 @@
 import "server-only";
-import {
-  addProfilesToProject,
-  createProject,
-  getProfileById,
-  getProjectById,
-  upsertPostStats,
-  updateProjectInfluencer,
-} from "@/lib/queries";
+import { TRPCError } from "@trpc/server";
 import { extractTopicsAndPriority, rankProfilesForQuery } from "@/lib/openai";
 import type { Lead, PostStats, Project, SearchLeadInput, XProfile } from "@/lib/types";
 import {
@@ -21,6 +14,10 @@ import {
   searchRecentPosts,
   searchUsers,
 } from "@/lib/x-api";
+import { addProfilesToProject, getLeadById } from "./leads";
+import { createProject, getProjectById } from "./projects";
+import { upsertPostStats } from "./stats";
+import { updateLead } from "./leads";
 
 const SEARCH_TARGET = 40;
 const NETWORK_TARGET = 1000;
@@ -41,7 +38,6 @@ function addCandidate(map: Map<string, Candidate>, candidate: Candidate): void {
     map.set(candidate.xUserId, candidate);
     return;
   }
-
   existing.samplePosts = [...existing.samplePosts, ...candidate.samplePosts].slice(0, 5);
   if (candidate.followersCount > existing.followersCount) {
     map.set(candidate.xUserId, { ...candidate, samplePosts: existing.samplePosts });
@@ -51,12 +47,11 @@ function addCandidate(map: Map<string, Candidate>, candidate: Candidate): void {
 async function resolveProject(userId: string, input: SearchLeadInput): Promise<Project> {
   if (input.projectId) {
     const existing = await getProjectById(userId, input.projectId);
-    if (!existing) throw new Error("Project not found.");
+    if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
     return existing;
   }
 
-  return createProject({
-    userId,
+  return createProject(userId, {
     name: input.projectName?.trim() || input.query.trim(),
     query: input.query.trim(),
     seedUsername: input.followerUsername?.replace(/^@/, ""),
@@ -69,8 +64,7 @@ async function collectSearchCandidates(
 ): Promise<Candidate[]> {
   const map = new Map<string, Candidate>();
 
-  const profileMatches = await searchUsers(query, 25);
-  for (const profile of profileMatches) {
+  for (const profile of await searchUsers(query, 25)) {
     addCandidate(map, { ...profile, samplePosts: [], source: "profile_search" });
   }
 
@@ -97,16 +91,14 @@ async function collectSearchCandidates(
         addCandidate(map, { ...profile, samplePosts, source: "reply_search" });
       }
 
-      let nextFollowers: string | undefined;
-      let followersFetched = 0;
-      while (followersFetched < NETWORK_TARGET) {
-        const page = await getFollowersPage(seed.xUserId, nextFollowers, 250);
-        for (const profile of page.profiles) {
-          addCandidate(map, { ...profile, samplePosts: [], source: "followers" });
-        }
-        followersFetched += page.profiles.length;
-        nextFollowers = page.nextToken;
-        if (!nextFollowers || page.profiles.length === 0) break;
+      let nextToken: string | undefined;
+      let fetched = 0;
+      while (fetched < NETWORK_TARGET) {
+        const page = await getFollowersPage(seed.xUserId, nextToken, 250);
+        for (const p of page.profiles) addCandidate(map, { ...p, samplePosts: [], source: "followers" });
+        fetched += page.profiles.length;
+        nextToken = page.nextToken;
+        if (!nextToken || page.profiles.length === 0) break;
       }
     }
   }
@@ -151,15 +143,11 @@ export async function searchAndAddLeads(
 
 export async function importAccountNetwork(
   userId: string,
-  input: {
-    username: string;
-    projectId?: string;
-    projectName?: string;
-  },
+  input: { username: string; projectId?: string; projectName?: string },
 ): Promise<{ leads: Lead[]; project: Project }> {
   const cleanHandle = input.username.replace(/^@/, "").trim();
   const [seed] = await lookupUsersByUsernames([cleanHandle]);
-  if (!seed) throw new Error("X account not found.");
+  if (!seed) throw new TRPCError({ code: "NOT_FOUND", message: "X account not found." });
 
   const project = await resolveProject(userId, {
     query: `${cleanHandle} network`,
@@ -179,23 +167,14 @@ export async function importAccountNetwork(
       getFollowingPage(seed.xUserId, nextFollowing, 250),
     ]);
 
-    for (const profile of followersPage.profiles) {
-      addCandidate(candidates, { ...profile, samplePosts: [], source: "followers" });
-    }
-    for (const profile of followingPage.profiles) {
-      addCandidate(candidates, { ...profile, samplePosts: [], source: "following" });
-    }
+    for (const p of followersPage.profiles) addCandidate(candidates, { ...p, samplePosts: [], source: "followers" });
+    for (const p of followingPage.profiles) addCandidate(candidates, { ...p, samplePosts: [], source: "following" });
 
     fetched += followersPage.profiles.length + followingPage.profiles.length;
     nextFollowers = followersPage.nextToken;
     nextFollowing = followingPage.nextToken;
 
-    if (
-      (!nextFollowers && !nextFollowing) ||
-      (followersPage.profiles.length === 0 && followingPage.profiles.length === 0)
-    ) {
-      break;
-    }
+    if ((!nextFollowers && !nextFollowing) || (followersPage.profiles.length === 0 && followingPage.profiles.length === 0)) break;
   }
 
   const leadsList = await addProfilesToProject({
@@ -209,22 +188,18 @@ export async function importAccountNetwork(
   return { leads: leadsList, project };
 }
 
-export async function refreshProfileStats(input: {
-  profileId: string;
-  crmId?: string;
-  niche?: string;
-}): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
-  const profile = await getProfileById(input.profileId);
-  if (!profile) throw new Error("Lead profile not found.");
-  if (!profile.xUserId) throw new Error("Lead has no X user ID.");
+export async function refreshProfileStats(
+  userId: string,
+  input: { profileId: string; crmId?: string; niche?: string },
+): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
+  const profile = await getLeadById(input.profileId);
+  if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
+  if (!profile.xUserId) throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X user ID." });
 
   const tweets = await getUserTweets(profile.xUserId, 30);
-  if (tweets.length === 0) {
-    throw new Error("No recent X posts found for this account.");
-  }
+  if (tweets.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "No recent X posts found." });
 
   const metrics = mapTweetsToMetrics(tweets);
-
   const ai = await extractTopicsAndPriority(
     input.niche,
     profile.bio,
@@ -232,7 +207,7 @@ export async function refreshProfileStats(input: {
   );
 
   const stats = await upsertPostStats({
-    profileId: input.profileId,
+    leadId: input.profileId,
     postCount: metrics.length,
     avgViews: avg(metrics.map((t) => t.viewCount)),
     avgLikes: avg(metrics.map((t) => t.likeCount)),
@@ -242,7 +217,7 @@ export async function refreshProfileStats(input: {
   });
 
   if (input.crmId) {
-    await updateProjectInfluencer(input.crmId, { priority: ai.priority });
+    await updateLead(userId, input.crmId, { priority: ai.priority });
   }
 
   return { stats, priority: ai.priority };

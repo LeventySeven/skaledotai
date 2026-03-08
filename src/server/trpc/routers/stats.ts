@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { getPostStats } from "@/lib/queries";
-import { refreshProfileStats } from "@/lib/lead-service";
+import { getPostStats } from "@/server/services/stats";
+import { refreshProfileStats } from "@/server/services/search";
 
 export const statsRouter = router({
   get: protectedProcedure
@@ -14,5 +14,5 @@ export const statsRouter = router({
       crmId: z.string().uuid().optional(),
       niche: z.string().optional(),
     }))
-    .mutation(({ input }) => refreshProfileStats(input)),
+    .mutation(({ ctx, input }) => refreshProfileStats(ctx.userId, input)),
 });

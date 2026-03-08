@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { createApiKey, deleteApiKey, listApiKeys } from "@/lib/queries";
+import { createApiKey, deleteApiKey, listApiKeys } from "@/server/services/api-keys";
 
 export const settingsRouter = router({
   apiKeys: router({
-    list: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.userId)),
+    list: protectedProcedure
+      .query(({ ctx }) => listApiKeys(ctx.userId)),
 
     create: protectedProcedure
       .input(z.object({ name: z.string().min(1) }))

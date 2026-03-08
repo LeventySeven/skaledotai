@@ -1,6 +1,6 @@
 import { protectedProcedure, router } from "../trpc";
-import { listOutreachQueue } from "@/lib/queries";
+import { getOutreachQueue } from "@/server/services/outreach";
 
 export const outreachRouter = router({
-  list: protectedProcedure.query(({ ctx }) => listOutreachQueue(ctx.userId)),
+  list: protectedProcedure.query(({ ctx }) => getOutreachQueue(ctx.userId)),
 });

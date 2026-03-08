@@ -1,13 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { assertProject } from "./projects";
-import {
-  deleteProjectInfluencer,
-  enrichProjectInfluencerEmails,
-  listLeads,
-  scanProjectEmails,
-  updateProjectInfluencer,
-} from "@/lib/queries";
+import { assertProject } from "@/server/services/projects";
+import { deleteLead, enrichLeadEmails, listLeads, scanProjectEmails, updateLead } from "@/server/services/leads";
 
 const leadPatchSchema = z.object({
   stage: z.enum(["found", "messaged", "replied", "agreed"]).optional(),
@@ -37,15 +31,15 @@ export const leadsRouter = router({
 
   update: protectedProcedure
     .input(z.object({ crmId: z.string().uuid(), patch: leadPatchSchema }))
-    .mutation(({ input }) => updateProjectInfluencer(input.crmId, input.patch)),
+    .mutation(({ ctx, input }) => updateLead(ctx.userId, input.crmId, input.patch)),
 
   remove: protectedProcedure
     .input(z.object({ crmId: z.string().uuid() }))
-    .mutation(({ input }) => deleteProjectInfluencer(input.crmId)),
+    .mutation(({ ctx, input }) => deleteLead(ctx.userId, input.crmId)),
 
   enrichEmails: protectedProcedure
     .input(z.object({ crmIds: z.array(z.string().uuid()).min(1) }))
-    .mutation(({ input }) => enrichProjectInfluencerEmails(input.crmIds)),
+    .mutation(({ input }) => enrichLeadEmails(input.crmIds)),
 
   scanEmails: protectedProcedure
     .input(z.object({ projectId: z.string().uuid() }))
