@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "mark",
+  title: "skaleai",
   description: "Lead discovery and outreach",
 };
 
