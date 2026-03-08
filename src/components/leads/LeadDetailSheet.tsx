@@ -114,7 +114,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
               <SheetDescription className="mt-0.5">{lead.bio}</SheetDescription>
               <div className="mt-2 flex gap-1.5">
                 {lead.platform === "twitter" && <Badge variant="secondary" className="text-xs">X / Twitter</Badge>}
-                {lead.platform === "linkedin" && <Badge variant="info" className="text-xs">LinkedIn</Badge>}
+                {/* linkedin platform removed — X only */}
               </div>
             </div>
           </div>
@@ -188,10 +188,10 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
                         <span className="font-medium">{formatNumber(postStats.avgReplies)}</span>
                       </>
                     )}
-                    {postStats.avgRetweets !== undefined && (
+                    {postStats.avgReposts !== undefined && (
                       <>
-                        <span className="text-muted-foreground">Avg retweets</span>
-                        <span className="font-medium">{formatNumber(postStats.avgRetweets)}</span>
+                        <span className="text-muted-foreground">Avg reposts</span>
+                        <span className="font-medium">{formatNumber(postStats.avgReposts)}</span>
                       </>
                     )}
                     {postStats.topTopics && postStats.topTopics.length > 0 && (
@@ -249,22 +249,19 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
                 onCheckedChange={(v) => onPatch(lead.id, { dmComfort: Boolean(v) })} />
             </div>
 
-            {/* Has DMed */}
+            {/* Stage */}
             <div className="flex items-center gap-3">
-              <Label htmlFor="has-dmed" className="w-36 shrink-0 text-sm text-muted-foreground font-normal cursor-pointer">
-                Has DMed?
-              </Label>
-              <Checkbox id="has-dmed" checked={lead.hasDmed}
-                onCheckedChange={(v) => onPatch(lead.id, { hasDmed: Boolean(v) })} />
-            </div>
-
-            {/* Replied */}
-            <div className="flex items-center gap-3">
-              <Label htmlFor="replied" className="w-36 shrink-0 text-sm text-muted-foreground font-normal cursor-pointer">
-                Replied?
-              </Label>
-              <Checkbox id="replied" checked={lead.replied}
-                onCheckedChange={(v) => onPatch(lead.id, { replied: Boolean(v) })} />
+              <Label className="w-36 shrink-0 text-sm text-muted-foreground font-normal">Stage</Label>
+              <select
+                value={lead.stage}
+                onChange={(e) => onPatch(lead.id, { stage: e.target.value as Lead["stage"] })}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="found">Found</option>
+                <option value="messaged">Messaged</option>
+                <option value="replied">Replied</option>
+                <option value="agreed">Agreed</option>
+              </select>
             </div>
 
             {/* The Ask */}
@@ -314,12 +311,6 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
               <a href={lead.profileUrl} target="_blank" rel="noopener noreferrer"
                 className="block text-foreground underline underline-offset-4 hover:text-primary">
                 {lead.profileUrl.replace(/^https?:\/\//, "")}
-              </a>
-            )}
-            {lead.linkedinUrl && (
-              <a href={lead.linkedinUrl} target="_blank" rel="noopener noreferrer"
-                className="block text-foreground underline underline-offset-4 hover:text-primary">
-                {lead.linkedinUrl.replace(/^https?:\/\//, "")}
               </a>
             )}
           </div>

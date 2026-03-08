@@ -32,10 +32,12 @@
     "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
+    "openai": "^6.27.0",
     "postgres": "^3.4.8",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "superjson": "^2.2.6",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
   },

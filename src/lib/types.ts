@@ -1,6 +1,15 @@
-// Platform values stored in DB are always 'twitter' | 'linkedin'
-// 'both' only exists as a search-form option on the search page
-export type Platform = "twitter" | "linkedin";
+export type Platform = "twitter";
+
+export type Priority = "P0" | "P1";
+
+export type LeadStage = "found" | "messaged" | "replied" | "agreed";
+
+export type DiscoverySource =
+  | "profile_search"
+  | "post_search"
+  | "reply_search"
+  | "followers"
+  | "following";
 
 export type PostStats = {
   id: string;
@@ -10,19 +19,26 @@ export type PostStats = {
   avgViews?: number;
   avgLikes?: number;
   avgReplies?: number;
-  avgRetweets?: number;
+  avgReposts?: number;
   topTopics?: string[];
 };
 
 export type Project = {
   id: string;
   name: string;
+  query?: string;
+  seedUsername?: string;
   createdAt: string;
   leadCount?: number;
 };
 
 export type Lead = {
   id: string;
+  // id is used as crmId since CRM fields live on the lead itself
+  crmId?: string;
+  projectId?: string;
+  projectName?: string;
+  xUserId?: string;
   name: string;
   handle: string;
   bio: string;
@@ -31,17 +47,50 @@ export type Lead = {
   following?: number;
   avatarUrl?: string;
   profileUrl?: string;
-  linkedinUrl?: string;
   email?: string;
   budget?: number;
-
-  // CRM fields
-  priority: "P0" | "P1";
+  priority: Priority;
   dmComfort: boolean;
   theAsk: string;
-  hasDmed: boolean;
-  replied: boolean;
   inOutreach: boolean;
-
+  stage: LeadStage;
+  discoverySource?: DiscoverySource;
+  discoveryQuery?: string;
   createdAt?: string;
+  updatedAt?: string;
+  editable?: boolean;
 };
+
+export type XProfile = {
+  xUserId: string;
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarUrl?: string;
+  profileUrl?: string;
+  followersCount: number;
+  followingCount: number;
+  tweetCount?: number;
+  listedCount?: number;
+  verified?: boolean;
+  verifiedType?: string;
+  location?: string;
+  url?: string;
+};
+
+export type SearchLeadInput = {
+  query: string;
+  projectId?: string;
+  projectName?: string;
+  followerUsername?: string;
+};
+
+export type LeadPatch = Partial<{
+  stage: LeadStage;
+  priority: Priority;
+  dmComfort: boolean;
+  theAsk: string;
+  inOutreach: boolean;
+  email: string | null;
+  budget: number | null;
+}>;

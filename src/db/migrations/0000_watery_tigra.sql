@@ -28,6 +28,7 @@ CREATE TABLE "api_keys" (
 CREATE TABLE "leads" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,
+	"x_user_id" text,
 	"name" text NOT NULL,
 	"handle" text DEFAULT '' NOT NULL,
 	"bio" text DEFAULT '' NOT NULL,
@@ -36,15 +37,15 @@ CREATE TABLE "leads" (
 	"following" integer,
 	"avatar_url" text,
 	"profile_url" text,
-	"linkedin_url" text,
 	"email" text,
 	"budget" numeric(10, 2),
+	"stage" text DEFAULT 'found' NOT NULL,
 	"priority" text DEFAULT 'P1' NOT NULL,
 	"dm_comfort" boolean DEFAULT false NOT NULL,
 	"the_ask" text DEFAULT '' NOT NULL,
-	"has_dmed" boolean DEFAULT false NOT NULL,
-	"replied" boolean DEFAULT false NOT NULL,
 	"in_outreach" boolean DEFAULT false NOT NULL,
+	"discovery_source" text,
+	"discovery_query" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -57,7 +58,7 @@ CREATE TABLE "post_stats" (
 	"avg_views" numeric(12, 2),
 	"avg_likes" numeric(12, 2),
 	"avg_replies" numeric(12, 2),
-	"avg_retweets" numeric(12, 2),
+	"avg_reposts" numeric(12, 2),
 	"top_topics" text[],
 	CONSTRAINT "post_stats_lead_id_unique" UNIQUE("lead_id")
 );
@@ -73,6 +74,8 @@ CREATE TABLE "projects" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,
 	"name" text NOT NULL,
+	"query" text,
+	"seed_username" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

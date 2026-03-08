@@ -68,6 +68,9 @@ export const leads = pgTable("leads", {
   // Owner — every lead belongs to exactly one user
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 
+  // X/Twitter profile identity
+  xUserId: text("x_user_id"),
+
   name: text("name").notNull(),
   handle: text("handle").notNull().default(""),
   bio: text("bio").notNull().default(""),
@@ -76,17 +79,17 @@ export const leads = pgTable("leads", {
   following: integer("following"),
   avatarUrl: text("avatar_url"),
   profileUrl: text("profile_url"),
-  linkedinUrl: text("linkedin_url"),
   email: text("email"),
   budget: numeric("budget", { precision: 10, scale: 2 }),
 
   // CRM fields
+  stage: text("stage").notNull().default("found"), // found | messaged | replied | agreed
   priority: text("priority").notNull().default("P1"),
   dmComfort: boolean("dm_comfort").notNull().default(false),
   theAsk: text("the_ask").notNull().default(""),
-  hasDmed: boolean("has_dmed").notNull().default(false),
-  replied: boolean("replied").notNull().default(false),
   inOutreach: boolean("in_outreach").notNull().default(false),
+  discoverySource: text("discovery_source"), // profile_search | post_search | reply_search | followers | following
+  discoveryQuery: text("discovery_query"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -102,6 +105,8 @@ export const projects = pgTable("projects", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 
   name: text("name").notNull(),
+  query: text("query"),
+  seedUsername: text("seed_username"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("projects_user_id_idx").on(table.userId),
@@ -123,7 +128,7 @@ export const postStats = pgTable("post_stats", {
   avgViews: numeric("avg_views", { precision: 12, scale: 2 }),
   avgLikes: numeric("avg_likes", { precision: 12, scale: 2 }),
   avgReplies: numeric("avg_replies", { precision: 12, scale: 2 }),
-  avgRetweets: numeric("avg_retweets", { precision: 12, scale: 2 }),
+  avgReposts: numeric("avg_reposts", { precision: 12, scale: 2 }),
   topTopics: text("top_topics").array(),
 });
 
