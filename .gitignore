@@ -46,3 +46,6 @@ temp/
 Thumbs.db
 .idea/
 .vscode/
+
+# clerk configuration (can include secrets)
+/.clerk/
