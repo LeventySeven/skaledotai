@@ -23,11 +23,8 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((d) => setProjects(Array.isArray(d) ? d : []))
-      .catch(console.error);
-  }, [pathname]); // refresh when navigating (after a search)
+    // TODO: replace with tRPC query
+  }, [pathname]);
 
   if (projects.length === 0) return null;
 
