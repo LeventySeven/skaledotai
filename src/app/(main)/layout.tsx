@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Sidebar, MobileHeader } from "@/components/sidebar/Sidebar";
-import { TRPCProvider } from "@/lib/trpc/client";
+import { TRPCProvider } from "@/lib/trpc/react";
 
 export default async function MainLayout({
   children,

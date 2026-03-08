@@ -6,7 +6,7 @@ import {
   getProjectById,
   upsertPostStats,
   updateProjectInfluencer,
-} from "@/lib/db";
+} from "@/lib/queries";
 import { extractTopicsAndPriority, rankProfilesForQuery } from "@/lib/openai";
 import type { Lead, PostStats, Project, SearchLeadInput, XProfile } from "@/lib/types";
 import {
