@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
+import Image from "next/image"
 
 import { LoginForm } from "@/components/auth/login-form"
 
