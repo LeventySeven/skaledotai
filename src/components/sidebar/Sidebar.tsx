@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon, LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipPopup } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { Project } from "@/lib/types";
 import { signOutAction } from "@/app/(auth)/actions";
+import { trpc } from "@/lib/trpc/client";
 
 const navItems = [
   { href: "/search", label: "Search", icon: SearchIcon },
@@ -19,13 +18,10 @@ const navItems = [
 ];
 
 function ProjectsList({ onNav }: { onNav?: () => void }) {
-  const [projects, setProjects] = useState<Project[]>([]);
   const [expanded, setExpanded] = useState(true);
   const pathname = usePathname();
-
-  useEffect(() => {
-    // TODO: replace with tRPC query
-  }, [pathname]);
+  const searchParams = useSearchParams();
+  const { data: projects = [] } = trpc.projects.list.useQuery();
 
   if (projects.length === 0) return null;
 
@@ -42,7 +38,8 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
         <div className="mt-0.5 flex flex-col gap-0.5">
           {projects.map((p) => {
             const href = `/leads?project=${p.id}`;
-            const active = pathname === "/leads" && typeof window !== "undefined" && window.location.search.includes(p.id);
+            const active =
+              pathname === "/leads" && searchParams.get("project") === p.id;
             return (
               <Button
                 key={p.id}
@@ -71,13 +68,9 @@ function NavContent({ onNav }: { onNav?: () => void }) {
   const pathname = usePathname();
   return (
     <>
-      <div className="flex h-14 items-center px-5">
-        <span className="text-sm font-semibold tracking-tight">Dashboard</span>
-      </div>
-      <Separator />
       <nav className="flex flex-col gap-0.5 p-2 pt-3">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href === "/leads" && pathname === "/leads" && !pathname.includes("?"));
+          const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Button
               key={href}
@@ -133,65 +126,34 @@ export function MobileHeader() {
             <XIcon className="size-4" />
           </Button>
         </div>
-        <nav className="flex flex-col gap-0.5 p-2 pt-3">
-          <NavContent onNav={() => setOpen(false)} />
-        </nav>
+        <NavContent onNav={() => setOpen(false)} />
       </div>
     </>
   );
 }
 
 export function Sidebar() {
-  const pathname = usePathname();
-
   return (
-    <TooltipProvider>
-      <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r bg-background overflow-y-auto">
-        <div className="flex h-14 items-center px-5 shrink-0">
-          <span className="text-sm font-semibold tracking-tight">Dashboard</span>
-        </div>
+    <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r bg-background overflow-y-auto">
+      <div className="flex h-14 items-center px-5 shrink-0">
+        <span className="text-sm font-semibold tracking-tight">Dashboard</span>
+      </div>
 
-        <Separator />
+      <Separator />
 
-        <nav className="flex flex-col gap-0.5 p-2 pt-3">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Tooltip key={href}>
-                <TooltipTrigger render={<span />}>
-                  <Button
-                    render={<Link href={href} />}
-                    variant="ghost"
-                    className={cn(
-                      "w-full justify-start gap-2.5 px-3 text-sm font-normal text-muted-foreground hover:text-foreground",
-                      active && "bg-accent text-foreground font-medium",
-                    )}
-                  >
-                    <Icon className="size-4 shrink-0" />
-                    {label}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipPopup side="right" sideOffset={8}>
-                  {label}
-                </TooltipPopup>
-              </Tooltip>
-            );
-          })}
-            <ProjectsList />
-        </nav>
+      <NavContent />
 
-        <div className="mt-auto p-2 border-t">
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"
-            >
-              <LogOutIcon className="size-4 shrink-0" />
-              Sign out
-            </button>
-          </form>
-        </div>
-      </aside>
-    </TooltipProvider>
+      <div className="mt-auto p-2 border-t">
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"
+          >
+            <LogOutIcon className="size-4 shrink-0" />
+            Sign out
+          </button>
+        </form>
+      </div>
+    </aside>
   );
 }

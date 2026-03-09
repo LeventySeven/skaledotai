@@ -479,20 +479,25 @@ The main dashboard shell is already present:
 Projects navigation is partially planned:
 
 - `ProjectsList` exists in the sidebar
-- it currently contains a `TODO` and does not fetch data via tRPC yet
+- it now fetches project data through tRPC and links directly into filtered lead views
 
 ### Feature pages
 
-Current main pages are placeholders:
+The main feature pages are now wired to the backend:
 
 - `src/app/(main)/search/page.tsx`
 - `src/app/(main)/leads/page.tsx`
 - `src/app/(main)/outreach/page.tsx`
 - `src/app/(main)/settings/page.tsx`
 
-They currently render `"coming soon"` text.
+They expose:
 
-This is the most important current-state architecture fact: the backend domain and API are ahead of the actual feature UI.
+- X lead discovery and network import
+- lead CRM listing, filtering, editing, and outreach queueing
+- outreach queue management
+- API key management
+
+The frontend now matches the existing service and tRPC architecture rather than lagging behind it.
 
 ### UI system
 
@@ -509,7 +514,7 @@ Notes:
 
 - `components.json` is configured with the `new-york` shadcn style.
 - CSS variables are defined in `src/app/globals.css`.
-- Fonts are loaded with `next/font/google` using Geist Sans and Geist Mono.
+- The root layout now uses local/system font stacks instead of fetching Google-hosted fonts during build.
 
 There is a sizable local component library under `src/components/ui`, which suggests the intended UI direction is a reusable design-system layer rather than ad hoc page markup.
 
@@ -547,7 +552,7 @@ Confirmed environment dependencies:
 
 Behavior controlled by config:
 
-- `next.config.ts` marks `apify-client` as a server external package
+- `next.config.ts` currently has no special server external package configuration
 - `tsconfig.json` sets the `@/*` path alias and strict compiler behavior
 - `eslint.config.mjs` uses Next core-web-vitals and TypeScript rules
 - `postcss.config.mjs` uses `@tailwindcss/postcss`
@@ -586,10 +591,6 @@ Current-state caveat:
 
 This section matters because it describes the real architecture, not the intended one.
 
-### Implemented backend, incomplete frontend
-
-The most visible gap is that the domain backend exists, but the main user-facing feature pages are still placeholders.
-
 ### Stubbed enrichment features
 
 In `src/server/services/leads.ts`:
@@ -598,23 +599,6 @@ In `src/server/services/leads.ts`:
 - `scanProjectEmails(...)` returns `0`
 
 So email enrichment is modeled in the schema and API, but not implemented.
-
-### Stale or partially wired UI component
-
-`src/components/leads/LeadDetailSheet.tsx` appears to be from an earlier or parallel UI path.
-
-It currently references:
-
-- `/api/post-stats`
-- `/api/followers`
-
-Those route handlers do not exist in this repository. The current backend exposes equivalent capabilities through tRPC instead.
-
-That means this component is presently not aligned with the live API architecture.
-
-### Project sidebar is not connected
-
-`ProjectsList` in the sidebar keeps local state and contains a `TODO` to replace it with a tRPC query.
 
 ### App naming mismatch
 
@@ -630,11 +614,8 @@ This is not a runtime bug by itself, but it is part of the current architecture 
 
 Dependencies declared but not currently used in the repo code include:
 
-- `apify-client`
 - `@tanstack/react-query-devtools`
 - `radix-ui`
-
-`apify-client` is also called out in `next.config.ts` as an external package, which suggests a planned server integration that is not implemented yet.
 
 ## Architectural Strengths
 

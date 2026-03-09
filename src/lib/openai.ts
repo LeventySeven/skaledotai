@@ -1,11 +1,15 @@
 import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import type { Priority, XProfile } from "@/lib/types";
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-5-mini";
+const DEFAULT_REASONING_EFFORT =
+  process.env.OPENAI_REASONING_EFFORT ?? "low";
 
 type StructuredResponse<T> = {
   schemaName: string;
-  schema: Record<string, unknown>;
+  schema: z.ZodType<T>;
   instructions: string;
   input: string;
   fallback: T;
@@ -31,25 +35,34 @@ async function structuredResponse<T>({
   if (!openai) return fallback;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await openai.responses.parse({
       model: DEFAULT_MODEL,
-      messages: [
-        { role: "system", content: instructions },
-        { role: "user", content: input },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: schemaName,
-          strict: true,
-          schema,
+      input: [
+        {
+          role: "system",
+          content: [{ type: "input_text", text: instructions }],
         },
+        {
+          role: "user",
+          content: [{ type: "input_text", text: input }],
+        },
+      ],
+      reasoning: {
+        effort: DEFAULT_REASONING_EFFORT as
+          | "none"
+          | "minimal"
+          | "low"
+          | "medium"
+          | "high"
+          | "xhigh",
+      },
+      text: {
+        format: zodTextFormat(schema, schemaName),
+        verbosity: "low",
       },
     });
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) return fallback;
-    return JSON.parse(content) as T;
+    return response.output_parsed ?? fallback;
   } catch {
     return fallback;
   }
@@ -74,17 +87,9 @@ export async function rankProfilesForQuery(
 
   const result = await structuredResponse<{ profileIds: string[] }>({
     schemaName: "profile_relevance_ranking",
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        profileIds: {
-          type: "array",
-          items: { type: "string" },
-        },
-      },
-      required: ["profileIds"],
-    },
+    schema: z.object({
+      profileIds: z.array(z.string()),
+    }),
     instructions:
       "Return only X profiles that are relevant to the search query. Be inclusive but remove clearly unrelated accounts. Keep the array ordered from most relevant to least relevant.",
     input,
@@ -101,21 +106,10 @@ export async function extractTopicsAndPriority(
 ): Promise<{ topics: string[]; priority: Priority }> {
   const result = await structuredResponse<{ topics: string[]; priority: Priority }>({
     schemaName: "profile_topics_priority",
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        topics: {
-          type: "array",
-          items: { type: "string" },
-        },
-        priority: {
-          type: "string",
-          enum: ["P0", "P1"],
-        },
-      },
-      required: ["topics", "priority"],
-    },
+    schema: z.object({
+      topics: z.array(z.string()),
+      priority: z.enum(["P0", "P1"]),
+    }),
     instructions: niche
       ? `Analyze the X profile and recent posts for creator outreach. The niche we care about is "${niche}". Return up to 5 short topics and a priority of P0 or P1.`
       : "Analyze the X profile and recent posts. Return up to 5 short topics and a conservative outreach priority of P0 or P1.",

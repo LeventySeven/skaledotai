@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
     "test": "bun test",
@@ -25,7 +25,6 @@
     "@trpc/client": "11",
     "@trpc/react-query": "11",
     "@trpc/server": "11",
-    "apify-client": "^2.22.2",
     "better-auth": "^1.5.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

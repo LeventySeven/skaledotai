@@ -1,1 +1,5 @@
-export default function SearchPage() { return <div className="p-8 text-muted-foreground">Search — coming soon</div>; }
+import { SearchWorkspace } from "@/components/search/SearchWorkspace";
+
+export default function SearchPage() {
+  return <SearchWorkspace />;
+}
