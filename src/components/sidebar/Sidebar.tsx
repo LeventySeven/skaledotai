@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon } from "lucide-react";
+import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon, LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { signOutAction } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 
@@ -66,28 +67,41 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
 function NavContent({ onNav }: { onNav?: () => void }) {
   const pathname = usePathname();
   return (
-    <>
-      <nav className="flex flex-col gap-1 px-3 pt-4">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Button
-              key={href}
-              render={<Link href={href} onClick={onNav} />}
-              variant="ghost"
-              className={cn(
-                "h-11 w-full justify-start gap-3 rounded-2xl px-4 text-[1rem] font-normal text-muted-foreground hover:bg-accent/70 hover:text-foreground",
-                active && "bg-accent text-foreground font-medium",
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              {label}
-            </Button>
-          );
-        })}
-        <ProjectsList onNav={onNav} />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <nav className="flex-1 overflow-y-auto px-3 pt-4">
+        <div className="flex flex-col gap-1">
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const active = pathname === href || pathname.startsWith(href + "/");
+            return (
+              <Button
+                key={href}
+                render={<Link href={href} onClick={onNav} />}
+                variant="ghost"
+                className={cn(
+                  "h-11 w-full justify-start gap-3 rounded-2xl px-4 text-[1rem] font-normal text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+                  active && "bg-accent text-foreground font-medium",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {label}
+              </Button>
+            );
+          })}
+          <ProjectsList onNav={onNav} />
+        </div>
       </nav>
-    </>
+
+      <form action={signOutAction} className="border-t px-3 pb-4 pt-3">
+        <Button
+          type="submit"
+          variant="ghost"
+          className="h-11 w-full justify-start gap-3 rounded-2xl px-4 text-[1rem] font-normal text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+        >
+          <LogOutIcon className="size-4 shrink-0" />
+          Sign out
+        </Button>
+      </form>
+    </div>
   );
 }
 
@@ -115,7 +129,7 @@ export function MobileHeader() {
       {/* Drawer */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-[305px] bg-background shadow-xl transition-transform duration-200 md:hidden",
+          "fixed inset-y-0 left-0 z-50 flex w-[305px] flex-col bg-background shadow-xl transition-transform duration-200 md:hidden",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
