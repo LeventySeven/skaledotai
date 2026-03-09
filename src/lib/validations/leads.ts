@@ -45,3 +45,17 @@ export const LeadPatchSchema = z.object({
   budget: z.number().nullable().optional(),
 });
 export type LeadPatch = z.infer<typeof LeadPatchSchema>;
+
+export const LeadSortSchema = z.enum(["followers-desc", "followers-asc", "name-asc"]);
+export type LeadSort = z.infer<typeof LeadSortSchema>;
+
+export const ListLeadsInputSchema = z.object({
+  page: z.number().int().positive().default(1),
+  pageSize: z.number().int().positive().max(100).default(25),
+  sort: LeadSortSchema.default("followers-desc"),
+  search: z.string().default(""),
+  projectId: z.string().uuid().optional(),
+  inOutreach: z.boolean().optional(),
+  stage: z.enum(["all", ...LeadStageSchema.options]).default("all"),
+});
+export type ListLeadsInput = z.infer<typeof ListLeadsInputSchema>;

@@ -1,6 +1,6 @@
-import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { createApiKey, deleteApiKey, listApiKeys } from "@/server/services/api-keys";
+import { CreateApiKeyInputSchema, DeleteApiKeyInputSchema } from "@/lib/validations/settings";
 
 export const settingsRouter = router({
   apiKeys: router({
@@ -8,11 +8,11 @@ export const settingsRouter = router({
       .query(({ ctx }) => listApiKeys(ctx.userId)),
 
     create: protectedProcedure
-      .input(z.object({ name: z.string().min(1) }))
+      .input(CreateApiKeyInputSchema)
       .mutation(({ ctx, input }) => createApiKey(ctx.userId, input.name)),
 
     delete: protectedProcedure
-      .input(z.object({ id: z.string().uuid() }))
+      .input(DeleteApiKeyInputSchema)
       .mutation(({ ctx, input }) => deleteApiKey(ctx.userId, input.id)),
   }),
 });

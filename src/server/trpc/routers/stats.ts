@@ -1,18 +1,14 @@
-import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { getPostStats } from "@/server/services/stats";
 import { refreshProfileStats } from "@/server/services/search";
+import { GetPostStatsInputSchema, RefreshStatsInputSchema } from "@/lib/validations/stats";
 
 export const statsRouter = router({
   get: protectedProcedure
-    .input(z.object({ profileId: z.string().uuid() }))
+    .input(GetPostStatsInputSchema)
     .query(({ ctx, input }) => getPostStats(ctx.userId, input.profileId)),
 
   refresh: protectedProcedure
-    .input(z.object({
-      profileId: z.string().uuid(),
-      crmId: z.string().uuid().optional(),
-      niche: z.string().optional(),
-    }))
+    .input(RefreshStatsInputSchema)
     .mutation(({ ctx, input }) => refreshProfileStats(ctx.userId, input)),
 });

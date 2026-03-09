@@ -2,20 +2,11 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { assertProject } from "@/server/services/projects";
 import { deleteLead, enrichLeadEmails, listLeads, scanProjectEmails, updateLead, updateLeads } from "@/server/services/leads";
-import { LeadPatchSchema } from "@/lib/validations/leads";
-import { LeadStageSchema } from "@/lib/validations/shared";
+import { LeadPatchSchema, ListLeadsInputSchema } from "@/lib/validations/leads";
 
 export const leadsRouter = router({
   list: protectedProcedure
-    .input(z.object({
-      page: z.number().int().positive().default(1),
-      pageSize: z.number().int().positive().max(100).default(25),
-      sort: z.enum(["followers-desc", "followers-asc", "name-asc"]).default("followers-desc"),
-      search: z.string().default(""),
-      projectId: z.string().uuid().optional(),
-      inOutreach: z.boolean().optional(),
-      stage: z.enum(["all", ...LeadStageSchema.options]).default("all"),
-    }))
+    .input(ListLeadsInputSchema)
     .query(async ({ ctx, input }) => {
       if (input.projectId) await assertProject(ctx.userId, input.projectId);
       return listLeads({ userId: ctx.userId, ...input });

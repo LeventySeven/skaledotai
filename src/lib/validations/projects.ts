@@ -46,3 +46,9 @@ export const CreateProjectInputSchema = z.object({
   seedUsername: z.string().optional(),
 });
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
+
+export const AnalyzeProjectsInputSchema = z.object({
+  projectIds: z.array(z.string().uuid()).min(1),
+  name: z.string().optional(),
+});
+export type AnalyzeProjectsInput = z.infer<typeof AnalyzeProjectsInputSchema>;
