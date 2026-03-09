@@ -1,7 +1,9 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import type { OutreachTemplate, Priority, ProjectAnalysisResult, XProfile } from "@/lib/types";
+import type { ProjectAnalysisResult } from "@/lib/validations/projects";
+import type { Priority } from "@/lib/validations/shared";
+import type { OutreachTemplate, XProfile } from "@/lib/types";
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";
 const DEFAULT_REASONING_EFFORT =

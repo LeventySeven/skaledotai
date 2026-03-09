@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
-import type { ProjectAnalysisResult, ProjectOverview } from "@/lib/types";
+import type { ProjectAnalysisResult, ProjectOverview } from "@/lib/validations/projects";
 
 function formatFollowers(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;

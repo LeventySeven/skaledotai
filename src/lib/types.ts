@@ -1,6 +1,6 @@
-import type { Priority } from "@/lib/validations/shared";
 export type { Platform, Priority, LeadStage, DiscoverySource } from "@/lib/validations/shared";
 export type { Lead, LeadPatch } from "@/lib/validations/leads";
+export type { Project, ProjectPreviewLead, ProjectOverview, ProjectAnalysisResult } from "@/lib/validations/projects";
 
 export type PostStats = {
   id: string;
@@ -12,41 +12,6 @@ export type PostStats = {
   avgReplies?: number;
   avgReposts?: number;
   topTopics?: string[];
-};
-
-export type Project = {
-  id: string;
-  name: string;
-  query?: string;
-  seedUsername?: string;
-  createdAt: string;
-  leadCount?: number;
-};
-
-export type ProjectPreviewLead = {
-  id: string;
-  name: string;
-  handle: string;
-  bio: string;
-  followers: number;
-  priority: Priority;
-  avatarUrl?: string;
-};
-
-export type ProjectOverview = Project & {
-  leadCount: number;
-  avgFollowers: number;
-  topFollowers: number;
-  p0LeadCount: number;
-  previewLeads: ProjectPreviewLead[];
-};
-
-export type ProjectAnalysisResult = {
-  summary: string;
-  selectedLeadIds: string[];
-  project: Project;
-  previewLeads: ProjectPreviewLead[];
-  analyzedProjectIds: string[];
 };
 
 export type OutreachTemplate = {

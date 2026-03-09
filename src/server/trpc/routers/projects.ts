@@ -9,6 +9,7 @@ import {
   getProjects,
   queueProjectInfluencers,
 } from "@/server/services/projects";
+import { CreateProjectInputSchema } from "@/lib/validations/projects";
 
 export const projectsRouter = router({
   list: protectedProcedure
@@ -18,11 +19,7 @@ export const projectsRouter = router({
     .query(({ ctx }) => getProjectOverviews(ctx.userId)),
 
   create: protectedProcedure
-    .input(z.object({
-      name: z.string().min(1),
-      query: z.string().optional(),
-      seedUsername: z.string().optional(),
-    }))
+    .input(CreateProjectInputSchema)
     .mutation(({ ctx, input }) => createProject(ctx.userId, input)),
 
   delete: protectedProcedure

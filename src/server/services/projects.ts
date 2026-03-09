@@ -10,7 +10,7 @@ import type {
   ProjectAnalysisResult,
   ProjectOverview,
   ProjectPreviewLead,
-} from "@/lib/types";
+} from "@/lib/validations/projects";
 import { upsertPostStats } from "./stats";
 
 function rowToProject(row: typeof projects.$inferSelect, leadCount?: number): Project {
