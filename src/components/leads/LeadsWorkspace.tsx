@@ -85,6 +85,7 @@ export function LeadsWorkspace() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [allFilteredSelected, setAllFilteredSelected] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -92,6 +93,7 @@ export function LeadsWorkspace() {
     setProjectId(projectParam);
     setPage(1);
     setSelectedIds([]);
+    setAllFilteredSelected(false);
   }, [projectParam]);
 
   const listQuery = trpc.leads.list.useQuery({
@@ -127,8 +129,8 @@ export function LeadsWorkspace() {
     [projectId, projects],
   );
 
-  const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedIds.includes(lead.id));
-  const selectedCount = selectedIds.length;
+  const allVisibleSelected = allFilteredSelected || (leads.length > 0 && leads.every((lead) => selectedIds.includes(lead.id)));
+  const selectedCount = allFilteredSelected ? total : selectedIds.length;
 
   async function handlePatch(id: string, patch: Partial<Lead>) {
     await updateLead.mutateAsync({
@@ -138,13 +140,25 @@ export function LeadsWorkspace() {
   }
 
   function toggleRowSelection(leadId: string, checked: boolean) {
+    setAllFilteredSelected(false);
     setSelectedIds((current) =>
       checked ? [...new Set([...current, leadId])] : current.filter((id) => id !== leadId),
     );
   }
 
   function toggleAllSelection(checked: boolean) {
+    setAllFilteredSelected(false);
     setSelectedIds(checked ? leads.map((lead) => lead.id) : []);
+  }
+
+  function selectEntireSheet() {
+    setAllFilteredSelected(true);
+    setSelectedIds([]);
+  }
+
+  function clearSelection() {
+    setAllFilteredSelected(false);
+    setSelectedIds([]);
   }
 
   function updateProjectFilter(nextProjectId: string) {
@@ -208,8 +222,8 @@ export function LeadsWorkspace() {
   }
 
   return (
-    <div className="px-6 py-5">
-      <div className="mx-auto max-w-[1680px]">
+    <div className="px-4 py-4">
+      <div className="mx-auto max-w-[1820px]">
         <div className="mb-4 flex items-start justify-between gap-6">
           <div>
             <div className="flex items-center gap-3">
@@ -224,9 +238,29 @@ export function LeadsWorkspace() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {total > 0 ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="h-9 rounded-xl px-3.5 text-[0.92rem]"
+                  onClick={selectEntireSheet}
+                >
+                  Select entire sheet
+                </Button>
+                {selectedCount > 0 ? (
+                  <Button
+                    variant="outline"
+                    className="h-9 rounded-xl px-3.5 text-[0.92rem]"
+                    onClick={clearSelection}
+                  >
+                    Clear selection
+                  </Button>
+                ) : null}
+              </>
+            ) : null}
             <Button
               variant="outline"
-              className="h-9 rounded-2xl px-4 text-[0.96rem]"
+              className="h-9 rounded-xl px-3.5 text-[0.92rem]"
               disabled={refreshStats.isPending || leads.length === 0}
               onClick={() => {
                 handleScanBios().catch((error: unknown) => {
@@ -239,7 +273,7 @@ export function LeadsWorkspace() {
             </Button>
             <Button
               variant="outline"
-              className="h-9 rounded-2xl px-4 text-[0.96rem]"
+              className="h-9 rounded-xl px-3.5 text-[0.92rem]"
               disabled={enrichEmails.isPending || scanEmails.isPending}
               onClick={() => {
                 handleEnrichEmails().catch((error: unknown) => {
@@ -256,7 +290,7 @@ export function LeadsWorkspace() {
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">
             <select
-              className="h-10 min-w-[230px] rounded-2xl border border-input bg-background px-4 text-[0.98rem] shadow-xs/5"
+              className="h-9 min-w-[200px] rounded-xl border border-input bg-background px-3 text-[0.9rem] shadow-xs/5"
               value={projectId}
               onChange={(event) => updateProjectFilter(event.target.value)}
             >
@@ -269,7 +303,7 @@ export function LeadsWorkspace() {
             </select>
 
             <select
-              className="h-10 min-w-[200px] rounded-2xl border border-input bg-background px-4 text-[0.98rem] shadow-xs/5"
+              className="h-9 min-w-[150px] rounded-xl border border-input bg-background px-3 text-[0.9rem] shadow-xs/5"
               value={stage}
               onChange={(event) => {
                 setStage(event.target.value as typeof stage);
@@ -284,7 +318,7 @@ export function LeadsWorkspace() {
             </select>
 
             <select
-              className="h-10 min-w-[230px] rounded-2xl border border-input bg-background px-4 text-[0.98rem] shadow-xs/5"
+              className="h-9 min-w-[180px] rounded-xl border border-input bg-background px-3 text-[0.9rem] shadow-xs/5"
               value={sort}
               onChange={(event) => setSort(event.target.value as typeof sort)}
             >
@@ -295,7 +329,7 @@ export function LeadsWorkspace() {
           </div>
 
           <Input
-            className="h-10 w-full max-w-[285px] rounded-2xl text-[0.98rem]"
+            className="h-9 w-full max-w-[230px] rounded-xl text-[0.9rem]"
             placeholder="Search leads..."
             value={search}
             onChange={(event) => {
@@ -305,7 +339,7 @@ export function LeadsWorkspace() {
           />
         </div>
 
-        <div className="overflow-hidden rounded-[1.25rem] border border-border bg-card">
+        <div className="overflow-hidden rounded-none border border-border bg-background">
           {listQuery.isLoading ? (
             <div className="flex h-[320px] items-center justify-center text-muted-foreground">
               <Spinner className="size-4" />
@@ -324,68 +358,68 @@ export function LeadsWorkspace() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table className="text-[0.96rem]">
-              <TableHeader className="[&_tr]:border-b">
-                <TableRow className="h-12 hover:bg-transparent">
-                  <TableHead className="w-[56px] px-5">
+            <Table className="text-[0.9rem]">
+              <TableHeader className="bg-muted/15 [&_tr]:border-b [&_tr]:border-border">
+                <TableRow className="h-10 hover:bg-transparent">
+                  <TableHead className="w-[40px] border-r border-border px-2">
                     <Checkbox checked={allVisibleSelected} onCheckedChange={(value) => toggleAllSelection(Boolean(value))} />
                   </TableHead>
-                  <TableHead className="min-w-[280px]">Name</TableHead>
-                  <TableHead className="w-[150px]">Platform</TableHead>
-                  <TableHead>Bio</TableHead>
-                  <TableHead className="w-[160px]">Followers</TableHead>
-                  <TableHead className="w-[130px]">Priority</TableHead>
-                  <TableHead className="w-[110px]">DMed</TableHead>
-                  <TableHead className="w-[110px]">Replied</TableHead>
-                  <TableHead className="w-[130px]">Email</TableHead>
-                  <TableHead className="w-[70px]" />
+                  <TableHead className="min-w-[230px] border-r border-border">Name</TableHead>
+                  <TableHead className="w-[68px] border-r border-border">X</TableHead>
+                  <TableHead className="min-w-[250px] border-r border-border">Bio</TableHead>
+                  <TableHead className="w-[86px] border-r border-border">Followers</TableHead>
+                  <TableHead className="w-[70px] border-r border-border">P</TableHead>
+                  <TableHead className="w-[64px] border-r border-border">DM</TableHead>
+                  <TableHead className="w-[72px] border-r border-border">Reply</TableHead>
+                  <TableHead className="w-[96px] border-r border-border">Email</TableHead>
+                  <TableHead className="w-[40px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {leads.map((lead) => (
-                  <TableRow key={lead.id} className="h-[68px] border-b" onClick={() => {
+                  <TableRow key={lead.id} className="h-[52px] border-b border-border hover:bg-transparent" onClick={() => {
                     setSelectedLead(lead);
                     setSheetOpen(true);
                   }}>
-                    <TableCell className="px-5" onClick={(event) => event.stopPropagation()}>
+                    <TableCell className="border-r border-border px-2" onClick={(event) => event.stopPropagation()}>
                       <Checkbox
-                        checked={selectedIds.includes(lead.id)}
+                        checked={allFilteredSelected || selectedIds.includes(lead.id)}
                         onCheckedChange={(value) => toggleRowSelection(lead.id, Boolean(value))}
                       />
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="size-10">
+                    <TableCell className="border-r border-border">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="size-8">
                           {lead.avatarUrl ? <AvatarImage src={lead.avatarUrl} alt={lead.name} /> : null}
                           <AvatarFallback>{initials(lead.name)}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <div className="truncate text-[1rem] font-semibold">{lead.name}</div>
-                          <div className="truncate text-[0.95rem] text-muted-foreground">@{lead.handle}</div>
+                          <div className="truncate text-[0.94rem] font-semibold">{lead.name}</div>
+                          <div className="truncate text-[0.82rem] text-muted-foreground">@{lead.handle}</div>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="h-7 rounded-md px-2.5 text-sm font-medium lowercase">
+                    <TableCell className="border-r border-border">
+                      <Badge variant="outline" className="h-6 rounded-sm px-1.5 text-[0.76rem] font-medium lowercase">
                         x
                       </Badge>
                     </TableCell>
-                    <TableCell className="max-w-[420px]">
-                      <div className="truncate text-muted-foreground">{lead.bio || "—"}</div>
+                    <TableCell className="max-w-[250px] border-r border-border">
+                      <div className="truncate text-[0.86rem] text-muted-foreground">{lead.bio || "—"}</div>
                     </TableCell>
-                    <TableCell className="text-[1rem] font-semibold">{formatFollowers(lead.followers)}</TableCell>
-                    <TableCell>
+                    <TableCell className="border-r border-border text-[0.92rem] font-semibold">{formatFollowers(lead.followers)}</TableCell>
+                    <TableCell className="border-r border-border">
                       <Badge
                         variant="outline"
                         className={cn(
-                          "h-7 rounded-md border-transparent px-2.5 text-sm font-semibold",
+                          "h-6 rounded-sm border-transparent px-1.5 text-[0.76rem] font-semibold",
                           lead.priority === "P0" ? "bg-orange-100 text-orange-700" : "bg-muted text-muted-foreground",
                         )}
                       >
                         {lead.priority}
                       </Badge>
                     </TableCell>
-                    <TableCell onClick={(event) => event.stopPropagation()}>
+                    <TableCell className="border-r border-border" onClick={(event) => event.stopPropagation()}>
                       <Checkbox
                         checked={isDMed(lead)}
                         onCheckedChange={(value) => {
@@ -396,7 +430,7 @@ export function LeadsWorkspace() {
                         }}
                       />
                     </TableCell>
-                    <TableCell onClick={(event) => event.stopPropagation()}>
+                    <TableCell className="border-r border-border" onClick={(event) => event.stopPropagation()}>
                       <Checkbox
                         checked={isReplied(lead)}
                         onCheckedChange={(value) => {
@@ -407,11 +441,11 @@ export function LeadsWorkspace() {
                         }}
                       />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{lead.email ?? "—"}</TableCell>
+                    <TableCell className="border-r border-border text-[0.82rem] text-muted-foreground">{lead.email ?? "—"}</TableCell>
                     <TableCell onClick={(event) => event.stopPropagation()}>
                       <button
                         type="button"
-                        className="inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        className="inline-flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                         onClick={() => {
                           setSelectedLead(lead);
                           setSheetOpen(true);
@@ -427,8 +461,8 @@ export function LeadsWorkspace() {
           )}
         </div>
 
-        <div className="mt-6 flex flex-col gap-5 text-muted-foreground xl:flex-row xl:items-end xl:justify-between">
-          <div className="text-[1rem]">
+        <div className="mt-4 flex flex-col gap-4 text-muted-foreground xl:flex-row xl:items-end xl:justify-between">
+          <div className="text-[0.92rem]">
             <div>{total}</div>
             <div>leads</div>
           </div>
