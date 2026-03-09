@@ -15,11 +15,9 @@ import {
   searchRecentPosts,
   searchUsers,
 } from "@/lib/x-api";
+import { NETWORK_TARGET, SEARCH_TARGET } from "@/lib/constants";
 import { addProfilesToProject } from "./leads";
 import { createProject, getProjectById } from "./projects";
-
-const SEARCH_TARGET = 40;
-const NETWORK_TARGET = 1000;
 
 type Candidate = XProfile & {
   samplePosts: string[];

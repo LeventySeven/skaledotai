@@ -5,10 +5,7 @@ import type { ProjectAnalysisResult } from "@/lib/validations/projects";
 import type { Priority } from "@/lib/validations/shared";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
 import type { XProfile } from "@/lib/validations/search";
-
-const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";
-const DEFAULT_REASONING_EFFORT =
-  process.env.OPENAI_REASONING_EFFORT ?? "medium";
+import { DEFAULT_OPENAI_MODEL, DEFAULT_OPENAI_REASONING_EFFORT } from "@/lib/constants";
 
 type StructuredResponse<T> = {
   schemaName: string;
@@ -41,7 +38,7 @@ async function structuredResponse<T>({
 
   try {
     const response = await openai.responses.parse({
-      model: DEFAULT_MODEL,
+      model: DEFAULT_OPENAI_MODEL,
       input: [
         {
           role: "system",
@@ -53,7 +50,7 @@ async function structuredResponse<T>({
         },
       ],
       reasoning: {
-        effort: DEFAULT_REASONING_EFFORT as
+        effort: DEFAULT_OPENAI_REASONING_EFFORT as
           | "none"
           | "minimal"
           | "low"

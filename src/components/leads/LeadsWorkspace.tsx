@@ -24,8 +24,7 @@ import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import type { Lead } from "@/lib/validations/leads";
-
-const PAGE_SIZE = 10;
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants";
 
 function formatFollowers(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -98,7 +97,7 @@ export function LeadsWorkspace() {
 
   const listQuery = trpc.leads.list.useQuery({
     page,
-    pageSize: PAGE_SIZE,
+    pageSize: DEFAULT_PAGE_SIZE,
     projectId: projectId || undefined,
     search: deferredSearch,
     sort,
@@ -123,7 +122,7 @@ export function LeadsWorkspace() {
 
   const leads = listQuery.data?.leads ?? [];
   const total = listQuery.data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / DEFAULT_PAGE_SIZE));
   const currentProject = useMemo(
     () => projects.find((project) => project.id === projectId),
     [projectId, projects],
