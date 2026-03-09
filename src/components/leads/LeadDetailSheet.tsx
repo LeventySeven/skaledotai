@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import type { Lead } from "@/lib/validations/leads";
-import type { PostStats } from "@/lib/types";
+import type { PostStats } from "@/lib/validations/stats";
 import { cn } from "@/lib/utils";
 import { BarChart2Icon } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";

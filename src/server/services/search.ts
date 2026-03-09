@@ -3,7 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { extractTopicsAndPriority, rankProfilesForQuery } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
-import type { PostStats, SearchLeadInput, XProfile } from "@/lib/types";
+import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
+import type { PostStats } from "@/lib/validations/stats";
 import {
   buildPostSearchQuery,
   buildReplySearchQuery,

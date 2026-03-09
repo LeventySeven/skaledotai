@@ -1,4 +1,4 @@
-import type { XProfile } from "@/lib/types";
+import type { XProfile } from "@/lib/validations/search";
 
 const X_API_BASE = "https://api.x.com/2";
 const USER_FIELDS = [

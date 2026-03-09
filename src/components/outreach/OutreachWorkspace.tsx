@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
-import type { OutreachTemplate } from "@/lib/types";
+import type { OutreachTemplate } from "@/lib/validations/outreach";
 
 const STORAGE_KEY = "skaleai-generated-outreach-templates";
 

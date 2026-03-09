@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { leads, postStats } from "@/db/schema";
-import type { PostStats } from "@/lib/types";
+import type { PostStats } from "@/lib/validations/stats";
 
 function rowToPostStats(row: typeof postStats.$inferSelect): PostStats {
   return {

@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { leads, projectLeads } from "@/db/schema";
 import type { Lead, LeadPatch } from "@/lib/validations/leads";
 import type { DiscoverySource } from "@/lib/validations/shared";
-import type { XProfile } from "@/lib/types";
+import type { XProfile } from "@/lib/validations/search";
 
 export function rowToLead(
   row: typeof leads.$inferSelect,
