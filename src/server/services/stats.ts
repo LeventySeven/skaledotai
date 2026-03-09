@@ -1,7 +1,7 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { postStats } from "@/db/schema";
+import { leads, postStats } from "@/db/schema";
 import type { PostStats } from "@/lib/types";
 
 function rowToPostStats(row: typeof postStats.$inferSelect): PostStats {
@@ -18,14 +18,15 @@ function rowToPostStats(row: typeof postStats.$inferSelect): PostStats {
   };
 }
 
-export async function getPostStats(leadId: string): Promise<PostStats | null> {
+export async function getPostStats(userId: string, leadId: string): Promise<PostStats | null> {
   const [row] = await db
     .select()
     .from(postStats)
-    .where(eq(postStats.leadId, leadId))
+    .innerJoin(leads, eq(leads.id, postStats.leadId))
+    .where(and(eq(postStats.leadId, leadId), eq(leads.userId, userId)))
     .limit(1);
 
-  return row ? rowToPostStats(row) : null;
+  return row ? rowToPostStats(row.post_stats) : null;
 }
 
 export async function upsertPostStats(input: {

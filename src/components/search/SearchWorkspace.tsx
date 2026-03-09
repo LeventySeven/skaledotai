@@ -22,8 +22,8 @@ function SegmentedButton({
     <button
       type="button"
       className={cn(
-        "h-11 rounded-xl px-5 text-[1.05rem] font-medium transition-colors",
-        active ? "bg-white text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-muted-foreground",
+        "h-[42px] rounded-[12px] px-6 text-[0.98rem] font-medium transition-colors",
+        active ? "bg-white text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-foreground",
       )}
     >
       {children}
@@ -107,18 +107,18 @@ export function SearchWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-[1250px] px-8 py-10">
+    <div className="mx-auto max-w-[1260px] px-9 py-10">
       <div className="max-w-[780px]">
-        <h1 className="text-[3.2rem] font-semibold tracking-[-0.04em]">Search</h1>
+        <h1 className="text-[3.15rem] font-semibold tracking-[-0.04em]">Search</h1>
         <p className="mt-3 text-[1.05rem] text-muted-foreground">
           Find people in any niche on X/Twitter.
         </p>
 
-        <form className="mt-12 space-y-11" onSubmit={handleSearch}>
+        <form className="mt-12 space-y-12" onSubmit={handleSearch}>
           <div className="space-y-3">
             <label className="block text-[1.05rem] font-semibold">What are you looking for?</label>
             <Input
-              className="h-12 rounded-2xl text-[1rem]"
+              className="h-[44px] rounded-2xl text-[1rem]"
               placeholder="e.g. best product designers"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -131,7 +131,7 @@ export function SearchWorkspace() {
               Project <span className="ml-2 font-normal text-muted-foreground">(optional)</span>
             </label>
             <select
-              className="flex h-12 w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="flex h-[44px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
               value={projectMode}
               onChange={(event) => setProjectMode(event.target.value as "new" | "existing")}
             >
@@ -141,7 +141,7 @@ export function SearchWorkspace() {
             {projectMode === "new" ? (
               <>
                 <Input
-                  className="h-12 rounded-2xl text-[1rem]"
+                  className="h-[44px] rounded-2xl text-[1rem]"
                   placeholder="e.g. Designers campaign"
                   value={projectName}
                   onChange={(event) => setProjectName(event.target.value)}
@@ -152,7 +152,7 @@ export function SearchWorkspace() {
               </>
             ) : (
               <select
-                className="flex h-12 w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+                className="flex h-[44px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
                 value={projectId}
                 onChange={(event) => setProjectId(event.target.value)}
                 required
@@ -184,7 +184,7 @@ export function SearchWorkspace() {
             </label>
             {searchFollowersOnly && (
               <Input
-                className="h-12 rounded-2xl text-[1rem]"
+                className="h-[44px] rounded-2xl text-[1rem]"
                 placeholder="@markknd"
                 value={followerUsername}
                 onChange={(event) => setFollowerUsername(event.target.value)}
@@ -193,10 +193,10 @@ export function SearchWorkspace() {
           </div>
 
           <Button
-            className="h-12 w-full rounded-2xl text-[1rem] font-medium"
+            className="h-[44px] w-full rounded-2xl text-[1rem] font-medium"
             disabled={searchMutation.isPending}
           >
-            {searchMutation.isPending ? <Spinner className="size-4" /> : <SearchIcon className="size-4" />}
+            {searchMutation.isPending ? <Spinner className="size-4" /> : null}
             {searchMutation.isPending ? "Running Search" : "Run Search"}
           </Button>
         </form>
@@ -218,7 +218,7 @@ export function SearchWorkspace() {
           <div className="space-y-3">
             <label className="block text-[1.05rem] font-semibold">Twitter handle</label>
             <Input
-              className="h-12 rounded-2xl text-[1rem]"
+              className="h-[44px] rounded-2xl text-[1rem]"
               placeholder="@MarkKnd"
               value={networkUsername}
               onChange={(event) => setNetworkUsername(event.target.value)}
@@ -228,7 +228,7 @@ export function SearchWorkspace() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <select
-              className="flex h-12 w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="flex h-[44px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
               value={networkProjectMode}
               onChange={(event) => setNetworkProjectMode(event.target.value as "new" | "existing")}
             >
@@ -237,14 +237,14 @@ export function SearchWorkspace() {
             </select>
             {networkProjectMode === "new" ? (
               <Input
-                className="h-12 rounded-2xl text-[1rem]"
+                className="h-[44px] rounded-2xl text-[1rem]"
                 placeholder="Project name (optional)"
                 value={networkProjectName}
                 onChange={(event) => setNetworkProjectName(event.target.value)}
               />
             ) : (
               <select
-                className="flex h-12 w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+                className="flex h-[44px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
                 value={networkProjectId}
                 onChange={(event) => setNetworkProjectId(event.target.value)}
                 required
@@ -261,7 +261,7 @@ export function SearchWorkspace() {
 
           <Button
             variant="outline"
-            className="h-12 w-full rounded-2xl text-[1rem] font-medium"
+            className="h-[44px] w-full rounded-2xl text-[1rem] font-medium"
             disabled={importMutation.isPending}
           >
             {importMutation.isPending ? <Spinner className="size-4" /> : null}

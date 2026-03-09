@@ -22,6 +22,12 @@ export function rowToLead(
     platform: row.platform as "twitter",
     followers: row.followers,
     following: row.following ?? undefined,
+    tweetCount: row.tweetCount ?? undefined,
+    listedCount: row.listedCount ?? undefined,
+    verified: row.verified,
+    verifiedType: row.verifiedType ?? undefined,
+    location: row.location ?? undefined,
+    url: row.url ?? undefined,
     avatarUrl: row.avatarUrl ?? undefined,
     profileUrl: row.profileUrl ?? undefined,
     email: row.email ?? undefined,
@@ -61,6 +67,7 @@ export async function listLeads(input: {
     : leads.name;
 
   let rows: Array<{ lead: typeof leads.$inferSelect; resolvedProjectId: string | null }>;
+  let count: number;
 
   if (projectId) {
     rows = await db
@@ -74,21 +81,33 @@ export async function listLeads(input: {
       .orderBy(orderCol)
       .limit(pageSize)
       .offset((page - 1) * pageSize);
+
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .innerJoin(
+        projectLeads,
+        and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
+      )
+      .where(and(...conditions));
+
+    count = countRow?.count ?? 0;
   } else {
     rows = await db
-      .select({ lead: leads, resolvedProjectId: projectLeads.projectId })
+      .select({ lead: leads, resolvedProjectId: sql<string | null>`null` })
       .from(leads)
-      .leftJoin(projectLeads, eq(projectLeads.leadId, leads.id))
       .where(and(...conditions))
       .orderBy(orderCol)
       .limit(pageSize)
       .offset((page - 1) * pageSize);
-  }
 
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(leads)
-    .where(and(...conditions));
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(and(...conditions));
+
+    count = countRow?.count ?? 0;
+  }
 
   return {
     leads: rows.map((r) => rowToLead(r.lead, r.resolvedProjectId ?? undefined)),
@@ -96,8 +115,12 @@ export async function listLeads(input: {
   };
 }
 
-export async function getLeadById(leadId: string): Promise<Lead | null> {
-  const [row] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+export async function getLeadById(userId: string, leadId: string): Promise<Lead | null> {
+  const [row] = await db
+    .select()
+    .from(leads)
+    .where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
+    .limit(1);
   return row ? rowToLead(row) : null;
 }
 
@@ -142,6 +165,8 @@ export async function addProfilesToProject(input: {
   const result: Lead[] = [];
 
   for (const profile of input.profiles) {
+    const discoverySource = (profile.source as DiscoverySource | undefined) ?? input.discoverySource;
+
     const [lead] = await db
       .insert(leads)
       .values({
@@ -153,9 +178,15 @@ export async function addProfilesToProject(input: {
         platform: "twitter",
         followers: profile.followersCount,
         following: profile.followingCount,
+        tweetCount: profile.tweetCount,
+        listedCount: profile.listedCount,
+        verified: profile.verified ?? false,
+        verifiedType: profile.verifiedType,
+        location: profile.location,
+        url: profile.url,
         avatarUrl: profile.avatarUrl,
         profileUrl: profile.profileUrl,
-        discoverySource: input.discoverySource,
+        discoverySource,
         discoveryQuery: input.discoveryQuery,
       })
       .onConflictDoUpdate({
@@ -165,9 +196,17 @@ export async function addProfilesToProject(input: {
           bio: profile.bio,
           followers: profile.followersCount,
           following: profile.followingCount,
+          tweetCount: profile.tweetCount,
+          listedCount: profile.listedCount,
+          verified: profile.verified ?? false,
+          verifiedType: profile.verifiedType,
+          location: profile.location,
+          url: profile.url,
           avatarUrl: profile.avatarUrl,
           profileUrl: profile.profileUrl,
           xUserId: profile.xUserId,
+          discoverySource,
+          discoveryQuery: input.discoveryQuery,
           updatedAt: new Date(),
         },
       })

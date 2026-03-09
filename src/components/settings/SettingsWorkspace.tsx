@@ -62,10 +62,10 @@ export function SettingsWorkspace() {
       <div className="my-12 h-px bg-border" />
 
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-[2rem] font-semibold tracking-[-0.03em]">API Keys</h2>
+        <h2 className="text-[1.95rem] font-semibold tracking-[-0.03em]">API Keys</h2>
         <Button
           variant="outline"
-          className="h-11 rounded-2xl px-5 text-[1rem]"
+          className="h-[40px] rounded-2xl px-5 text-[1rem]"
           onClick={() => setShowCreateForm((current) => !current)}
         >
           <PlusIcon className="size-4" />
@@ -76,13 +76,13 @@ export function SettingsWorkspace() {
       {showCreateForm && (
         <form className="mt-6 flex gap-3" onSubmit={handleCreate}>
           <Input
-            className="h-12 rounded-2xl text-[1rem]"
+            className="h-[44px] rounded-2xl text-[1rem]"
             placeholder="Name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
           />
-          <Button className="h-12 rounded-2xl px-5 text-[1rem]" disabled={createKey.isPending}>
+          <Button className="h-[44px] rounded-2xl px-5 text-[1rem]" disabled={createKey.isPending}>
             {createKey.isPending ? "Generating..." : "Generate"}
           </Button>
         </form>
@@ -142,6 +142,19 @@ export function SettingsWorkspace() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="my-12 h-px bg-border" />
+
+      <div>
+        <h3 className="text-[1.8rem] font-semibold tracking-[-0.03em]">Using the API</h3>
+        <p className="mt-3 text-[1rem] text-muted-foreground">
+          Pass your key as an <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[0.94rem]">x-api-key</span>{" "}
+          header on all requests to <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[0.94rem]">/api/v1/*</span>.
+        </p>
+        <p className="mt-4 text-[1rem] text-muted-foreground">
+          See <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[0.94rem]">SKILL.md</span> at the project root for the full endpoint reference.
+        </p>
       </div>
     </div>
   );

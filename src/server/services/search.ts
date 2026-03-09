@@ -192,7 +192,7 @@ export async function refreshProfileStats(
   userId: string,
   input: { profileId: string; crmId?: string; niche?: string },
 ): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
-  const profile = await getLeadById(input.profileId);
+  const profile = await getLeadById(userId, input.profileId);
   if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
   if (!profile.xUserId) throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X user ID." });
 

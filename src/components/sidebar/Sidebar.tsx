@@ -3,11 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon, LogOutIcon } from "lucide-react";
+import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { signOutAction } from "@/app/(auth)/actions";
 import { trpc } from "@/lib/trpc/client";
 
 const navItems = [
@@ -29,13 +28,13 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
     <div className="mt-2">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        className="flex w-full items-center gap-2 px-7 py-2 text-[0.92rem] font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronRightIcon className={cn("size-3 transition-transform", expanded && "rotate-90")} />
+        <ChevronRightIcon className={cn("size-3.5 transition-transform", expanded && "rotate-90")} />
         Projects
       </button>
       {expanded && (
-        <div className="mt-0.5 flex flex-col gap-0.5">
+        <div className="mt-1 flex flex-col gap-1">
           {projects.map((p) => {
             const href = `/leads?project=${p.id}`;
             const active =
@@ -46,14 +45,14 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
                 render={<Link href={href} onClick={onNav} />}
                 variant="ghost"
                 className={cn(
-                  "w-full justify-start gap-2 px-3 pl-7 text-xs font-normal text-muted-foreground hover:text-foreground h-7",
+                  "h-11 w-full justify-start gap-2.5 rounded-2xl px-10 text-[0.96rem] font-normal text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                   active && "bg-accent text-foreground font-medium",
                 )}
               >
-                <FolderIcon className="size-3 shrink-0" />
+                <FolderIcon className="size-4 shrink-0" />
                 <span className="truncate">{p.name}</span>
                 {p.leadCount !== undefined && (
-                  <span className="ml-auto text-[10px] text-muted-foreground/60">{p.leadCount}</span>
+                  <span className="ml-auto text-[0.92rem] text-muted-foreground/70">{p.leadCount}</span>
                 )}
               </Button>
             );
@@ -68,7 +67,7 @@ function NavContent({ onNav }: { onNav?: () => void }) {
   const pathname = usePathname();
   return (
     <>
-      <nav className="flex flex-col gap-0.5 p-2 pt-3">
+      <nav className="flex flex-col gap-1 px-3 pt-4">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
@@ -77,7 +76,7 @@ function NavContent({ onNav }: { onNav?: () => void }) {
               render={<Link href={href} onClick={onNav} />}
               variant="ghost"
               className={cn(
-                "w-full justify-start gap-2.5 px-3 text-sm font-normal text-muted-foreground hover:text-foreground",
+                "h-11 w-full justify-start gap-3 rounded-2xl px-4 text-[1rem] font-normal text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                 active && "bg-accent text-foreground font-medium",
               )}
             >
@@ -98,11 +97,11 @@ export function MobileHeader() {
   return (
     <>
       {/* Top bar — mobile only */}
-      <header className="flex h-14 shrink-0 items-center border-b bg-background px-4 md:hidden">
+      <header className="flex h-[74px] shrink-0 items-center border-b bg-background px-4 md:hidden">
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Open menu">
           <MenuIcon className="size-5" />
         </Button>
-        <span className="ml-3 text-sm font-semibold tracking-tight">Dashboard</span>
+        <span className="ml-3 text-[1.1rem] font-semibold tracking-tight">Dashboard</span>
       </header>
 
       {/* Drawer backdrop */}
@@ -116,12 +115,12 @@ export function MobileHeader() {
       {/* Drawer */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-[220px] bg-background shadow-xl transition-transform duration-200 md:hidden",
+          "fixed inset-y-0 left-0 z-50 w-[305px] bg-background shadow-xl transition-transform duration-200 md:hidden",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-14 items-center justify-between px-5 border-b">
-          <span className="text-sm font-semibold tracking-tight">Dashboard</span>
+        <div className="flex h-[74px] items-center justify-between border-b px-7">
+          <span className="text-[1.1rem] font-semibold tracking-tight">Dashboard</span>
           <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close menu">
             <XIcon className="size-4" />
           </Button>
@@ -134,26 +133,14 @@ export function MobileHeader() {
 
 export function Sidebar() {
   return (
-    <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r bg-background overflow-y-auto">
-      <div className="flex h-14 items-center px-5 shrink-0">
-        <span className="text-sm font-semibold tracking-tight">Dashboard</span>
+    <aside className="hidden h-screen w-[305px] shrink-0 flex-col border-r bg-background md:flex">
+      <div className="flex h-[74px] items-center px-7 shrink-0">
+        <span className="text-[1.1rem] font-semibold tracking-tight">Dashboard</span>
       </div>
 
       <Separator />
 
       <NavContent />
-
-      <div className="mt-auto p-2 border-t">
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"
-          >
-            <LogOutIcon className="size-4 shrink-0" />
-            Sign out
-          </button>
-        </form>
-      </div>
     </aside>
   );
 }

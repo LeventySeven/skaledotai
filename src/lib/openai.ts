@@ -13,6 +13,7 @@ type StructuredResponse<T> = {
   instructions: string;
   input: string;
   fallback: T;
+  maxOutputTokens?: number;
 };
 
 let client: OpenAI | null | undefined;
@@ -30,6 +31,7 @@ async function structuredResponse<T>({
   instructions,
   input,
   fallback,
+  maxOutputTokens,
 }: StructuredResponse<T>): Promise<T> {
   const openai = getClient();
   if (!openai) return fallback;
@@ -60,6 +62,7 @@ async function structuredResponse<T>({
         format: zodTextFormat(schema, schemaName),
         verbosity: "low",
       },
+      max_output_tokens: maxOutputTokens,
     });
 
     return response.output_parsed ?? fallback;
@@ -73,6 +76,7 @@ export async function rankProfilesForQuery(
   candidates: Array<XProfile & { samplePosts?: string[] }>,
 ): Promise<string[]> {
   const fallback = candidates.slice(0, 30).map((c) => c.xUserId);
+  if (candidates.length <= 12) return fallback;
 
   const input = JSON.stringify({
     query,
@@ -94,6 +98,7 @@ export async function rankProfilesForQuery(
       "Return only X profiles that are relevant to the search query. Be inclusive but remove clearly unrelated accounts. Keep the array ordered from most relevant to least relevant.",
     input,
     fallback: { profileIds: fallback },
+    maxOutputTokens: 220,
   });
 
   return result.profileIds;
@@ -104,6 +109,10 @@ export async function extractTopicsAndPriority(
   bio: string,
   posts: string[],
 ): Promise<{ topics: string[]; priority: Priority }> {
+  if (bio.trim().length === 0 && posts.length === 0) {
+    return { topics: [], priority: "P1" };
+  }
+
   const result = await structuredResponse<{ topics: string[]; priority: Priority }>({
     schemaName: "profile_topics_priority",
     schema: z.object({
@@ -118,6 +127,7 @@ export async function extractTopicsAndPriority(
       posts: posts.slice(0, 20),
     }),
     fallback: { topics: [], priority: "P1" },
+    maxOutputTokens: 160,
   });
 
   return result;
