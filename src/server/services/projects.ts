@@ -153,7 +153,7 @@ export async function queueProjectInfluencers(userId: string, projectId: string)
       and(
         eq(leads.userId, userId),
         eq(leads.inOutreach, false),
-        sql`${leads.id} = ANY(ARRAY[${sql.join(leadIds.map((id) => sql`${id}::uuid`), sql`, `)}])`,
+        inArray(leads.id, leadIds),
       ),
     )
     .returning({ id: leads.id });
