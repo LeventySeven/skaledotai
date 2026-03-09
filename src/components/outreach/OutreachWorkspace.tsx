@@ -57,22 +57,19 @@ export function OutreachWorkspace() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(["standard-1"]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
-  const [generatedTemplates, setGeneratedTemplates] = useState<OutreachTemplate[]>([]);
+  const [generatedTemplates, setGeneratedTemplates] = useState<OutreachTemplate[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = window.localStorage.getItem(GENERATED_TEMPLATES_STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as OutreachTemplate[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [stylePrompt, setStylePrompt] = useState("");
   const [importProjectId, setImportProjectId] = useState("");
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [uiError, setUiError] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(GENERATED_TEMPLATES_STORAGE_KEY);
-      if (raw) {
-        setGeneratedTemplates(JSON.parse(raw) as OutreachTemplate[]);
-      }
-    } catch {
-      setGeneratedTemplates([]);
-    }
-  }, []);
 
   useEffect(() => {
     if (projects.length > 0 && selectedProjectIds.length === 0) {
@@ -80,14 +77,6 @@ export function OutreachWorkspace() {
       setImportProjectId((current) => current || projects[0]?.id || "");
     }
   }, [projects, selectedProjectIds.length]);
-
-  useEffect(() => {
-    if (generatedTemplates.length > 0) {
-      window.localStorage.setItem(GENERATED_TEMPLATES_STORAGE_KEY, JSON.stringify(generatedTemplates));
-    } else {
-      window.localStorage.removeItem(GENERATED_TEMPLATES_STORAGE_KEY);
-    }
-  }, [generatedTemplates]);
 
   const updateLead = trpc.leads.update.useMutation({
     onSuccess: async () => {
@@ -139,7 +128,9 @@ export function OutreachWorkspace() {
         id: `generated-${Date.now()}`,
         generated: true,
       };
-      setGeneratedTemplates((current) => [...current, newTemplate]);
+      const updated = [...generatedTemplates, newTemplate];
+      setGeneratedTemplates(updated);
+      window.localStorage.setItem(GENERATED_TEMPLATES_STORAGE_KEY, JSON.stringify(updated));
       setSelectedTemplateIds((current) => [...new Set([...current, newTemplate.id])]);
       setUiError(null);
       toastManager.add({
