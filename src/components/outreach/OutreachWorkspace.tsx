@@ -250,16 +250,7 @@ export function OutreachWorkspace() {
           <h1 className="mt-1 text-[2.9rem] font-semibold tracking-[-0.04em]">Outreach</h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            className="h-10 rounded-xl px-4 text-[0.92rem]"
-            onClick={() => setShowAiPanel((current) => !current)}
-          >
-            AI analysis
-            <ChevronDownIcon className={`size-4 transition-transform ${showAiPanel ? "rotate-180" : ""}`} />
-          </Button>
-        </div>
+        <div />
       </div>
 
       {showAiPanel ? (
@@ -326,8 +317,8 @@ export function OutreachWorkspace() {
           You can select multiple templates to randomise the outreach.
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-4">
-          {templates.map((template) => {
+        <div className="grid items-stretch gap-5 xl:grid-cols-4">
+          {standardTemplates.map((template) => {
             const selected = selectedTemplateIds.includes(template.id);
 
             return (
@@ -335,11 +326,11 @@ export function OutreachWorkspace() {
                 key={template.id}
                 type="button"
                 onClick={() => toggleTemplate(template.id)}
-                className={`rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
+                className={`grid min-h-[520px] grid-rows-[72px_auto_1fr_88px] rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
                   selected ? "border-red-400" : "border-border/70 hover:border-foreground/20"
                 }`}
               >
-                <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="text-[1rem] font-semibold">{template.title}</div>
                   {selected ? (
                     <CheckCircle2Icon className="size-5 text-red-500" />
@@ -348,20 +339,75 @@ export function OutreachWorkspace() {
                   )}
                 </div>
 
-                <div className="mb-4 h-px bg-border/70" />
+                <div className="h-px bg-border/70" />
 
-                <div className="whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
+                <div className="self-start whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
                   {template.body}
                 </div>
 
-                <div className="mt-8 flex items-center justify-between border-t border-border/70 pt-4 text-[0.95rem]">
-                  <span className="text-muted-foreground">{template.subject}</span>
-                  <span className="font-medium">Reply rate {template.replyRate}</span>
+                <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
+                  <span className="line-clamp-2 min-h-[3rem] text-muted-foreground">{template.subject}</span>
+                  <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
                 </div>
               </button>
             );
           })}
         </div>
+
+        <div className="mt-5">
+          <Button
+            variant="outline"
+            className="h-10 rounded-xl px-4 text-[0.92rem]"
+            onClick={() => setShowAiPanel((current) => !current)}
+          >
+            AI analysis
+            <ChevronDownIcon className={`size-4 transition-transform ${showAiPanel ? "rotate-180" : ""}`} />
+          </Button>
+        </div>
+
+        {generatedTemplates.length > 0 ? (
+          <div className="mt-8">
+            <div className="mb-4 text-[0.92rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Generated templates
+            </div>
+            <div className="grid items-stretch gap-5 xl:grid-cols-4">
+              {generatedTemplates.map((template) => {
+                const selected = selectedTemplateIds.includes(template.id);
+
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => toggleTemplate(template.id)}
+                    className={`grid min-h-[520px] grid-rows-[72px_auto_1fr_88px] rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
+                      selected ? "border-red-400" : "border-border/70 hover:border-foreground/20"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="text-[1rem] font-semibold">{template.title}</div>
+                      {selected ? (
+                        <CheckCircle2Icon className="size-5 text-red-500" />
+                      ) : (
+                        <PencilIcon className="size-4 text-muted-foreground" />
+                      )}
+                    </div>
+
+                    <div className="h-px bg-border/70" />
+
+                    <div className="self-start whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
+                      {template.body}
+                    </div>
+
+                    <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
+                      <span className="line-clamp-2 min-h-[3rem] text-muted-foreground">{template.subject}</span>
+                      <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="mb-8">
