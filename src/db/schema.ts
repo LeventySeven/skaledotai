@@ -132,6 +132,20 @@ export const postStats = pgTable("post_stats", {
   topTopics: text("top_topics").array(),
 });
 
+export const outreachTemplates = pgTable("outreach_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+
+  title: text("title").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  replyRate: text("reply_rate").notNull().default("—"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("outreach_templates_user_id_idx").on(table.userId),
+]);
+
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
   // Owner

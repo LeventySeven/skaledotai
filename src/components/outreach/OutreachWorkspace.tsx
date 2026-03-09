@@ -348,7 +348,7 @@ export function OutreachWorkspace() {
                 </div>
 
                 <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
-                  <span className="line-clamp-2 min-h-[3rem] text-muted-foreground">{template.subject}</span>
+                  <span className="line-clamp-2 min-h-12 text-muted-foreground">{template.subject}</span>
                   <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
                 </div>
               </button>
@@ -401,7 +401,7 @@ export function OutreachWorkspace() {
                     </div>
 
                     <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
-                      <span className="line-clamp-2 min-h-[3rem] text-muted-foreground">{template.subject}</span>
+                      <span className="line-clamp-2 min-h-12 text-muted-foreground">{template.subject}</span>
                       <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
                     </div>
                   </button>
