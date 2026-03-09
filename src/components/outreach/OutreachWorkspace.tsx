@@ -1,22 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { SendIcon, Undo2Icon } from "lucide-react";
+import { type ChangeEvent, useMemo, useState } from "react";
+import { MoreHorizontalIcon } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toastManager } from "@/components/ui/toast";
-import { LeadDetailSheet } from "@/components/leads/LeadDetailSheet";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/types";
-
-function formatNumber(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return String(value);
-}
 
 function toPatchInput(patch: Partial<Lead>) {
   const payload: {
@@ -40,14 +33,24 @@ function toPatchInput(patch: Partial<Lead>) {
   return payload;
 }
 
+function statusLabel(stage: Lead["stage"]): string {
+  if (stage === "agreed") return "Agreed";
+  if (stage === "replied") return "Replied";
+  if (stage === "messaged") return "Messaged";
+  return "Queued";
+}
+
 export function OutreachWorkspace() {
   const utils = trpc.useUtils();
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const listQuery = trpc.outreach.list.useQuery();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [subject, setSubject] = useState("Quick note");
+  const [body, setBody] = useState(
+    "Hi {{name}},\n\nI came across your work and was really impressed.\n\nWould love to connect!\n\nBest,",
+  );
+
   const updateLead = trpc.leads.update.useMutation({
-    onSuccess: async (lead) => {
-      setSelectedLead((current) => (current?.id === lead.id ? { ...current, ...lead } : current));
+    onSuccess: async () => {
       await Promise.all([
         utils.outreach.list.invalidate(),
         utils.leads.list.invalidate(),
@@ -58,121 +61,154 @@ export function OutreachWorkspace() {
     },
   });
 
-  async function handlePatch(id: string, patch: Partial<Lead>) {
-    await updateLead.mutateAsync({
-      crmId: id,
-      patch: toPatchInput(patch),
-    });
+  const leads = listQuery.data ?? [];
+  const selectedLeads = useMemo(
+    () => leads.filter((lead) => selectedIds.includes(lead.id)),
+    [leads, selectedIds],
+  );
+
+  function toggleLead(leadId: string, checked: boolean) {
+    setSelectedIds((current) =>
+      checked ? [...new Set([...current, leadId])] : current.filter((id) => id !== leadId),
+    );
   }
 
-  const leads = listQuery.data ?? [];
+  async function handleSendSelected() {
+    if (selectedLeads.length === 0) {
+      toastManager.add({ type: "info", title: "Select at least one lead." });
+      return;
+    }
+
+    for (const lead of selectedLeads) {
+      await updateLead.mutateAsync({
+        crmId: lead.id,
+        patch: toPatchInput({
+          stage: "messaged",
+          inOutreach: true,
+          theAsk: `${subject}\n\n${body}`,
+        }),
+      });
+    }
+
+    toastManager.add({
+      type: "success",
+      title: `Marked ${selectedLeads.length} leads as messaged.`,
+    });
+    setSelectedIds([]);
+  }
 
   return (
-    <div className="space-y-6 p-6 md:p-8">
-      <section className="rounded-3xl border bg-card p-6 shadow-sm/5">
-        <p className="text-sm font-medium text-muted-foreground">Outreach queue</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Accounts ready for outreach</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          This is the current queue backed by the existing `in_outreach` lead state. Update stage progression here without changing the backend shape.
-        </p>
-      </section>
+    <div className="mx-auto max-w-[1680px] px-8 py-8">
+      <h1 className="text-[3rem] font-semibold tracking-[-0.04em]">Outreach</h1>
 
-      <section className="rounded-2xl border bg-card shadow-sm/5">
-        {listQuery.isLoading ? (
-          <div className="flex items-center justify-center p-10 text-sm text-muted-foreground">
-            <Spinner className="size-4" />
-            <span className="ml-2">Loading outreach queue...</span>
-          </div>
-        ) : leads.length === 0 ? (
-          <Empty className="py-16">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <SendIcon />
-              </EmptyMedia>
-              <EmptyTitle>No queued leads</EmptyTitle>
-              <EmptyDescription>
-                Add leads to outreach from the leads page or the lead detail sheet.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <Table>
+      <div className="mt-10">
+        <div className="mb-3 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Leads in queue
+        </div>
+        <div className="overflow-hidden rounded-[1.25rem] border border-border bg-card">
+          <Table className="text-[1rem]">
             <TableHeader>
-              <TableRow>
-                <TableHead>Lead</TableHead>
-                <TableHead>Followers</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Stage</TableHead>
+              <TableRow className="h-14 hover:bg-transparent">
+                <TableHead className="w-[56px] px-5">
+                  <Checkbox
+                    checked={leads.length > 0 && leads.every((lead) => selectedIds.includes(lead.id))}
+                    onCheckedChange={(value) => setSelectedIds(Boolean(value) ? leads.map((lead) => lead.id) : [])}
+                  />
+                </TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {leads.map((lead) => (
-                <TableRow
-                  key={lead.id}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setSelectedLead(lead);
-                    setSheetOpen(true);
-                  }}
-                >
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{lead.name}</p>
-                      <p className="text-sm text-muted-foreground">@{lead.handle}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatNumber(lead.followers)}</TableCell>
-                  <TableCell>
-                    <Badge variant={lead.priority === "P0" ? "warning" : "outline"}>
-                      {lead.priority}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <select
-                      className="flex h-8 rounded-md border border-input bg-background px-2 text-sm"
-                      value={lead.stage}
-                      onClick={(event) => event.stopPropagation()}
-                      onChange={(event) => {
-                        handlePatch(lead.id, {
-                          stage: event.target.value as Lead["stage"],
-                        }).catch(() => undefined);
-                      }}
-                    >
-                      <option value="found">Found</option>
-                      <option value="messaged">Messaged</option>
-                      <option value="replied">Replied</option>
-                      <option value="agreed">Agreed</option>
-                    </select>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handlePatch(lead.id, { inOutreach: false }).catch(() => undefined);
-                        }}
-                      >
-                        <Undo2Icon className="size-3.5" />
-                        Remove
-                      </Button>
-                    </div>
+              {leads.length === 0 ? (
+                <TableRow className="h-[140px] hover:bg-transparent">
+                  <TableCell colSpan={5} className="text-center text-[1rem] text-muted-foreground">
+                    No leads in queue. Add some from the Leads page.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                leads.map((lead) => (
+                  <TableRow key={lead.id} className="h-[70px] border-b">
+                    <TableCell className="px-5">
+                      <Checkbox
+                        checked={selectedIds.includes(lead.id)}
+                        onCheckedChange={(value) => toggleLead(lead.id, Boolean(value))}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{lead.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{lead.email ?? "—"}</TableCell>
+                    <TableCell>{statusLabel(lead.stage)}</TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        type="button"
+                        className="inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        onClick={() => {
+                          updateLead.mutate({
+                            crmId: lead.id,
+                            patch: toPatchInput({ inOutreach: false }),
+                          });
+                        }}
+                      >
+                        <MoreHorizontalIcon className="size-5" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
-        )}
-      </section>
+        </div>
+      </div>
 
-      <LeadDetailSheet
-        lead={selectedLead}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        onPatch={handlePatch}
-      />
+      <div className="my-9 h-px bg-border" />
+
+      <div className="max-w-[1680px]">
+        <div className="mb-5 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Email template
+        </div>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <label className="block text-[1rem] font-semibold">Subject</label>
+            <Input
+              className="h-12 rounded-2xl text-[1rem]"
+              value={subject}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setSubject(event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[1rem] font-semibold">Body</label>
+            <Textarea
+              className="min-h-[240px] rounded-2xl text-[1rem]"
+              value={body}
+              onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setBody(event.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 text-[0.98rem] text-muted-foreground">
+            <span>Variables:</span>
+            {["{{name}}", "{{company}}", "{{platform}}"].map((variable) => (
+              <span key={variable} className="rounded-md bg-muted px-2 py-0.5 font-semibold">
+                {variable}
+              </span>
+            ))}
+          </div>
+
+          <Button
+            className="h-12 rounded-2xl px-5 text-[1rem]"
+            disabled={updateLead.isPending}
+            onClick={() => {
+              handleSendSelected().catch((error: unknown) => {
+                toastManager.add({ type: "error", title: error instanceof Error ? error.message : "Failed to update outreach." });
+              });
+            }}
+          >
+            Send to Selected
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

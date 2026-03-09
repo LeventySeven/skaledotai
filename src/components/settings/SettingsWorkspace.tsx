@@ -1,23 +1,25 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { KeyRoundIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 
 function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "Never";
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export function SettingsWorkspace() {
   const utils = trpc.useUtils();
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState("");
   const [latestKey, setLatestKey] = useState<string | null>(null);
   const listQuery = trpc.settings.apiKeys.list.useQuery();
@@ -25,6 +27,7 @@ export function SettingsWorkspace() {
     onSuccess: async (result) => {
       setLatestKey(result.key);
       setName("");
+      setShowCreateForm(false);
       await utils.settings.apiKeys.list.invalidate();
       toastManager.add({ type: "success", title: `Created ${result.name}.` });
     },
@@ -42,7 +45,7 @@ export function SettingsWorkspace() {
     },
   });
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await createKey.mutateAsync({ name: name.trim() });
   }
@@ -50,100 +53,96 @@ export function SettingsWorkspace() {
   const keys = listQuery.data ?? [];
 
   return (
-    <div className="space-y-6 p-6 md:p-8">
-      <section className="rounded-3xl border bg-card p-6 shadow-sm/5">
-        <p className="text-sm font-medium text-muted-foreground">Settings</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Manage access keys</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          This keeps the existing settings router intact. Keys are generated once, hashed before storage, and can be revoked from here.
-        </p>
-      </section>
+    <div className="mx-auto max-w-[980px] px-8 py-12">
+      <h1 className="text-[3rem] font-semibold tracking-[-0.04em]">Settings</h1>
+      <p className="mt-2 text-[1.05rem] text-muted-foreground">
+        Manage your API keys for programmatic access.
+      </p>
 
-      <section className="rounded-2xl border bg-card p-6 shadow-sm/5">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold">Create API key</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The raw key is shown only once after creation.
-          </p>
-        </div>
+      <div className="my-12 h-px bg-border" />
 
-        <form className="flex flex-col gap-3 md:flex-row" onSubmit={handleSubmit}>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-[2rem] font-semibold tracking-[-0.03em]">API Keys</h2>
+        <Button
+          variant="outline"
+          className="h-11 rounded-2xl px-5 text-[1rem]"
+          onClick={() => setShowCreateForm((current) => !current)}
+        >
+          <PlusIcon className="size-4" />
+          Generate New Key
+        </Button>
+      </div>
+
+      {showCreateForm && (
+        <form className="mt-6 flex gap-3" onSubmit={handleCreate}>
           <Input
-            placeholder="Internal integration"
+            className="h-12 rounded-2xl text-[1rem]"
+            placeholder="Name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
           />
-          <Button disabled={createKey.isPending}>
-            {createKey.isPending ? <Spinner className="size-4" /> : <KeyRoundIcon className="size-4" />}
-            {createKey.isPending ? "Creating..." : "Create key"}
+          <Button className="h-12 rounded-2xl px-5 text-[1rem]" disabled={createKey.isPending}>
+            {createKey.isPending ? "Generating..." : "Generate"}
           </Button>
         </form>
+      )}
 
-        {latestKey && (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-            <p className="font-medium">New API key</p>
-            <p className="mt-2 font-mono text-xs md:text-sm">{latestKey}</p>
-          </div>
-        )}
-      </section>
+      {latestKey && (
+        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <div className="font-semibold">New API key</div>
+          <div className="mt-2 font-mono">{latestKey}</div>
+        </div>
+      )}
 
-      <section className="rounded-2xl border bg-card shadow-sm/5">
-        {listQuery.isLoading ? (
-          <div className="flex items-center justify-center p-10 text-sm text-muted-foreground">
-            <Spinner className="size-4" />
-            <span className="ml-2">Loading keys...</span>
-          </div>
-        ) : keys.length === 0 ? (
-          <Empty className="py-16">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <KeyRoundIcon />
-              </EmptyMedia>
-              <EmptyTitle>No API keys yet</EmptyTitle>
-              <EmptyDescription>
-                Create a key to use the app from external systems.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Prefix</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Last used</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+      <div className="mt-6 overflow-hidden rounded-[1.25rem] border border-border bg-card">
+        <Table className="text-[1rem]">
+          <TableHeader>
+            <TableRow className="h-14 hover:bg-transparent">
+              <TableHead>Name</TableHead>
+              <TableHead>Prefix</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Last Used</TableHead>
+              <TableHead className="w-[70px]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {listQuery.isLoading ? (
+              <TableRow className="h-[120px] hover:bg-transparent">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  Loading keys...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {keys.map((key) => (
-                <TableRow key={key.id}>
-                  <TableCell className="font-medium">{key.name}</TableCell>
+            ) : keys.length === 0 ? (
+              <TableRow className="h-[120px] hover:bg-transparent">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  No API keys yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              keys.map((key) => (
+                <TableRow key={key.id} className="h-[80px] border-b">
+                  <TableCell className="font-semibold">{key.name}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{key.prefix}</Badge>
+                    <span className="rounded-md bg-muted px-2 py-1 font-mono text-sm">{key.prefix}...</span>
                   </TableCell>
                   <TableCell>{formatDate(key.createdAt)}</TableCell>
                   <TableCell>{formatDate(key.lastUsed)}</TableCell>
                   <TableCell>
-                    <div className="flex justify-end">
-                      <Button
-                        size="xs"
-                        variant="destructive-outline"
-                        onClick={() => deleteKey.mutate({ id: key.id })}
-                      >
-                        <Trash2Icon className="size-3.5" />
-                        Delete
-                      </Button>
-                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      onClick={() => deleteKey.mutate({ id: key.id })}
+                    >
+                      <Trash2Icon className="size-4.5" />
+                    </button>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </section>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

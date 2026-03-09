@@ -1,13 +1,14 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FolderPlusIcon, RefreshCwIcon, Trash2Icon, UsersIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MoreHorizontalIcon, SearchIcon } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
 import {
   Pagination,
   PaginationContent,
@@ -16,18 +17,29 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { toastManager } from "@/components/ui/toast";
 import { LeadDetailSheet } from "@/components/leads/LeadDetailSheet";
+import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
+import { cn } from "@/lib/utils";
 import type { Lead } from "@/lib/types";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
-function formatNumber(value: number): string {
+function formatFollowers(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
   return String(value);
+}
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function toPatchInput(patch: Partial<Lead>) {
@@ -52,6 +64,14 @@ function toPatchInput(patch: Partial<Lead>) {
   return payload;
 }
 
+function isDMed(lead: Lead): boolean {
+  return lead.stage === "messaged" || lead.stage === "replied" || lead.stage === "agreed";
+}
+
+function isReplied(lead: Lead): boolean {
+  return lead.stage === "replied" || lead.stage === "agreed";
+}
+
 export function LeadsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -60,17 +80,18 @@ export function LeadsWorkspace() {
   const projectParam = searchParams.get("project") ?? "";
   const [projectId, setProjectId] = useState(projectParam);
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<"followers-desc" | "followers-asc" | "name-asc">("followers-desc");
   const [stage, setStage] = useState<"all" | "found" | "messaged" | "replied" | "agreed">("all");
-  const [outreachFilter, setOutreachFilter] = useState<"all" | "queued" | "not-queued">("all");
+  const [sort, setSort] = useState<"followers-desc" | "followers-asc" | "name-asc">("followers-desc");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     setProjectId(projectParam);
     setPage(1);
+    setSelectedIds([]);
   }, [projectParam]);
 
   const listQuery = trpc.leads.list.useQuery({
@@ -80,12 +101,11 @@ export function LeadsWorkspace() {
     search: deferredSearch,
     sort,
     stage,
-    inOutreach:
-      outreachFilter === "all"
-        ? undefined
-        : outreachFilter === "queued",
   });
 
+  const refreshStats = trpc.stats.refresh.useMutation();
+  const enrichEmails = trpc.leads.enrichEmails.useMutation();
+  const scanEmails = trpc.leads.scanEmails.useMutation();
   const updateLead = trpc.leads.update.useMutation({
     onSuccess: async (lead) => {
       setSelectedLead((current) => (current?.id === lead.id ? { ...current, ...lead } : current));
@@ -99,42 +119,15 @@ export function LeadsWorkspace() {
     },
   });
 
-  const removeLead = trpc.leads.remove.useMutation({
-    onSuccess: async () => {
-      setSheetOpen(false);
-      setSelectedLead(null);
-      await Promise.all([
-        utils.leads.list.invalidate(),
-        utils.outreach.list.invalidate(),
-        utils.projects.list.invalidate(),
-      ]);
-      toastManager.add({ type: "success", title: "Lead removed." });
-    },
-    onError: (error) => {
-      toastManager.add({ type: "error", title: error.message });
-    },
-  });
-
-  const queueProject = trpc.projects.queueAllLeads.useMutation({
-    onSuccess: async ({ queued }) => {
-      await Promise.all([
-        utils.leads.list.invalidate(),
-        utils.outreach.list.invalidate(),
-      ]);
-      toastManager.add({
-        type: "success",
-        title: queued > 0 ? `Queued ${queued} leads for outreach.` : "All project leads are already queued.",
-      });
-    },
-    onError: (error) => {
-      toastManager.add({ type: "error", title: error.message });
-    },
-  });
-
+  const leads = listQuery.data?.leads ?? [];
+  const total = listQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentProject = useMemo(
     () => projects.find((project) => project.id === projectId),
     [projectId, projects],
   );
+
+  const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedIds.includes(lead.id));
 
   async function handlePatch(id: string, patch: Partial<Lead>) {
     await updateLead.mutateAsync({
@@ -143,245 +136,326 @@ export function LeadsWorkspace() {
     });
   }
 
-  function handleProjectFilter(nextProjectId: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (nextProjectId) {
-      params.set("project", nextProjectId);
-    } else {
-      params.delete("project");
-    }
-    setPage(1);
-    router.replace(`/leads${params.toString() ? `?${params.toString()}` : ""}`);
+  function toggleRowSelection(leadId: string, checked: boolean) {
+    setSelectedIds((current) =>
+      checked ? [...new Set([...current, leadId])] : current.filter((id) => id !== leadId),
+    );
   }
 
-  const leads = listQuery.data?.leads ?? [];
-  const total = listQuery.data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  function toggleAllSelection(checked: boolean) {
+    setSelectedIds(checked ? leads.map((lead) => lead.id) : []);
+  }
+
+  function updateProjectFilter(nextProjectId: string) {
+    setProjectId(nextProjectId);
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextProjectId) params.set("project", nextProjectId);
+    else params.delete("project");
+
+    startTransition(() => {
+      router.replace(`/leads${params.toString() ? `?${params.toString()}` : ""}`);
+    });
+  }
+
+  async function handleScanBios() {
+    const targetLeads = leads.filter((lead) => selectedIds.length === 0 || selectedIds.includes(lead.id));
+    if (targetLeads.length === 0) return;
+
+    for (const lead of targetLeads) {
+      await refreshStats.mutateAsync({
+        profileId: lead.id,
+        crmId: lead.crmId,
+        niche: currentProject?.query,
+      });
+    }
+
+    await Promise.all([
+      utils.stats.get.invalidate(),
+      utils.leads.list.invalidate(),
+    ]);
+    toastManager.add({
+      type: "success",
+      title: `Scanned ${targetLeads.length} bios and refreshed priorities.`,
+    });
+  }
+
+  async function handleEnrichEmails() {
+    if (projectId) {
+      const result = await scanEmails.mutateAsync({ projectId });
+      await utils.leads.list.invalidate();
+      toastManager.add({
+        type: "success",
+        title: `Enriched ${result.updated} emails in ${currentProject?.name ?? "project"}.`,
+      });
+      return;
+    }
+
+    if (selectedIds.length === 0) {
+      toastManager.add({
+        type: "info",
+        title: "Select leads or open a project first.",
+      });
+      return;
+    }
+
+    const updated = await enrichEmails.mutateAsync({ crmIds: selectedIds });
+    await utils.leads.list.invalidate();
+    toastManager.add({
+      type: "success",
+      title: `Enriched ${updated} emails.`,
+    });
+  }
 
   return (
-    <div className="space-y-6 p-6 md:p-8">
-      <section className="rounded-3xl border bg-card p-6 shadow-sm/5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="px-8 py-8">
+      <div className="mx-auto max-w-[1680px]">
+        <div className="mb-6 flex items-start justify-between gap-6">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Lead CRM</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Manage discovered accounts</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Filters and edits stay on the existing leads service. No architecture rewrite, just the missing UI on top of the current tRPC contract.
-            </p>
+            <h1 className="text-[3rem] font-semibold tracking-[-0.04em]">
+              {currentProject?.name ?? "Leads"}
+            </h1>
           </div>
-          {projectId && (
+          <div className="flex items-center gap-3">
             <Button
               variant="outline"
-              disabled={queueProject.isPending}
-              onClick={() => queueProject.mutate({ projectId })}
+              className="h-10 rounded-2xl px-5 text-[1rem]"
+              disabled={refreshStats.isPending || leads.length === 0}
+              onClick={() => {
+                handleScanBios().catch((error: unknown) => {
+                  toastManager.add({ type: "error", title: error instanceof Error ? error.message : "Scan failed." });
+                });
+              }}
             >
-              {queueProject.isPending ? <Spinner className="size-4" /> : <FolderPlusIcon className="size-4" />}
-              {queueProject.isPending ? "Queueing..." : `Queue ${currentProject?.name ?? "project"}`}
+              {refreshStats.isPending ? <Spinner className="size-4" /> : null}
+              {refreshStats.isPending ? "Scanning..." : "Scan Bios"}
             </Button>
-          )}
+            <Button
+              variant="outline"
+              className="h-10 rounded-2xl px-5 text-[1rem]"
+              disabled={enrichEmails.isPending || scanEmails.isPending}
+              onClick={() => {
+                handleEnrichEmails().catch((error: unknown) => {
+                  toastManager.add({ type: "error", title: error instanceof Error ? error.message : "Enrichment failed." });
+                });
+              }}
+            >
+              {enrichEmails.isPending || scanEmails.isPending ? <Spinner className="size-4" /> : null}
+              Enrich Emails
+            </Button>
+          </div>
         </div>
-      </section>
 
-      <section className="rounded-2xl border bg-card p-6 shadow-sm/5">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.8fr))]">
+        <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <select
+              className="h-12 min-w-[250px] rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              value={projectId}
+              onChange={(event) => updateProjectFilter(event.target.value)}
+            >
+              <option value="">All Projects</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="h-12 min-w-[220px] rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              value={stage}
+              onChange={(event) => {
+                setStage(event.target.value as typeof stage);
+                setPage(1);
+              }}
+            >
+              <option value="all">all</option>
+              <option value="found">found</option>
+              <option value="messaged">messaged</option>
+              <option value="replied">replied</option>
+              <option value="agreed">agreed</option>
+            </select>
+
+            <select
+              className="h-12 min-w-[250px] rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as typeof sort)}
+            >
+              <option value="followers-desc">followers-desc</option>
+              <option value="followers-asc">followers-asc</option>
+              <option value="name-asc">name-asc</option>
+            </select>
+          </div>
+
           <Input
-            placeholder="Search name or handle"
+            className="h-12 w-full max-w-[305px] rounded-2xl text-[1rem]"
+            placeholder="Search leads..."
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
               setPage(1);
             }}
           />
-          <select
-            className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={projectId}
-            onChange={(event) => handleProjectFilter(event.target.value)}
-          >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={stage}
-            onChange={(event) => {
-              setStage(event.target.value as typeof stage);
-              setPage(1);
-            }}
-          >
-            <option value="all">All stages</option>
-            <option value="found">Found</option>
-            <option value="messaged">Messaged</option>
-            <option value="replied">Replied</option>
-            <option value="agreed">Agreed</option>
-          </select>
-          <select
-            className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={outreachFilter}
-            onChange={(event) => {
-              setOutreachFilter(event.target.value as typeof outreachFilter);
-              setPage(1);
-            }}
-          >
-            <option value="all">All outreach states</option>
-            <option value="queued">In outreach</option>
-            <option value="not-queued">Not in outreach</option>
-          </select>
-          <select
-            className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={sort}
-            onChange={(event) => setSort(event.target.value as typeof sort)}
-          >
-            <option value="followers-desc">Followers desc</option>
-            <option value="followers-asc">Followers asc</option>
-            <option value="name-asc">Name</option>
-          </select>
         </div>
-      </section>
 
-      <section className="rounded-2xl border bg-card shadow-sm/5">
-        {listQuery.isLoading ? (
-          <div className="flex items-center justify-center p-10 text-sm text-muted-foreground">
-            <Spinner className="size-4" />
-            <span className="ml-2">Loading leads...</span>
-          </div>
-        ) : leads.length === 0 ? (
-          <Empty className="py-16">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <UsersIcon />
-              </EmptyMedia>
-              <EmptyTitle>No leads found</EmptyTitle>
-              <EmptyDescription>
-                Run a search first, or relax the current filters.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lead</TableHead>
-                  <TableHead>Followers</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Stage</TableHead>
-                  <TableHead>Outreach</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+        <div className="overflow-hidden rounded-[1.25rem] border border-border bg-card">
+          {listQuery.isLoading ? (
+            <div className="flex h-[320px] items-center justify-center text-muted-foreground">
+              <Spinner className="size-4" />
+              <span className="ml-2">Loading leads...</span>
+            </div>
+          ) : leads.length === 0 ? (
+            <Empty className="min-h-[320px]">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <SearchIcon />
+                </EmptyMedia>
+                <EmptyTitle>No leads found</EmptyTitle>
+                <EmptyDescription>
+                  Run a search or import an account network to populate this table.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <Table className="text-[1rem]">
+              <TableHeader className="[&_tr]:border-b">
+                <TableRow className="h-14 hover:bg-transparent">
+                  <TableHead className="w-[56px] px-5">
+                    <Checkbox checked={allVisibleSelected} onCheckedChange={(value) => toggleAllSelection(Boolean(value))} />
+                  </TableHead>
+                  <TableHead className="min-w-[280px]">Name</TableHead>
+                  <TableHead className="w-[150px]">Platform</TableHead>
+                  <TableHead>Bio</TableHead>
+                  <TableHead className="w-[160px]">Followers</TableHead>
+                  <TableHead className="w-[130px]">Priority</TableHead>
+                  <TableHead className="w-[110px]">DMed</TableHead>
+                  <TableHead className="w-[110px]">Replied</TableHead>
+                  <TableHead className="w-[130px]">Email</TableHead>
+                  <TableHead className="w-[70px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {leads.map((lead) => (
-                  <TableRow
-                    key={lead.id}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedLead(lead);
-                      setSheetOpen(true);
-                    }}
-                  >
-                    <TableCell className="min-w-0">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{lead.name}</p>
-                        <p className="truncate text-sm text-muted-foreground">@{lead.handle}</p>
+                  <TableRow key={lead.id} className="h-[78px] border-b" onClick={() => {
+                    setSelectedLead(lead);
+                    setSheetOpen(true);
+                  }}>
+                    <TableCell className="px-5" onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.includes(lead.id)}
+                        onCheckedChange={(value) => toggleRowSelection(lead.id, Boolean(value))}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-4">
+                        <Avatar className="size-11">
+                          {lead.avatarUrl ? <AvatarImage src={lead.avatarUrl} alt={lead.name} /> : null}
+                          <AvatarFallback>{initials(lead.name)}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="truncate text-[1.05rem] font-semibold">{lead.name}</div>
+                          <div className="truncate text-muted-foreground">@{lead.handle}</div>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>{formatNumber(lead.followers)}</TableCell>
                     <TableCell>
-                      <Badge variant={lead.priority === "P0" ? "warning" : "outline"}>
+                      <Badge variant="outline" className="h-7 rounded-md px-2.5 text-sm font-medium lowercase">
+                        x
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[420px]">
+                      <div className="truncate text-muted-foreground">{lead.bio || "—"}</div>
+                    </TableCell>
+                    <TableCell className="text-[1.05rem] font-semibold">{formatFollowers(lead.followers)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "h-7 rounded-md border-transparent px-2.5 text-sm font-semibold",
+                          lead.priority === "P0" ? "bg-orange-100 text-orange-700" : "bg-muted text-muted-foreground",
+                        )}
+                      >
                         {lead.priority}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{lead.stage}</Badge>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        checked={isDMed(lead)}
+                        onCheckedChange={(value) => {
+                          handlePatch(lead.id, {
+                            stage: value ? "messaged" : "found",
+                            inOutreach: Boolean(value),
+                          }).catch(() => undefined);
+                        }}
+                      />
                     </TableCell>
-                    <TableCell>
-                      <Badge variant={lead.inOutreach ? "success" : "outline"}>
-                        {lead.inOutreach ? "Queued" : "Not queued"}
-                      </Badge>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        checked={isReplied(lead)}
+                        onCheckedChange={(value) => {
+                          handlePatch(lead.id, {
+                            stage: value ? "replied" : isDMed(lead) ? "messaged" : "found",
+                            inOutreach: Boolean(value) || isDMed(lead),
+                          }).catch(() => undefined);
+                        }}
+                      />
                     </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handlePatch(lead.id, { inOutreach: !lead.inOutreach }).catch(() => undefined);
-                          }}
-                        >
-                          <RefreshCwIcon className="size-3.5" />
-                          {lead.inOutreach ? "Unqueue" : "Queue"}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="destructive-outline"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            removeLead.mutate({ crmId: lead.id });
-                          }}
-                        >
-                          <Trash2Icon className="size-3.5" />
-                          Remove
-                        </Button>
-                      </div>
+                    <TableCell className="text-muted-foreground">{lead.email ?? "—"}</TableCell>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        onClick={() => {
+                          setSelectedLead(lead);
+                          setSheetOpen(true);
+                        }}
+                      >
+                        <MoreHorizontalIcon className="size-5" />
+                      </button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+          )}
+        </div>
 
-            <div className="flex flex-col gap-4 border-t px-6 py-4 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-muted-foreground">
-                Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, total)} of {total} leads
-              </p>
-              <Pagination className="mx-0 w-auto justify-start md:justify-end">
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        setPage((current) => Math.max(1, current - 1));
-                      }}
-                      className={page === 1 ? "pointer-events-none opacity-50" : undefined}
-                    />
-                  </PaginationItem>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1)
-                    .slice(Math.max(0, page - 2), Math.max(0, page - 2) + 3)
-                    .map((pageNumber) => (
-                      <PaginationItem key={pageNumber}>
-                        <PaginationLink
-                          href="#"
-                          isActive={pageNumber === page}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            setPage(pageNumber);
-                          }}
-                        >
-                          {pageNumber}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        setPage((current) => Math.min(totalPages, current + 1));
-                      }}
-                      className={page === totalPages ? "pointer-events-none opacity-50" : undefined}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          </>
-        )}
-      </section>
+        <div className="mt-6 flex flex-col gap-5 text-muted-foreground xl:flex-row xl:items-end xl:justify-between">
+          <div className="text-[1rem]">
+            <div>{total}</div>
+            <div>leads</div>
+          </div>
+
+          <Pagination className="mx-0 w-auto justify-start xl:justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  className={page === 1 ? "pointer-events-none opacity-50" : undefined}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setPage((current) => Math.max(1, current - 1));
+                  }}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationLink href="#" isActive onClick={(event) => event.preventDefault()}>
+                  {page}
+                </PaginationLink>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  className={page === totalPages ? "pointer-events-none opacity-50" : undefined}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setPage((current) => Math.min(totalPages, current + 1));
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      </div>
 
       <LeadDetailSheet
         lead={selectedLead}
