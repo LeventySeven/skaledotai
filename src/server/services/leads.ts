@@ -171,53 +171,49 @@ export async function addProfilesToProject(input: {
 }): Promise<Lead[]> {
   if (input.profiles.length === 0) return [];
 
-  const result: Lead[] = [];
+  const values = input.profiles.map((profile) => ({
+    userId: input.userId,
+    xUserId: profile.xUserId,
+    name: profile.displayName,
+    handle: profile.username,
+    bio: profile.bio,
+    platform: "twitter" as const,
+    followers: profile.followersCount,
+    following: profile.followingCount,
+    avatarUrl: profile.avatarUrl,
+    profileUrl: profile.profileUrl,
+    discoverySource: (profile.source as DiscoverySource | undefined) ?? input.discoverySource,
+    discoveryQuery: input.discoveryQuery,
+  }));
 
-  for (const profile of input.profiles) {
-    const discoverySource = (profile.source as DiscoverySource | undefined) ?? input.discoverySource;
+  const upsertedLeads = await db
+    .insert(leads)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [leads.userId, leads.handle, leads.platform],
+      set: {
+        name: sql`excluded.name`,
+        bio: sql`excluded.bio`,
+        followers: sql`excluded.followers`,
+        following: sql`excluded.following`,
+        avatarUrl: sql`excluded.avatar_url`,
+        profileUrl: sql`excluded.profile_url`,
+        xUserId: sql`excluded.x_user_id`,
+        discoverySource: sql`excluded.discovery_source`,
+        discoveryQuery: sql`excluded.discovery_query`,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
 
-    const [lead] = await db
-      .insert(leads)
-      .values({
-        userId: input.userId,
-        xUserId: profile.xUserId,
-        name: profile.displayName,
-        handle: profile.username,
-        bio: profile.bio,
-        platform: "twitter",
-        followers: profile.followersCount,
-        following: profile.followingCount,
-        avatarUrl: profile.avatarUrl,
-        profileUrl: profile.profileUrl,
-        discoverySource,
-        discoveryQuery: input.discoveryQuery,
-      })
-      .onConflictDoUpdate({
-        target: [leads.userId, leads.handle, leads.platform],
-        set: {
-          name: profile.displayName,
-          bio: profile.bio,
-          followers: profile.followersCount,
-          following: profile.followingCount,
-          avatarUrl: profile.avatarUrl,
-          profileUrl: profile.profileUrl,
-          xUserId: profile.xUserId,
-          discoverySource,
-          discoveryQuery: input.discoveryQuery,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-
+  if (upsertedLeads.length > 0) {
     await db
       .insert(projectLeads)
-      .values({ projectId: input.projectId, leadId: lead.id })
+      .values(upsertedLeads.map((lead) => ({ projectId: input.projectId, leadId: lead.id })))
       .onConflictDoNothing();
-
-    result.push(rowToLead(lead, input.projectId));
   }
 
-  return result;
+  return upsertedLeads.map((lead) => rowToLead(lead, input.projectId));
 }
 
 export async function listOutreachQueue(userId: string): Promise<Lead[]> {
