@@ -1,27 +1,22 @@
 import "server-only";
 import { TRPCError } from "@trpc/server";
-import { extractTopicsAndPriority, rankProfilesForQuery } from "@/lib/openai";
+import { rankProfilesForQuery } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
 import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
-import type { PostStats } from "@/lib/validations/stats";
 import {
   buildPostSearchQuery,
   buildReplySearchQuery,
   getFollowersPage,
   getFollowingPage,
-  getUserTweets,
   isUnsupportedAuthenticationError,
   lookupUsersByUsernames,
-  mapTweetsToMetrics,
   searchAllPosts,
   searchRecentPosts,
   searchUsers,
 } from "@/lib/x-api";
-import { addProfilesToProject, getLeadById } from "./leads";
+import { addProfilesToProject } from "./leads";
 import { createProject, getProjectById } from "./projects";
-import { upsertPostStats } from "./stats";
-import { updateLead } from "./leads";
 
 const SEARCH_TARGET = 40;
 const NETWORK_TARGET = 1000;
@@ -30,11 +25,6 @@ type Candidate = XProfile & {
   samplePosts: string[];
   source: "profile_search" | "post_search" | "reply_search" | "followers" | "following";
 };
-
-function avg(values: number[]): number {
-  if (values.length === 0) return 0;
-  return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
-}
 
 function byFollowersDesc(a: XProfile, b: XProfile): number {
   return b.followersCount - a.followersCount;
@@ -223,39 +213,4 @@ export async function importAccountNetwork(
   });
 
   return { leads: leadsList, project };
-}
-
-export async function refreshProfileStats(
-  userId: string,
-  input: { profileId: string; crmId?: string; niche?: string },
-): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
-  const profile = await getLeadById(userId, input.profileId);
-  if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
-  if (!profile.xUserId) throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X user ID." });
-
-  const tweets = await getUserTweets(profile.xUserId, 30);
-  if (tweets.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "No recent X posts found." });
-
-  const metrics = mapTweetsToMetrics(tweets);
-  const ai = await extractTopicsAndPriority(
-    input.niche,
-    profile.bio,
-    metrics.map((t) => t.text).filter(Boolean),
-  );
-
-  const stats = await upsertPostStats({
-    leadId: input.profileId,
-    postCount: metrics.length,
-    avgViews: avg(metrics.map((t) => t.viewCount)),
-    avgLikes: avg(metrics.map((t) => t.likeCount)),
-    avgReplies: avg(metrics.map((t) => t.replyCount)),
-    avgReposts: avg(metrics.map((t) => t.repostCount)),
-    topTopics: ai.topics,
-  });
-
-  if (input.crmId) {
-    await updateLead(userId, input.crmId, { priority: ai.priority });
-  }
-
-  return { stats, priority: ai.priority };
 }

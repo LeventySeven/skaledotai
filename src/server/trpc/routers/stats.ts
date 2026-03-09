@@ -1,7 +1,6 @@
 import "server-only";
 import { protectedProcedure, router } from "../trpc";
-import { getPostStats } from "@/server/services/stats";
-import { refreshProfileStats } from "@/server/services/search";
+import { getPostStats, refreshProfileStats } from "@/server/services/stats";
 import { GetPostStatsInputSchema, RefreshStatsInputSchema } from "@/lib/validations/stats";
 
 export const statsRouter = router({

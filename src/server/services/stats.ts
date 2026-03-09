@@ -1,8 +1,12 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, postStats } from "@/db/schema";
+import { extractTopicsAndPriority } from "@/lib/openai";
+import { getUserTweets, mapTweetsToMetrics } from "@/lib/x-api";
 import type { PostStats } from "@/lib/validations/stats";
+import { getLeadById, updateLead } from "./leads";
 
 function rowToPostStats(row: typeof postStats.$inferSelect): PostStats {
   return {
@@ -64,4 +68,44 @@ export async function upsertPostStats(input: {
     .returning();
 
   return rowToPostStats(row);
+}
+
+function avg(values: number[]): number {
+  if (values.length === 0) return 0;
+  return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
+}
+
+export async function refreshProfileStats(
+  userId: string,
+  input: { profileId: string; crmId?: string; niche?: string },
+): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
+  const profile = await getLeadById(userId, input.profileId);
+  if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
+  if (!profile.xUserId) throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X user ID." });
+
+  const tweets = await getUserTweets(profile.xUserId, 30);
+  if (tweets.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "No recent X posts found." });
+
+  const metrics = mapTweetsToMetrics(tweets);
+  const ai = await extractTopicsAndPriority(
+    input.niche,
+    profile.bio,
+    metrics.map((t) => t.text).filter(Boolean),
+  );
+
+  const stats = await upsertPostStats({
+    leadId: input.profileId,
+    postCount: metrics.length,
+    avgViews: avg(metrics.map((t) => t.viewCount)),
+    avgLikes: avg(metrics.map((t) => t.likeCount)),
+    avgReplies: avg(metrics.map((t) => t.replyCount)),
+    avgReposts: avg(metrics.map((t) => t.repostCount)),
+    topTopics: ai.topics,
+  });
+
+  if (input.crmId) {
+    await updateLead(userId, input.crmId, { priority: ai.priority });
+  }
+
+  return { stats, priority: ai.priority };
 }
