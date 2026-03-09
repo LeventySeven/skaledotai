@@ -45,12 +45,6 @@ export type Lead = {
   platform: Platform;
   followers: number;
   following?: number;
-  tweetCount?: number;
-  listedCount?: number;
-  verified?: boolean;
-  verifiedType?: string;
-  location?: string;
-  url?: string;
   avatarUrl?: string;
   profileUrl?: string;
   email?: string;
