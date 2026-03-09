@@ -55,18 +55,6 @@ export function OutreachWorkspace() {
         <div />
       </div>
 
-      {showAiPanel ? (
-        <AiPanel
-          projects={projects}
-          selectedProjectIds={selectedProjectIds}
-          onToggleProject={toggleProject}
-          stylePrompt={stylePrompt}
-          onStylePromptChange={setStylePrompt}
-          isGenerating={isGenerating}
-          onGenerate={() => { handleGenerateTemplate().catch(() => undefined); }}
-        />
-      ) : null}
-
       {uiError ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[0.95rem] text-red-700">
           {uiError}
@@ -100,6 +88,20 @@ export function OutreachWorkspace() {
             <ChevronDownIcon className={`size-4 transition-transform ${showAiPanel ? "rotate-180" : ""}`} />
           </Button>
         </div>
+
+        {showAiPanel ? (
+          <div className="mt-4">
+            <AiPanel
+              projects={projects}
+              selectedProjectIds={selectedProjectIds}
+              onToggleProject={toggleProject}
+              stylePrompt={stylePrompt}
+              onStylePromptChange={setStylePrompt}
+              isGenerating={isGenerating}
+              onGenerate={() => { handleGenerateTemplate().catch(() => undefined); }}
+            />
+          </div>
+        ) : null}
 
         {generatedTemplates.length > 0 ? (
           <div className="mt-8">

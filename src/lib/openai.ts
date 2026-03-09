@@ -205,10 +205,25 @@ export async function generateOutreachTemplate(input: {
     replyRate: "35%",
   };
 
+  const primaryProject = input.projectNames[0]?.trim() || "selected project";
+  const projectLabel = primaryProject.length > 42 ? primaryProject.slice(0, 42).trim() : primaryProject;
+  const strongestLead = input.leads[0];
+  const strongestTopic =
+    strongestLead?.topics.find((topic) => topic.trim().length > 0)
+    ?? strongestLead?.bio
+      .split(/[,.|]/)
+      .map((part) => part.trim())
+      .find((part) => part.length > 0)
+    ?? "your recent work";
+
   const fallback = {
-    title: "AI Template",
-    subject: fallbackExample.subject,
-    body: fallbackExample.body,
+    title: `${projectLabel} intro`,
+    subject: `${projectLabel} collaboration idea`,
+    body:
+      `Hi {{name}},\n\n` +
+      `I was reviewing people in ${projectLabel} and your perspective on ${strongestTopic} stood out.\n` +
+      `Would love to compare notes and see if there is a fit to collaborate.\n\n` +
+      "Best,",
     replyRate: fallbackExample.replyRate,
   };
 
@@ -221,8 +236,17 @@ export async function generateOutreachTemplate(input: {
       replyRate: z.string(),
     }),
     instructions:
-      "Generate one outreach template for X/Twitter leads. Keep the output close in tone, size, and structure to the provided examples. It should be slightly more personalized using the project and lead context, but still concise. Keep the body short, plain-text, and suitable for variables like {{name}}. Reply rate should be a short estimate like 35% or 42%.",
-    input: JSON.stringify(input),
+      "Generate one outreach template for X/Twitter leads. Keep the output close in length and simplicity to the provided examples, but do not copy any example sentence verbatim. Personalize the message using the selected project context, lead bios, lead topics, and posting activity. The result must feel like it was written for this project set specifically, not like a generic cold message. Use only plain text, keep {{name}} intact, avoid hype, and keep the message compact. Reply rate should be a short estimate like 35% or 42%.",
+    input: JSON.stringify({
+      ...input,
+      variationHint: new Date().toISOString(),
+      hardRules: [
+        "Do not repeat the example subject lines exactly.",
+        "Do not repeat the example opening lines exactly.",
+        "Mention a concrete project/theme/topic signal from the provided context.",
+        "Keep the overall size similar to the examples.",
+      ],
+    }),
     fallback,
     maxOutputTokens: 260,
   });
