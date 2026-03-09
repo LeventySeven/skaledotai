@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useEffect, useMemo, useState } from "react";
-import { CheckCircle2Icon, PencilIcon, PlusIcon, SparklesIcon } from "lucide-react";
+import { CheckCircle2Icon, ChevronDownIcon, PencilIcon, PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,7 @@ export function OutreachWorkspace() {
   const [generatedTemplates, setGeneratedTemplates] = useState<OutreachTemplate[]>([]);
   const [stylePrompt, setStylePrompt] = useState("");
   const [importProjectId, setImportProjectId] = useState("");
+  const [showAiPanel, setShowAiPanel] = useState(false);
   const [uiError, setUiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -187,9 +188,28 @@ export function OutreachWorkspace() {
     setUiError(null);
     await generateTemplate.mutateAsync({
       projectIds: selectedProjectIds,
-      leadIds: selectedLeadIds.length > 0 ? selectedLeadIds : undefined,
       requestedStyle: stylePrompt.trim() || undefined,
     });
+  }
+
+  async function handleRemoveSelected() {
+    if (selectedLeadIds.length === 0) {
+      toastManager.add({ type: "info", title: "Select at least one lead." });
+      return;
+    }
+
+    for (const leadId of selectedLeadIds) {
+      await updateLead.mutateAsync({
+        crmId: leadId,
+        patch: toPatchInput({ inOutreach: false }),
+      });
+    }
+
+    toastManager.add({
+      type: "success",
+      title: `Removed ${selectedLeadIds.length} leads from queue.`,
+    });
+    setSelectedLeadIds([]);
   }
 
   async function handleSendSelected() {
@@ -231,79 +251,68 @@ export function OutreachWorkspace() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            className="h-10 min-w-[220px] rounded-xl border border-input bg-background px-3 text-[0.92rem]"
-            value={importProjectId}
-            onChange={(event) => setImportProjectId(event.target.value)}
-          >
-            <option value="">Select folder</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
           <Button
             variant="outline"
             className="h-10 rounded-xl px-4 text-[0.92rem]"
-            onClick={() => {
-              handleImportFolder().catch(() => undefined);
-            }}
+            onClick={() => setShowAiPanel((current) => !current)}
           >
-            Import folder
+            AI analysis
+            <ChevronDownIcon className={`size-4 transition-transform ${showAiPanel ? "rotate-180" : ""}`} />
           </Button>
         </div>
       </div>
 
-      <div className="mb-8 rounded-[1.2rem] border border-border/70 bg-card px-5 py-4">
-        <div className="mb-3 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          AI context
-        </div>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {projects.map((project) => {
-            const selected = selectedProjectIds.includes(project.id);
-            return (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() => toggleProject(project.id)}
-                className={`rounded-full border px-3 py-1.5 text-[0.85rem] transition-colors ${
-                  selected
-                    ? "border-foreground/20 bg-foreground text-background"
-                    : "border-border bg-background text-muted-foreground"
-                }`}
+      {showAiPanel ? (
+        <div className="mb-8 rounded-[1.2rem] border border-border/70 bg-card px-5 py-4">
+          <div className="mb-3 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            AI context
+          </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {projects.map((project) => {
+              const selected = selectedProjectIds.includes(project.id);
+              return (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => toggleProject(project.id)}
+                  className={`rounded-full border px-3 py-1.5 text-[0.85rem] transition-colors ${
+                    selected
+                      ? "border-foreground/20 bg-foreground text-background"
+                      : "border-border bg-background text-muted-foreground"
+                  }`}
+                >
+                  {project.name}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="max-w-[860px] text-[0.92rem] text-muted-foreground">
+              AI uses only the selected folders to tailor a concise outreach template. It is prompted with the 4 standard examples so generated templates stay close in size and structure.
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                className="h-10 w-[280px] rounded-xl text-[0.92rem]"
+                placeholder="Optional angle, e.g. more premium / more direct"
+                value={stylePrompt}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => setStylePrompt(event.target.value)}
+              />
+              <Button
+                className="h-10 rounded-xl px-4 text-[0.92rem]"
+                disabled={generateTemplate.isPending}
+                onClick={() => {
+                  handleGenerateTemplate().catch(() => undefined);
+                }}
               >
-                {project.name}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="max-w-[860px] text-[0.92rem] text-muted-foreground">
-            AI uses the selected folders plus any selected users below to tailor a concise outreach template. It is prompted with the 4 standard examples so generated templates stay close in size and structure.
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Input
-              className="h-10 w-[280px] rounded-xl text-[0.92rem]"
-              placeholder="Optional angle, e.g. more premium / more direct"
-              value={stylePrompt}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setStylePrompt(event.target.value)}
-            />
-            <Button
-              className="h-10 rounded-xl px-4 text-[0.92rem]"
-              disabled={generateTemplate.isPending}
-              onClick={() => {
-                handleGenerateTemplate().catch(() => undefined);
-              }}
-            >
-              {generateTemplate.isPending ? <SparklesIcon className="size-4 animate-pulse" /> : <PlusIcon className="size-4" />}
-              Create new
-            </Button>
+                {generateTemplate.isPending ? <SparklesIcon className="size-4 animate-pulse" /> : <PlusIcon className="size-4" />}
+                Create new
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {uiError ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[0.95rem] text-red-700">
@@ -317,7 +326,7 @@ export function OutreachWorkspace() {
           You can select multiple templates to randomise the outreach.
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
+        <div className="grid gap-5 xl:grid-cols-4">
           {templates.map((template) => {
             const selected = selectedTemplateIds.includes(template.id);
 
@@ -356,8 +365,44 @@ export function OutreachWorkspace() {
       </div>
 
       <div className="mb-8">
-        <div className="mb-3 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          Leads in queue
+        <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Leads in queue
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              className="h-10 min-w-[220px] rounded-xl border border-input bg-background px-3 text-[0.92rem]"
+              value={importProjectId}
+              onChange={(event) => setImportProjectId(event.target.value)}
+            >
+              <option value="">Select folder</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              className="h-10 rounded-xl px-4 text-[0.92rem]"
+              onClick={() => {
+                handleImportFolder().catch(() => undefined);
+              }}
+            >
+              Import folder
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 rounded-xl px-4 text-[0.92rem]"
+              disabled={selectedLeadIds.length === 0 || updateLead.isPending}
+              onClick={() => {
+                handleRemoveSelected().catch(() => undefined);
+              }}
+            >
+              <Trash2Icon className="size-4" />
+              Remove selected
+            </Button>
+          </div>
         </div>
         <div className="overflow-hidden rounded-[1.2rem] border border-border/70 bg-background">
           <Table className="text-[0.92rem]">
