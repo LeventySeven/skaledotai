@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
@@ -60,6 +61,11 @@ export function OutreachWorkspace() {
   const [stylePrompt, setStylePrompt] = useState("");
   const [importProjectId, setImportProjectId] = useState("");
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<OutreachTemplate | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editReplyRate, setEditReplyRate] = useState("");
   const [uiError, setUiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -125,6 +131,32 @@ export function OutreachWorkspace() {
     },
   });
 
+  const createTemplate = trpc.outreach.createTemplate.useMutation({
+    onSuccess: async (saved) => {
+      await utils.outreach.savedTemplates.invalidate();
+      setSelectedTemplateIds((current) => [...new Set([...current, saved.id])]);
+      setEditingTemplate(null);
+      toastManager.add({ type: "success", title: `${saved.title} saved.` });
+    },
+    onError: (error) => {
+      setUiError(error.message);
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
+
+  const updateTemplate = trpc.outreach.updateTemplate.useMutation({
+    onSuccess: async (saved) => {
+      await utils.outreach.savedTemplates.invalidate();
+      setSelectedTemplateIds((current) => [...new Set([...current, saved.id])]);
+      setEditingTemplate(null);
+      toastManager.add({ type: "success", title: `${saved.title} updated.` });
+    },
+    onError: (error) => {
+      setUiError(error.message);
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
+
   const deleteTemplate = trpc.outreach.deleteTemplate.useMutation({
     onSuccess: async () => {
       await utils.outreach.savedTemplates.invalidate();
@@ -146,6 +178,66 @@ export function OutreachWorkspace() {
     () => templates.filter((template) => selectedTemplateIds.includes(template.id)),
     [templates, selectedTemplateIds],
   );
+
+  const isSavingTemplate = createTemplate.isPending || updateTemplate.isPending;
+
+  const renderTemplateCard = (template: OutreachTemplate) => {
+    const selected = selectedTemplateIds.includes(template.id);
+
+    return (
+      <div key={template.id} className="relative">
+        <button
+          type="button"
+          onClick={() => toggleTemplate(template.id)}
+          className={`grid min-h-[520px] w-full grid-rows-[72px_auto_1fr_88px] rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
+            selected ? "border-red-400" : "border-border/70 hover:border-foreground/20"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3 pr-9">
+            <div className="text-[1rem] font-semibold">{template.title}</div>
+            {selected ? (
+              <CheckCircle2Icon className="size-5 text-red-500" />
+            ) : null}
+          </div>
+
+          <div className="h-px bg-border/70" />
+
+          <div className="self-start whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
+            {template.body}
+          </div>
+
+          <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
+            <span className="line-clamp-2 min-h-12 text-muted-foreground">{template.subject}</span>
+            <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            openTemplateEditor(template);
+          }}
+          className="absolute right-3 top-3 rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <PencilIcon className="size-4" />
+        </button>
+
+        {template.generated ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              deleteTemplate.mutate({ id: template.id });
+            }}
+            className="absolute right-3 top-10 rounded-lg p-1 text-muted-foreground transition-colors hover:text-destructive"
+          >
+            <Trash2Icon className="size-4" />
+          </button>
+        ) : null}
+      </div>
+    );
+  };
 
   function toggleLead(leadId: string, checked: boolean) {
     setSelectedLeadIds((current) =>
@@ -169,6 +261,14 @@ export function OutreachWorkspace() {
     );
   }
 
+  function openTemplateEditor(template: OutreachTemplate) {
+    setEditingTemplate(template);
+    setEditTitle(template.title);
+    setEditSubject(template.subject);
+    setEditBody(template.body);
+    setEditReplyRate(template.replyRate);
+  }
+
   async function handleImportFolder() {
     if (!importProjectId) {
       setUiError("Select a folder to import.");
@@ -185,6 +285,34 @@ export function OutreachWorkspace() {
       projectIds: selectedProjectIds,
       requestedStyle: stylePrompt.trim() || undefined,
     });
+  }
+
+  async function handleSaveTemplateEdits() {
+    if (!editingTemplate) return;
+
+    const payload = {
+      title: editTitle.trim(),
+      subject: editSubject.trim(),
+      body: editBody.trim(),
+      replyRate: editReplyRate.trim(),
+    };
+
+    if (!payload.title || !payload.subject || !payload.body || !payload.replyRate) {
+      setUiError("All template fields are required.");
+      return;
+    }
+
+    setUiError(null);
+
+    if (editingTemplate.generated) {
+      await updateTemplate.mutateAsync({
+        id: editingTemplate.id,
+        ...payload,
+      });
+      return;
+    }
+
+    await createTemplate.mutateAsync(payload);
   }
 
   async function handleRemoveSelected() {
@@ -246,58 +374,6 @@ export function OutreachWorkspace() {
         <div />
       </div>
 
-      {showAiPanel ? (
-        <div className="mb-8 rounded-[1.2rem] border border-border/70 bg-card px-5 py-4">
-          <div className="mb-3 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            AI context
-          </div>
-          <div className="mb-4 flex flex-wrap gap-2">
-            {projects.map((project) => {
-              const selected = selectedProjectIds.includes(project.id);
-              return (
-                <button
-                  key={project.id}
-                  type="button"
-                  onClick={() => toggleProject(project.id)}
-                  className={`rounded-full border px-3 py-1.5 text-[0.85rem] transition-colors ${
-                    selected
-                      ? "border-foreground/20 bg-foreground text-background"
-                      : "border-border bg-background text-muted-foreground"
-                  }`}
-                >
-                  {project.name}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="max-w-[860px] text-[0.92rem] text-muted-foreground">
-              AI uses only the selected folders to tailor a concise outreach template. It is prompted with the 4 standard examples so generated templates stay close in size and structure.
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Input
-                className="h-10 w-[280px] rounded-xl text-[0.92rem]"
-                placeholder="Optional angle, e.g. more premium / more direct"
-                value={stylePrompt}
-                onChange={(event: ChangeEvent<HTMLInputElement>) => setStylePrompt(event.target.value)}
-              />
-              <Button
-                className="h-10 rounded-xl px-4 text-[0.92rem]"
-                disabled={generateTemplate.isPending}
-                onClick={() => {
-                  handleGenerateTemplate().catch(() => undefined);
-                }}
-              >
-                {generateTemplate.isPending ? <SparklesIcon className="size-4 animate-pulse" /> : <PlusIcon className="size-4" />}
-                Create new
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {uiError ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[0.95rem] text-red-700">
           {uiError}
@@ -311,40 +387,7 @@ export function OutreachWorkspace() {
         </div>
 
         <div className="grid items-stretch gap-5 xl:grid-cols-4">
-          {standardTemplates.map((template) => {
-            const selected = selectedTemplateIds.includes(template.id);
-
-            return (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => toggleTemplate(template.id)}
-                className={`grid min-h-[520px] grid-rows-[72px_auto_1fr_88px] rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
-                  selected ? "border-red-400" : "border-border/70 hover:border-foreground/20"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="text-[1rem] font-semibold">{template.title}</div>
-                  {selected ? (
-                    <CheckCircle2Icon className="size-5 text-red-500" />
-                  ) : (
-                    <PencilIcon className="size-4 text-muted-foreground" />
-                  )}
-                </div>
-
-                <div className="h-px bg-border/70" />
-
-                <div className="self-start whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
-                  {template.body}
-                </div>
-
-                <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
-                  <span className="line-clamp-2 min-h-12 text-muted-foreground">{template.subject}</span>
-                  <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
-                </div>
-              </button>
-            );
-          })}
+          {standardTemplates.map(renderTemplateCard)}
         </div>
 
         <div className="mt-5">
@@ -358,54 +401,131 @@ export function OutreachWorkspace() {
           </Button>
         </div>
 
+        {showAiPanel ? (
+          <div className="mt-4 rounded-[1.2rem] border border-border/70 bg-card px-5 py-4">
+            <div className="mb-3 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              AI context
+            </div>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {projects.map((project) => {
+                const selected = selectedProjectIds.includes(project.id);
+                return (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => toggleProject(project.id)}
+                    className={`rounded-full border px-3 py-1.5 text-[0.85rem] transition-colors ${
+                      selected
+                        ? "border-foreground/20 bg-foreground text-background"
+                        : "border-border bg-background text-muted-foreground"
+                    }`}
+                  >
+                    {project.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="max-w-[860px] text-[0.92rem] text-muted-foreground">
+                AI uses only the selected folders to tailor a concise outreach template. It is prompted with the 4 standard examples so generated templates stay close in size and structure.
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Input
+                  className="h-10 w-[280px] rounded-xl text-[0.92rem]"
+                  placeholder="Optional angle, e.g. more premium / more direct"
+                  value={stylePrompt}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => setStylePrompt(event.target.value)}
+                />
+                <Button
+                  className="h-10 rounded-xl px-4 text-[0.92rem]"
+                  disabled={generateTemplate.isPending}
+                  onClick={() => {
+                    handleGenerateTemplate().catch(() => undefined);
+                  }}
+                >
+                  {generateTemplate.isPending ? <SparklesIcon className="size-4 animate-pulse" /> : <PlusIcon className="size-4" />}
+                  Create new
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editingTemplate ? (
+          <div className="mt-4 rounded-[1.2rem] border border-border/70 bg-card p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[1rem] font-semibold">
+                  {editingTemplate.generated ? "Edit template" : "Edit and save as custom template"}
+                </div>
+                <div className="text-[0.92rem] text-muted-foreground">
+                  {editingTemplate.generated
+                    ? "Changes are saved to your template library."
+                    : "Base templates stay unchanged. Saving creates your own editable copy."}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-xl px-3 text-[0.9rem]"
+                onClick={() => setEditingTemplate(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Input
+                className="h-11 rounded-xl"
+                value={editTitle}
+                onChange={(event) => setEditTitle(event.target.value)}
+                placeholder="Template title"
+              />
+              <Input
+                className="h-11 rounded-xl"
+                value={editReplyRate}
+                onChange={(event) => setEditReplyRate(event.target.value)}
+                placeholder="Reply rate, e.g. 35%"
+              />
+            </div>
+
+            <Input
+              className="mt-4 h-11 rounded-xl"
+              value={editSubject}
+              onChange={(event) => setEditSubject(event.target.value)}
+              placeholder="Subject"
+            />
+
+            <Textarea
+              className="mt-4 min-h-[220px] rounded-xl text-[0.96rem] leading-7"
+              value={editBody}
+              onChange={(event) => setEditBody(event.target.value)}
+              placeholder="Body"
+            />
+
+            <div className="mt-4 flex justify-end">
+              <Button
+                className="h-10 rounded-xl px-4 text-[0.92rem]"
+                disabled={isSavingTemplate}
+                onClick={() => {
+                  handleSaveTemplateEdits().catch(() => undefined);
+                }}
+              >
+                {isSavingTemplate ? "Saving..." : editingTemplate.generated ? "Save changes" : "Save as custom template"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {generatedTemplates.length > 0 ? (
           <div className="mt-8">
             <div className="mb-4 text-[0.92rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Generated templates
             </div>
             <div className="grid items-stretch gap-5 xl:grid-cols-4">
-              {generatedTemplates.map((template) => {
-                const selected = selectedTemplateIds.includes(template.id);
-
-                return (
-                  <div key={template.id} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => toggleTemplate(template.id)}
-                      className={`grid min-h-[520px] w-full grid-rows-[72px_auto_1fr_88px] rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
-                        selected ? "border-red-400" : "border-border/70 hover:border-foreground/20"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-[1rem] font-semibold">{template.title}</div>
-                        {selected ? (
-                          <CheckCircle2Icon className="size-5 text-red-500" />
-                        ) : (
-                          <PencilIcon className="size-4 text-muted-foreground" />
-                        )}
-                      </div>
-
-                      <div className="h-px bg-border/70" />
-
-                      <div className="self-start whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
-                        {template.body}
-                      </div>
-
-                      <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
-                        <span className="line-clamp-2 min-h-12 text-muted-foreground">{template.subject}</span>
-                        <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteTemplate.mutate({ id: template.id })}
-                      className="absolute right-3 top-3 rounded-lg p-1 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2Icon className="size-4" />
-                    </button>
-                  </div>
-                );
-              })}
+              {generatedTemplates.map(renderTemplateCard)}
             </div>
           </div>
         ) : null}
