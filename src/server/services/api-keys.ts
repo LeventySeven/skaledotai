@@ -9,7 +9,13 @@ function hashKey(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-export async function listApiKeys(userId: string) {
+export async function listApiKeys(userId: string): Promise<Array<{
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: Date;
+  lastUsed: Date | null;
+}>> {
   return db
     .select({
       id: apiKeys.id,
@@ -23,7 +29,7 @@ export async function listApiKeys(userId: string) {
     .orderBy(desc(apiKeys.createdAt));
 }
 
-export async function createApiKey(userId: string, name: string) {
+export async function createApiKey(userId: string, name: string): Promise<{ key: string; prefix: string; name: string }> {
   const raw = `sk_${randomBytes(24).toString("hex")}`;
   const prefix = raw.slice(0, 10);
   const keyHash = hashKey(raw);
