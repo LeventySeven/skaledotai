@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AiPanel } from "./AiPanel";
 import { TemplateCard } from "./TemplateCard";
-import { useOutreachWorkspace } from "./hooks/useOutreachWorkspace";
+import { useOutreachWorkspace } from "./useOutreachWorkspace";
 
 function statusLabel(stage: string): string {
   if (stage === "agreed") return "Agreed";
