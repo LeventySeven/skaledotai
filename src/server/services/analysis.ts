@@ -13,6 +13,26 @@ import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/consta
 import { createProject, rowToPreviewLead } from "./projects";
 import { upsertPostStats } from "./stats";
 
+type NormalizedStats = {
+  postCount: number;
+  avgViews: number;
+  avgLikes: number;
+  avgReplies: number;
+  avgReposts: number;
+  topTopics: string[];
+};
+
+function normalizeStats(row: typeof postStats.$inferSelect): NormalizedStats {
+  return {
+    postCount: row.postCount,
+    avgViews: row.avgViews ? Number(row.avgViews) : 0,
+    avgLikes: row.avgLikes ? Number(row.avgLikes) : 0,
+    avgReplies: row.avgReplies ? Number(row.avgReplies) : 0,
+    avgReposts: row.avgReposts ? Number(row.avgReposts) : 0,
+    topTopics: row.topTopics ?? [],
+  };
+}
+
 function estimatePricingSignal(input: {
   bio: string;
   followers: number;
@@ -85,31 +105,25 @@ export async function analyzeProjectsIntoNewProject(input: {
     .where(and(eq(projects.userId, input.userId), inArray(projectLeads.projectId, uniqueProjectIds)))
     .orderBy(desc(leads.followers));
 
-  const deduped = new Map<string, { lead: typeof leads.$inferSelect; stats: typeof postStats.$inferSelect | null }>();
+  const deduped = new Map<string, { lead: typeof leads.$inferSelect; stats: NormalizedStats | null }>();
   for (const row of candidateRows) {
     if (!deduped.has(row.lead.id)) {
-      deduped.set(row.lead.id, { lead: row.lead, stats: row.stats });
+      deduped.set(row.lead.id, { lead: row.lead, stats: row.stats ? normalizeStats(row.stats) : null });
     }
   }
 
   const shortlisted = [...deduped.values()]
     .map((row) => {
-      const stats = row.stats;
-      const postCount = stats?.postCount ?? 0;
-      const avgViews = stats?.avgViews ? Number(stats.avgViews) : 0;
-      const avgLikes = stats?.avgLikes ? Number(stats.avgLikes) : 0;
-      const avgReplies = stats?.avgReplies ? Number(stats.avgReplies) : 0;
-      const avgReposts = stats?.avgReposts ? Number(stats.avgReposts) : 0;
-
+      const s = row.stats;
       return {
         ...row,
         score: heuristicScore({
           followers: row.lead.followers,
-          postCount,
-          avgViews,
-          avgLikes,
-          avgReplies,
-          avgReposts,
+          postCount: s?.postCount ?? 0,
+          avgViews: s?.avgViews ?? 0,
+          avgLikes: s?.avgLikes ?? 0,
+          avgReplies: s?.avgReplies ?? 0,
+          avgReposts: s?.avgReposts ?? 0,
         }),
       };
     })
@@ -137,7 +151,7 @@ export async function analyzeProjectsIntoNewProject(input: {
   }> = [];
 
   for (const candidate of shortlisted) {
-    let stats = candidate.stats;
+    let stats: NormalizedStats | null = candidate.stats;
     let samplePosts: string[] = [];
 
     if (!stats && candidate.lead.xUserId) {
@@ -147,16 +161,22 @@ export async function analyzeProjectsIntoNewProject(input: {
         samplePosts = metrics.map((tweet) => tweet.text).filter(Boolean).slice(0, 3);
 
         if (metrics.length > 0) {
+          const fresh = await upsertPostStats({
+            leadId: candidate.lead.id,
+            postCount: metrics.length,
+            avgViews: Math.round(metrics.reduce((sum, tweet) => sum + tweet.viewCount, 0) / metrics.length),
+            avgLikes: Math.round(metrics.reduce((sum, tweet) => sum + tweet.likeCount, 0) / metrics.length),
+            avgReplies: Math.round(metrics.reduce((sum, tweet) => sum + tweet.replyCount, 0) / metrics.length),
+            avgReposts: Math.round(metrics.reduce((sum, tweet) => sum + tweet.repostCount, 0) / metrics.length),
+            topTopics: [],
+          });
           stats = {
-            ...(await upsertPostStats({
-              leadId: candidate.lead.id,
-              postCount: metrics.length,
-              avgViews: Math.round(metrics.reduce((sum, tweet) => sum + tweet.viewCount, 0) / metrics.length),
-              avgLikes: Math.round(metrics.reduce((sum, tweet) => sum + tweet.likeCount, 0) / metrics.length),
-              avgReplies: Math.round(metrics.reduce((sum, tweet) => sum + tweet.replyCount, 0) / metrics.length),
-              avgReposts: Math.round(metrics.reduce((sum, tweet) => sum + tweet.repostCount, 0) / metrics.length),
-              topTopics: [],
-            })) as unknown as typeof postStats.$inferSelect,
+            postCount: fresh.postCount,
+            avgViews: fresh.avgViews ?? 0,
+            avgLikes: fresh.avgLikes ?? 0,
+            avgReplies: fresh.avgReplies ?? 0,
+            avgReposts: fresh.avgReposts ?? 0,
+            topTopics: fresh.topTopics ?? [],
           };
         }
       } catch {
@@ -165,10 +185,10 @@ export async function analyzeProjectsIntoNewProject(input: {
     }
 
     const postCount = stats?.postCount ?? 0;
-    const avgViews = stats?.avgViews ? Number(stats.avgViews) : 0;
-    const avgLikes = stats?.avgLikes ? Number(stats.avgLikes) : 0;
-    const avgReplies = stats?.avgReplies ? Number(stats.avgReplies) : 0;
-    const avgReposts = stats?.avgReposts ? Number(stats.avgReposts) : 0;
+    const avgViews = stats?.avgViews ?? 0;
+    const avgLikes = stats?.avgLikes ?? 0;
+    const avgReplies = stats?.avgReplies ?? 0;
+    const avgReposts = stats?.avgReposts ?? 0;
     const topics = stats?.topTopics ?? [];
 
     enrichedCandidates.push({
