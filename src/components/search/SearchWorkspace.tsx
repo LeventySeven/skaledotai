@@ -82,6 +82,16 @@ export function SearchWorkspace() {
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!query.trim()) return;
+
+    if (searchFollowersOnly && !followerUsername.trim()) {
+      toastManager.add({
+        type: "error",
+        title: "Enter an X handle to search within followers.",
+      });
+      return;
+    }
+
     await searchMutation.mutateAsync({
       query: query.trim(),
       projectId: projectMode === "existing" ? projectId || undefined : undefined,
@@ -96,6 +106,8 @@ export function SearchWorkspace() {
   async function handleImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanHandle = networkUsername.replace(/^@/, "").trim();
+    if (!cleanHandle) return;
+
     await importMutation.mutateAsync({
       username: cleanHandle,
       projectId: networkProjectMode === "existing" ? networkProjectId || undefined : undefined,
@@ -193,6 +205,7 @@ export function SearchWorkspace() {
           </div>
 
           <Button
+            type="submit"
             className="h-[44px] w-full rounded-2xl text-[1rem] font-medium"
             disabled={searchMutation.isPending}
           >
@@ -260,6 +273,7 @@ export function SearchWorkspace() {
           </div>
 
           <Button
+            type="submit"
             variant="outline"
             className="h-[44px] w-full rounded-2xl text-[1rem] font-medium"
             disabled={importMutation.isPending}
