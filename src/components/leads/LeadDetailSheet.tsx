@@ -18,6 +18,7 @@ import { toastManager } from "@/components/ui/toast";
 import type { Lead, PostStats } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BarChart2Icon } from "lucide-react";
+import { trpc } from "@/lib/trpc/client";
 
 interface LeadDetailSheetProps {
   lead: Lead | null;
@@ -38,36 +39,44 @@ function initials(name: string): string {
 }
 
 export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: LeadDetailSheetProps) {
+  const utils = trpc.useUtils();
   const [importing, setImporting] = useState(false);
   const [postStats, setPostStats] = useState<PostStats | null>(null);
-  const [fetchingStats, setFetchingStats] = useState(false);
-  const [statsLoaded, setStatsLoaded] = useState(false);
+  const statsQuery = trpc.stats.get.useQuery(
+    { profileId: lead?.id ?? "00000000-0000-0000-0000-000000000000" },
+    {
+      enabled: open && Boolean(lead?.id),
+    },
+  );
+  const refreshStats = trpc.stats.refresh.useMutation();
+  const importNetwork = trpc.search.importNetwork.useMutation();
 
-  // Load existing stats when sheet opens
   useEffect(() => {
-    if (!open || !lead) return;
-    setStatsLoaded(false);
-    setPostStats(null);
-    fetch(`/api/post-stats?leadId=${lead.id}`)
-      .then((r) => r.json())
-      .then((d) => { setPostStats(d ?? null); setStatsLoaded(true); })
-      .catch(() => setStatsLoaded(true));
-  }, [open, lead?.id]);
+    setPostStats(statsQuery.data ?? null);
+  }, [statsQuery.data, lead?.id]);
 
   async function handleImportFollowing() {
     if (!lead || lead.platform !== "twitter") return;
     setImporting(true);
     try {
-      const res = await fetch("/api/followers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: lead.handle }),
+      const result = await importNetwork.mutateAsync({
+        username: lead.handle,
+        projectId: lead.projectId,
+        projectName: lead.projectName ?? `${lead.handle} network`,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toastManager.add({ type: "success", title: `Imported ${data.leads?.length ?? 0} leads from ${lead.handle}.` });
-    } catch {
-      toastManager.add({ type: "error", title: "Import failed." });
+      await Promise.all([
+        utils.projects.list.invalidate(),
+        utils.leads.list.invalidate(),
+      ]);
+      toastManager.add({
+        type: "success",
+        title: `Imported ${result.leads.length} leads from @${lead.handle}.`,
+      });
+    } catch (err) {
+      toastManager.add({
+        type: "error",
+        title: err instanceof Error ? err.message : "Import failed.",
+      });
     } finally {
       setImporting(false);
     }
@@ -75,22 +84,18 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
 
   async function handleFetchStats() {
     if (!lead || lead.platform !== "twitter") return;
-    setFetchingStats(true);
     try {
-      const res = await fetch("/api/post-stats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: lead.id, handle: lead.handle, bio: lead.bio, niche }),
+      const data = await refreshStats.mutateAsync({
+        profileId: lead.id,
+        crmId: lead.crmId,
+        niche,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setPostStats(data.stats);
+      await utils.stats.get.invalidate({ profileId: lead.id });
       if (data.priority) await onPatch(lead.id, { priority: data.priority });
       toastManager.add({ type: "success", title: `Stats fetched. AI set priority to ${data.priority}.` });
     } catch (err) {
       toastManager.add({ type: "error", title: err instanceof Error ? err.message : "Failed to fetch stats." });
-    } finally {
-      setFetchingStats(false);
     }
   }
 
@@ -150,20 +155,20 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
                     variant="outline"
                     size="sm"
                     className="h-6 text-xs gap-1 px-2"
-                    disabled={fetchingStats}
+                    disabled={refreshStats.isPending}
                     onClick={handleFetchStats}
                   >
-                    {fetchingStats ? <Spinner className="size-3" /> : <BarChart2Icon className="size-3" />}
-                    {fetchingStats ? "Fetching…" : postStats ? "Refresh" : "Fetch Stats"}
+                    {refreshStats.isPending ? <Spinner className="size-3" /> : <BarChart2Icon className="size-3" />}
+                    {refreshStats.isPending ? "Fetching..." : postStats ? "Refresh" : "Fetch Stats"}
                   </Button>
                 </div>
 
-                {!statsLoaded && (
-                  <p className="text-xs text-muted-foreground">Loading…</p>
+                {statsQuery.isLoading && (
+                  <p className="text-xs text-muted-foreground">Loading...</p>
                 )}
 
-                {statsLoaded && !postStats && !fetchingStats && (
-                  <p className="text-xs text-muted-foreground">No stats yet. Click Fetch Stats to scrape recent posts.</p>
+                {!statsQuery.isLoading && !postStats && !refreshStats.isPending && (
+                  <p className="text-xs text-muted-foreground">No stats yet. Click Fetch Stats to analyze recent X posts.</p>
                 )}
 
                 {postStats && (
@@ -330,7 +335,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
           <div className="flex flex-col gap-2 w-full">
             {lead.platform === "twitter" && (
               <Button variant="outline" className="w-full" disabled={importing} onClick={handleImportFollowing}>
-                {importing ? <><Spinner className="size-4" />Importing…</> : "Import Followers & Following"}
+                {importing ? <><Spinner className="size-4" />Importing...</> : "Import Followers & Following"}
               </Button>
             )}
             <Button className="w-full" disabled={lead.inOutreach}

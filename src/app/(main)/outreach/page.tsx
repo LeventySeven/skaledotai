@@ -1,1 +1,5 @@
-export default function OutreachPage() { return <div className="p-8 text-muted-foreground">Outreach — coming soon</div>; }
+import { OutreachWorkspace } from "@/components/outreach/OutreachWorkspace";
+
+export default function OutreachPage() {
+  return <OutreachWorkspace />;
+}

@@ -6,7 +6,7 @@ import { refreshProfileStats } from "@/server/services/search";
 export const statsRouter = router({
   get: protectedProcedure
     .input(z.object({ profileId: z.string().uuid() }))
-    .query(({ input }) => getPostStats(input.profileId)),
+    .query(({ ctx, input }) => getPostStats(ctx.userId, input.profileId)),
 
   refresh: protectedProcedure
     .input(z.object({

@@ -10,6 +10,7 @@ export const searchRouter = router({
       projectId: z.string().uuid().optional(),
       projectName: z.string().optional(),
       followerUsername: z.string().optional(),
+      minFollowers: z.number().int().nonnegative().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) await assertProject(ctx.userId, input.projectId);

@@ -8,6 +8,7 @@ import {
   getFollowersPage,
   getFollowingPage,
   getUserTweets,
+  isUnsupportedAuthenticationError,
   lookupUsersByUsernames,
   mapTweetsToMetrics,
   searchAllPosts,
@@ -30,6 +31,10 @@ type Candidate = XProfile & {
 function avg(values: number[]): number {
   if (values.length === 0) return 0;
   return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
+}
+
+function byFollowersDesc(a: XProfile, b: XProfile): number {
+  return b.followersCount - a.followersCount;
 }
 
 function addCandidate(map: Map<string, Candidate>, candidate: Candidate): void {
@@ -61,11 +66,18 @@ async function resolveProject(userId: string, input: SearchLeadInput): Promise<P
 async function collectSearchCandidates(
   query: string,
   followerUsername?: string,
+  minFollowers = 0,
 ): Promise<Candidate[]> {
   const map = new Map<string, Candidate>();
 
-  for (const profile of await searchUsers(query, 25)) {
-    addCandidate(map, { ...profile, samplePosts: [], source: "profile_search" });
+  try {
+    for (const profile of await searchUsers(query, 25)) {
+      addCandidate(map, { ...profile, samplePosts: [], source: "profile_search" });
+    }
+  } catch (error) {
+    if (!isUnsupportedAuthenticationError(error)) {
+      throw error;
+    }
   }
 
   const recentPosts = await searchRecentPosts(buildPostSearchQuery(query), 50);
@@ -115,21 +127,43 @@ async function collectSearchCandidates(
     }
   }
 
-  const rankedIds = await rankProfilesForQuery(query, [...map.values()]);
+  const filteredCandidates = [...map.values()]
+    .filter((candidate) => candidate.followersCount >= minFollowers)
+    .sort(byFollowersDesc);
+
+  const rankedIds = await rankProfilesForQuery(query, filteredCandidates);
+  const rankedIdSet = new Set(rankedIds);
   const ranked = rankedIds
-    .map((id) => map.get(id))
+    .map((id) => filteredCandidates.find((candidate) => candidate.xUserId === id))
     .filter((c): c is Candidate => Boolean(c))
     .slice(0, SEARCH_TARGET);
 
-  return ranked.length > 0 ? ranked : [...map.values()].slice(0, SEARCH_TARGET);
+  const remainder = filteredCandidates.filter((candidate) => !rankedIdSet.has(candidate.xUserId));
+  const combined = [...ranked, ...remainder].slice(0, SEARCH_TARGET);
+
+  return combined;
 }
 
 export async function searchAndAddLeads(
   userId: string,
   input: SearchLeadInput,
 ): Promise<{ leads: Lead[]; project: Project }> {
+  const candidates = await collectSearchCandidates(
+    input.query,
+    input.followerUsername,
+    input.minFollowers ?? 0,
+  );
+  if (candidates.length === 0) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message:
+        (input.minFollowers ?? 0) > 0
+          ? `No X profiles found for this query with at least ${input.minFollowers} followers.`
+          : "No X profiles found for this query.",
+    });
+  }
+
   const project = await resolveProject(userId, input);
-  const candidates = await collectSearchCandidates(input.query, input.followerUsername);
   const leadsList = await addProfilesToProject({
     userId,
     projectId: project.id,
@@ -192,7 +226,7 @@ export async function refreshProfileStats(
   userId: string,
   input: { profileId: string; crmId?: string; niche?: string },
 ): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
-  const profile = await getLeadById(input.profileId);
+  const profile = await getLeadById(userId, input.profileId);
   if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
   if (!profile.xUserId) throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X user ID." });
 

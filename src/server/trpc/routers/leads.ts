@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { assertProject } from "@/server/services/projects";
-import { deleteLead, enrichLeadEmails, listLeads, scanProjectEmails, updateLead } from "@/server/services/leads";
+import { deleteLead, enrichLeadEmails, listLeads, scanProjectEmails, updateLead, updateLeads } from "@/server/services/leads";
 
 const leadPatchSchema = z.object({
   stage: z.enum(["found", "messaged", "replied", "agreed"]).optional(),
@@ -32,6 +32,10 @@ export const leadsRouter = router({
   update: protectedProcedure
     .input(z.object({ crmId: z.string().uuid(), patch: leadPatchSchema }))
     .mutation(({ ctx, input }) => updateLead(ctx.userId, input.crmId, input.patch)),
+
+  bulkUpdate: protectedProcedure
+    .input(z.object({ crmIds: z.array(z.string().uuid()).min(1), patch: leadPatchSchema }))
+    .mutation(({ ctx, input }) => updateLeads(ctx.userId, input.crmIds, input.patch)),
 
   remove: protectedProcedure
     .input(z.object({ crmId: z.string().uuid() }))

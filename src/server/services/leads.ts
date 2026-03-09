@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, projectLeads } from "@/db/schema";
@@ -61,6 +61,7 @@ export async function listLeads(input: {
     : leads.name;
 
   let rows: Array<{ lead: typeof leads.$inferSelect; resolvedProjectId: string | null }>;
+  let count: number;
 
   if (projectId) {
     rows = await db
@@ -74,21 +75,33 @@ export async function listLeads(input: {
       .orderBy(orderCol)
       .limit(pageSize)
       .offset((page - 1) * pageSize);
+
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .innerJoin(
+        projectLeads,
+        and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
+      )
+      .where(and(...conditions));
+
+    count = countRow?.count ?? 0;
   } else {
     rows = await db
-      .select({ lead: leads, resolvedProjectId: projectLeads.projectId })
+      .select({ lead: leads, resolvedProjectId: sql<string | null>`null` })
       .from(leads)
-      .leftJoin(projectLeads, eq(projectLeads.leadId, leads.id))
       .where(and(...conditions))
       .orderBy(orderCol)
       .limit(pageSize)
       .offset((page - 1) * pageSize);
-  }
 
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(leads)
-    .where(and(...conditions));
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(and(...conditions));
+
+    count = countRow?.count ?? 0;
+  }
 
   return {
     leads: rows.map((r) => rowToLead(r.lead, r.resolvedProjectId ?? undefined)),
@@ -96,8 +109,12 @@ export async function listLeads(input: {
   };
 }
 
-export async function getLeadById(leadId: string): Promise<Lead | null> {
-  const [row] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+export async function getLeadById(userId: string, leadId: string): Promise<Lead | null> {
+  const [row] = await db
+    .select()
+    .from(leads)
+    .where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
+    .limit(1);
   return row ? rowToLead(row) : null;
 }
 
@@ -121,6 +138,27 @@ export async function updateLead(userId: string, crmId: string, patch: LeadPatch
   return rowToLead(row);
 }
 
+export async function updateLeads(userId: string, crmIds: string[], patch: LeadPatch): Promise<number> {
+  if (crmIds.length === 0) return 0;
+
+  const updated = await db
+    .update(leads)
+    .set({
+      ...(patch.stage !== undefined && { stage: patch.stage }),
+      ...(patch.priority !== undefined && { priority: patch.priority }),
+      ...(patch.dmComfort !== undefined && { dmComfort: patch.dmComfort }),
+      ...(patch.theAsk !== undefined && { theAsk: patch.theAsk }),
+      ...(patch.inOutreach !== undefined && { inOutreach: patch.inOutreach }),
+      ...(patch.email !== undefined && { email: patch.email }),
+      ...(patch.budget !== undefined && { budget: patch.budget !== null ? String(patch.budget) : null }),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(leads.userId, userId), inArray(leads.id, crmIds)))
+    .returning({ id: leads.id });
+
+  return updated.length;
+}
+
 export async function deleteLead(userId: string, crmId: string): Promise<void> {
   const deleted = await db
     .delete(leads)
@@ -142,6 +180,8 @@ export async function addProfilesToProject(input: {
   const result: Lead[] = [];
 
   for (const profile of input.profiles) {
+    const discoverySource = (profile.source as DiscoverySource | undefined) ?? input.discoverySource;
+
     const [lead] = await db
       .insert(leads)
       .values({
@@ -155,7 +195,7 @@ export async function addProfilesToProject(input: {
         following: profile.followingCount,
         avatarUrl: profile.avatarUrl,
         profileUrl: profile.profileUrl,
-        discoverySource: input.discoverySource,
+        discoverySource,
         discoveryQuery: input.discoveryQuery,
       })
       .onConflictDoUpdate({
@@ -168,6 +208,8 @@ export async function addProfilesToProject(input: {
           avatarUrl: profile.avatarUrl,
           profileUrl: profile.profileUrl,
           xUserId: profile.xUserId,
+          discoverySource,
+          discoveryQuery: input.discoveryQuery,
           updatedAt: new Date(),
         },
       })
