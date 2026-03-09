@@ -50,6 +50,16 @@ CREATE TABLE "leads" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "outreach_templates" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"title" text NOT NULL,
+	"subject" text NOT NULL,
+	"body" text NOT NULL,
+	"reply_rate" text DEFAULT '—' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "post_stats" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"lead_id" uuid NOT NULL,
@@ -114,6 +124,7 @@ CREATE TABLE "verification" (
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "leads" ADD CONSTRAINT "leads_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "outreach_templates" ADD CONSTRAINT "outreach_templates_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "post_stats" ADD CONSTRAINT "post_stats_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_leads" ADD CONSTRAINT "project_leads_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_leads" ADD CONSTRAINT "project_leads_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -123,4 +134,5 @@ CREATE INDEX "accounts_user_provider_idx" ON "account" USING btree ("user_id","p
 CREATE INDEX "api_keys_user_id_idx" ON "api_keys" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "leads_user_handle_platform_idx" ON "leads" USING btree ("user_id","handle","platform");--> statement-breakpoint
 CREATE INDEX "leads_user_id_idx" ON "leads" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "outreach_templates_user_id_idx" ON "outreach_templates" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "projects_user_id_idx" ON "projects" USING btree ("user_id");
