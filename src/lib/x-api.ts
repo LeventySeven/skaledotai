@@ -69,6 +69,33 @@ type XResponse<T> = {
 
 type UserListResponse = XResponse<XUser[]>;
 type TweetListResponse = XResponse<XTweet[]>;
+type XProblemResponse = {
+  title?: string;
+  detail?: string;
+  type?: string;
+  status?: number;
+};
+
+export class XApiError extends Error {
+  status: number;
+  title?: string;
+  detail?: string;
+  type?: string;
+
+  constructor(status: number, problem?: XProblemResponse, fallbackMessage?: string) {
+    super(
+      fallbackMessage
+        ?? problem?.detail
+        ?? problem?.title
+        ?? `X API request failed (${status})`,
+    );
+    this.name = "XApiError";
+    this.status = status;
+    this.title = problem?.title;
+    this.detail = problem?.detail;
+    this.type = problem?.type;
+  }
+}
 
 function requireToken(): string {
   const token = process.env.X_API_BEARER_TOKEN;
@@ -127,7 +154,19 @@ async function xRequest<T>(
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`X API request failed (${response.status}): ${text}`);
+    let problem: XProblemResponse | undefined;
+
+    try {
+      problem = JSON.parse(text) as XProblemResponse;
+    } catch {
+      problem = undefined;
+    }
+
+    throw new XApiError(
+      response.status,
+      problem,
+      `X API request failed (${response.status}): ${text}`,
+    );
   }
 
   return response.json() as Promise<T>;
@@ -159,6 +198,14 @@ export function mapXUserToProfile(user: XUser): XProfile {
     location: user.location,
     url: user.url,
   };
+}
+
+export function isUnsupportedAuthenticationError(error: unknown): boolean {
+  return (
+    error instanceof XApiError
+    && error.status === 403
+    && error.type === "https://api.twitter.com/2/problems/unsupported-authentication"
+  );
 }
 
 export async function searchUsers(query: string, maxResults = 25): Promise<XProfile[]> {

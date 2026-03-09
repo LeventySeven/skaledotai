@@ -8,6 +8,7 @@ import {
   getFollowersPage,
   getFollowingPage,
   getUserTweets,
+  isUnsupportedAuthenticationError,
   lookupUsersByUsernames,
   mapTweetsToMetrics,
   searchAllPosts,
@@ -64,8 +65,14 @@ async function collectSearchCandidates(
 ): Promise<Candidate[]> {
   const map = new Map<string, Candidate>();
 
-  for (const profile of await searchUsers(query, 25)) {
-    addCandidate(map, { ...profile, samplePosts: [], source: "profile_search" });
+  try {
+    for (const profile of await searchUsers(query, 25)) {
+      addCandidate(map, { ...profile, samplePosts: [], source: "profile_search" });
+    }
+  } catch (error) {
+    if (!isUnsupportedAuthenticationError(error)) {
+      throw error;
+    }
   }
 
   const recentPosts = await searchRecentPosts(buildPostSearchQuery(query), 50);
@@ -128,8 +135,15 @@ export async function searchAndAddLeads(
   userId: string,
   input: SearchLeadInput,
 ): Promise<{ leads: Lead[]; project: Project }> {
-  const project = await resolveProject(userId, input);
   const candidates = await collectSearchCandidates(input.query, input.followerUsername);
+  if (candidates.length === 0) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "No X profiles found for this query.",
+    });
+  }
+
+  const project = await resolveProject(userId, input);
   const leadsList = await addProfilesToProject({
     userId,
     projectId: project.id,
