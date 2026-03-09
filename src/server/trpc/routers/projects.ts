@@ -1,10 +1,21 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { assertProject, createProject, deleteProject, getProjects, queueProjectInfluencers } from "@/server/services/projects";
+import {
+  analyzeProjectsIntoNewProject,
+  assertProject,
+  createProject,
+  deleteProject,
+  getProjectOverviews,
+  getProjects,
+  queueProjectInfluencers,
+} from "@/server/services/projects";
 
 export const projectsRouter = router({
   list: protectedProcedure
     .query(({ ctx }) => getProjects(ctx.userId)),
+
+  overviews: protectedProcedure
+    .query(({ ctx }) => getProjectOverviews(ctx.userId)),
 
   create: protectedProcedure
     .input(z.object({
@@ -24,6 +35,18 @@ export const projectsRouter = router({
       const queued = await queueProjectInfluencers(ctx.userId, input.projectId);
       return { queued };
     }),
+
+  analyze: protectedProcedure
+    .input(z.object({
+      projectIds: z.array(z.string().uuid()).min(1),
+      name: z.string().optional(),
+    }))
+    .mutation(({ ctx, input }) =>
+      analyzeProjectsIntoNewProject({
+        userId: ctx.userId,
+        projectIds: input.projectIds,
+        name: input.name,
+      })),
 });
 
 export { assertProject };

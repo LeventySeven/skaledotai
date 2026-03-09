@@ -1,11 +1,11 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import type { Priority, XProfile } from "@/lib/types";
+import type { Priority, ProjectAnalysisResult, XProfile } from "@/lib/types";
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-5-mini";
+const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";
 const DEFAULT_REASONING_EFFORT =
-  process.env.OPENAI_REASONING_EFFORT ?? "low";
+  process.env.OPENAI_REASONING_EFFORT ?? "medium";
 
 type StructuredResponse<T> = {
   schemaName: string;
@@ -131,4 +131,51 @@ export async function extractTopicsAndPriority(
   });
 
   return result;
+}
+
+export async function analyzeLeadPoolForProject(input: {
+  projectNames: string[];
+  candidates: Array<{
+    id: string;
+    name: string;
+    handle: string;
+    bio: string;
+    followers: number;
+    postCount: number;
+    avgViews: number;
+    avgLikes: number;
+    avgReplies: number;
+    avgReposts: number;
+    topics: string[];
+    samplePosts: string[];
+    pricingSignal: string;
+  }>;
+}): Promise<Pick<ProjectAnalysisResult, "summary" | "selectedLeadIds">> {
+  const fallback = {
+    summary:
+      "Selected the strongest leads by audience size, posting activity, engagement, and commercial signals.",
+    selectedLeadIds: input.candidates.slice(0, 8).map((candidate) => candidate.id),
+  };
+
+  if (input.candidates.length === 0) return fallback;
+
+  const result = await structuredResponse<Pick<ProjectAnalysisResult, "summary" | "selectedLeadIds">>({
+    schemaName: "project_lead_pool_analysis",
+    schema: z.object({
+      summary: z.string(),
+      selectedLeadIds: z.array(z.string()).max(12),
+    }),
+    instructions:
+      "You are selecting the best outreach targets from multiple X/Twitter project lists. Favor candidates that combine relevance, stronger audiences, consistent posting activity, meaningful engagement, and higher inferred commercial pricing power. Return a short summary and the ids of the best candidates.",
+    input: JSON.stringify(input),
+    fallback,
+    maxOutputTokens: 320,
+  });
+
+  return {
+    summary: result.summary,
+    selectedLeadIds: result.selectedLeadIds.filter((id) =>
+      input.candidates.some((candidate) => candidate.id === id),
+    ),
+  };
 }

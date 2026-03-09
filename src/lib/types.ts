@@ -32,6 +32,32 @@ export type Project = {
   leadCount?: number;
 };
 
+export type ProjectPreviewLead = {
+  id: string;
+  name: string;
+  handle: string;
+  bio: string;
+  followers: number;
+  priority: Priority;
+  avatarUrl?: string;
+};
+
+export type ProjectOverview = Project & {
+  leadCount: number;
+  avgFollowers: number;
+  topFollowers: number;
+  p0LeadCount: number;
+  previewLeads: ProjectPreviewLead[];
+};
+
+export type ProjectAnalysisResult = {
+  summary: string;
+  selectedLeadIds: string[];
+  project: Project;
+  previewLeads: ProjectPreviewLead[];
+  analyzedProjectIds: string[];
+};
+
 export type Lead = {
   id: string;
   // id is used as crmId since CRM fields live on the lead itself

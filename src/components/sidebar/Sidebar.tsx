@@ -27,13 +27,25 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
 
   return (
     <div className="mt-2">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 px-7 py-2 text-[0.92rem] font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronRightIcon className={cn("size-3.5 transition-transform", expanded && "rotate-90")} />
-        Projects
-      </button>
+      <div className="flex items-center px-5 py-1">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground"
+          aria-label={expanded ? "Collapse projects" : "Expand projects"}
+        >
+          <ChevronRightIcon className={cn("size-3.5 transition-transform", expanded && "rotate-90")} />
+        </button>
+        <Button
+          render={<Link href="/projects" onClick={onNav} />}
+          variant="ghost"
+          className={cn(
+            "h-9 flex-1 justify-start rounded-xl px-2 text-[1rem] font-medium text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+            pathname === "/projects" && "bg-accent text-foreground",
+          )}
+        >
+          Projects
+        </Button>
+      </div>
       {expanded && (
         <div className="mt-1 flex flex-col gap-1">
           {projects.map((p) => {
