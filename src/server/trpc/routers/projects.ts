@@ -2,7 +2,6 @@ import "server-only";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import {
-  analyzeProjectsIntoNewProject,
   assertProject,
   createProject,
   deleteProject,
@@ -10,6 +9,7 @@ import {
   getProjects,
   queueProjectInfluencers,
 } from "@/server/services/projects";
+import { analyzeProjectsIntoNewProject } from "@/server/services/analysis";
 import { AnalyzeProjectsInputSchema, CreateProjectInputSchema } from "@/lib/validations/projects";
 
 export const projectsRouter = router({
