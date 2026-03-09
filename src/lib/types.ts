@@ -83,6 +83,7 @@ export type SearchLeadInput = {
   projectId?: string;
   projectName?: string;
   followerUsername?: string;
+  minFollowers?: number;
 };
 
 export type LeadPatch = Partial<{

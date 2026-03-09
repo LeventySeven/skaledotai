@@ -128,6 +128,7 @@ export function LeadsWorkspace() {
   );
 
   const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedIds.includes(lead.id));
+  const selectedCount = selectedIds.length;
 
   async function handlePatch(id: string, patch: Partial<Lead>) {
     await updateLead.mutateAsync({
@@ -207,18 +208,25 @@ export function LeadsWorkspace() {
   }
 
   return (
-    <div className="px-8 py-8">
+    <div className="px-6 py-5">
       <div className="mx-auto max-w-[1680px]">
-        <div className="mb-6 flex items-start justify-between gap-6">
+        <div className="mb-4 flex items-start justify-between gap-6">
           <div>
-            <h1 className="text-[3rem] font-semibold tracking-[-0.04em]">
-              {currentProject?.name ?? "Leads"}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-[2.55rem] font-semibold tracking-[-0.04em]">
+                {currentProject?.name ?? "Leads"}
+              </h1>
+              {selectedCount > 0 ? (
+                <Badge variant="outline" className="h-8 rounded-full px-3 text-sm font-semibold">
+                  {selectedCount} selected
+                </Badge>
+              ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
-              className="h-10 rounded-2xl px-5 text-[1rem]"
+              className="h-9 rounded-2xl px-4 text-[0.96rem]"
               disabled={refreshStats.isPending || leads.length === 0}
               onClick={() => {
                 handleScanBios().catch((error: unknown) => {
@@ -231,7 +239,7 @@ export function LeadsWorkspace() {
             </Button>
             <Button
               variant="outline"
-              className="h-10 rounded-2xl px-5 text-[1rem]"
+              className="h-9 rounded-2xl px-4 text-[0.96rem]"
               disabled={enrichEmails.isPending || scanEmails.isPending}
               onClick={() => {
                 handleEnrichEmails().catch((error: unknown) => {
@@ -245,10 +253,10 @@ export function LeadsWorkspace() {
           </div>
         </div>
 
-        <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">
             <select
-              className="h-12 min-w-[250px] rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="h-10 min-w-[230px] rounded-2xl border border-input bg-background px-4 text-[0.98rem] shadow-xs/5"
               value={projectId}
               onChange={(event) => updateProjectFilter(event.target.value)}
             >
@@ -261,7 +269,7 @@ export function LeadsWorkspace() {
             </select>
 
             <select
-              className="h-12 min-w-[220px] rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="h-10 min-w-[200px] rounded-2xl border border-input bg-background px-4 text-[0.98rem] shadow-xs/5"
               value={stage}
               onChange={(event) => {
                 setStage(event.target.value as typeof stage);
@@ -276,7 +284,7 @@ export function LeadsWorkspace() {
             </select>
 
             <select
-              className="h-12 min-w-[250px] rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="h-10 min-w-[230px] rounded-2xl border border-input bg-background px-4 text-[0.98rem] shadow-xs/5"
               value={sort}
               onChange={(event) => setSort(event.target.value as typeof sort)}
             >
@@ -287,7 +295,7 @@ export function LeadsWorkspace() {
           </div>
 
           <Input
-            className="h-12 w-full max-w-[305px] rounded-2xl text-[1rem]"
+            className="h-10 w-full max-w-[285px] rounded-2xl text-[0.98rem]"
             placeholder="Search leads..."
             value={search}
             onChange={(event) => {
@@ -316,9 +324,9 @@ export function LeadsWorkspace() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table className="text-[1rem]">
+            <Table className="text-[0.96rem]">
               <TableHeader className="[&_tr]:border-b">
-                <TableRow className="h-14 hover:bg-transparent">
+                <TableRow className="h-12 hover:bg-transparent">
                   <TableHead className="w-[56px] px-5">
                     <Checkbox checked={allVisibleSelected} onCheckedChange={(value) => toggleAllSelection(Boolean(value))} />
                   </TableHead>
@@ -335,7 +343,7 @@ export function LeadsWorkspace() {
               </TableHeader>
               <TableBody>
                 {leads.map((lead) => (
-                  <TableRow key={lead.id} className="h-[78px] border-b" onClick={() => {
+                  <TableRow key={lead.id} className="h-[68px] border-b" onClick={() => {
                     setSelectedLead(lead);
                     setSheetOpen(true);
                   }}>
@@ -346,14 +354,14 @@ export function LeadsWorkspace() {
                       />
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-4">
-                        <Avatar className="size-11">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="size-10">
                           {lead.avatarUrl ? <AvatarImage src={lead.avatarUrl} alt={lead.name} /> : null}
                           <AvatarFallback>{initials(lead.name)}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <div className="truncate text-[1.05rem] font-semibold">{lead.name}</div>
-                          <div className="truncate text-muted-foreground">@{lead.handle}</div>
+                          <div className="truncate text-[1rem] font-semibold">{lead.name}</div>
+                          <div className="truncate text-[0.95rem] text-muted-foreground">@{lead.handle}</div>
                         </div>
                       </div>
                     </TableCell>
@@ -365,7 +373,7 @@ export function LeadsWorkspace() {
                     <TableCell className="max-w-[420px]">
                       <div className="truncate text-muted-foreground">{lead.bio || "—"}</div>
                     </TableCell>
-                    <TableCell className="text-[1.05rem] font-semibold">{formatFollowers(lead.followers)}</TableCell>
+                    <TableCell className="text-[1rem] font-semibold">{formatFollowers(lead.followers)}</TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
