@@ -2,6 +2,14 @@
 export const SEARCH_TARGET = 40;
 export const NETWORK_TARGET = 1000;
 
+// Analysis tuning
+export const ANALYSIS_SHORTLIST_SIZE = 18;
+export const ANALYSIS_AI_FALLBACK_SIZE = 8;
+export const ANALYSIS_OUTREACH_CANDIDATES = 12;
+
+// UI
+export const PROJECT_PREVIEW_LEAD_COUNT = 4;
+
 // Pagination
 export const DEFAULT_PAGE_SIZE = 10;
 

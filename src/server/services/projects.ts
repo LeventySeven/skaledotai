@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, projectLeads, projects } from "@/db/schema";
+import { PROJECT_PREVIEW_LEAD_COUNT } from "@/lib/constants";
 import type {
   Project,
   ProjectOverview,
@@ -82,7 +83,7 @@ export async function getProjectOverviews(userId: string): Promise<ProjectOvervi
 
   for (const row of previewRows) {
     const current = previewByProject.get(row.projectId) ?? [];
-    if (current.length < 4) {
+    if (current.length < PROJECT_PREVIEW_LEAD_COUNT) {
       current.push(rowToPreviewLead(row.lead));
       previewByProject.set(row.projectId, current);
     }

@@ -9,6 +9,7 @@ import type {
   ProjectAnalysisResult,
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
+import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/constants";
 import { createProject } from "./projects";
 import { upsertPostStats } from "./stats";
 
@@ -125,7 +126,7 @@ export async function analyzeProjectsIntoNewProject(input: {
       };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 18);
+    .slice(0, ANALYSIS_SHORTLIST_SIZE);
 
   if (shortlisted.length === 0) {
     throw new TRPCError({ code: "NOT_FOUND", message: "No leads available in the selected projects." });
@@ -212,7 +213,7 @@ export async function analyzeProjectsIntoNewProject(input: {
 
   const selectedLeadIds = analysis.selectedLeadIds.length > 0
     ? analysis.selectedLeadIds
-    : enrichedCandidates.slice(0, 8).map((candidate) => candidate.id);
+    : enrichedCandidates.slice(0, ANALYSIS_AI_FALLBACK_SIZE).map((candidate) => candidate.id);
 
   const project = await createProject(input.userId, {
     name: input.name?.trim() || `AI analysis • ${ownedProjects.length} projects`,

@@ -6,6 +6,7 @@ import { leads, postStats, projectLeads, projects } from "@/db/schema";
 import { generateOutreachTemplate } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
+import { ANALYSIS_OUTREACH_CANDIDATES } from "@/lib/constants";
 import { listOutreachQueue } from "./leads";
 
 const STANDARD_TEMPLATE_EXAMPLES: Array<Omit<OutreachTemplate, "id" | "generated">> = [
@@ -96,7 +97,7 @@ export async function buildAiOutreachTemplate(input: {
     });
   }
 
-  const candidates = [...deduped.values()].slice(0, 12);
+  const candidates = [...deduped.values()].slice(0, ANALYSIS_OUTREACH_CANDIDATES);
   if (candidates.length === 0) {
     throw new TRPCError({
       code: "NOT_FOUND",
