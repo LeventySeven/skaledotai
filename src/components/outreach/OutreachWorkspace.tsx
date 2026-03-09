@@ -102,6 +102,19 @@ export function OutreachWorkspace() {
     },
   });
 
+  const bulkUpdateLeads = trpc.leads.bulkUpdate.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.outreach.list.invalidate(),
+        utils.leads.list.invalidate(),
+      ]);
+    },
+    onError: (error) => {
+      setUiError(error.message);
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
+
   const queueAllLeads = trpc.projects.queueAllLeads.useMutation({
     onSuccess: async (result) => {
       await Promise.all([
@@ -198,12 +211,10 @@ export function OutreachWorkspace() {
       return;
     }
 
-    for (const leadId of selectedLeadIds) {
-      await updateLead.mutateAsync({
-        crmId: leadId,
-        patch: toPatchInput({ inOutreach: false }),
-      });
-    }
+    await bulkUpdateLeads.mutateAsync({
+      crmIds: selectedLeadIds,
+      patch: toPatchInput({ inOutreach: false }),
+    });
 
     toastManager.add({
       type: "success",
@@ -440,7 +451,7 @@ export function OutreachWorkspace() {
             <Button
               variant="outline"
               className="h-10 rounded-xl px-4 text-[0.92rem]"
-              disabled={selectedLeadIds.length === 0 || updateLead.isPending}
+              disabled={selectedLeadIds.length === 0 || bulkUpdateLeads.isPending}
               onClick={() => {
                 handleRemoveSelected().catch(() => undefined);
               }}

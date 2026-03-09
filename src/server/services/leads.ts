@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, projectLeads } from "@/db/schema";
@@ -136,6 +136,27 @@ export async function updateLead(userId: string, crmId: string, patch: LeadPatch
 
   if (!row) throw new TRPCError({ code: "NOT_FOUND" });
   return rowToLead(row);
+}
+
+export async function updateLeads(userId: string, crmIds: string[], patch: LeadPatch): Promise<number> {
+  if (crmIds.length === 0) return 0;
+
+  const updated = await db
+    .update(leads)
+    .set({
+      ...(patch.stage !== undefined && { stage: patch.stage }),
+      ...(patch.priority !== undefined && { priority: patch.priority }),
+      ...(patch.dmComfort !== undefined && { dmComfort: patch.dmComfort }),
+      ...(patch.theAsk !== undefined && { theAsk: patch.theAsk }),
+      ...(patch.inOutreach !== undefined && { inOutreach: patch.inOutreach }),
+      ...(patch.email !== undefined && { email: patch.email }),
+      ...(patch.budget !== undefined && { budget: patch.budget !== null ? String(patch.budget) : null }),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(leads.userId, userId), inArray(leads.id, crmIds)))
+    .returning({ id: leads.id });
+
+  return updated.length;
 }
 
 export async function deleteLead(userId: string, crmId: string): Promise<void> {
