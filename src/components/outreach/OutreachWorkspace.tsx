@@ -10,7 +10,6 @@ import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
-import { GENERATED_TEMPLATES_STORAGE_KEY } from "@/lib/constants";
 
 function toPatchInput(patch: Partial<Lead>) {
   const payload: {
@@ -52,20 +51,12 @@ export function OutreachWorkspace() {
   const utils = trpc.useUtils();
   const listQuery = trpc.outreach.list.useQuery();
   const templatesQuery = trpc.outreach.templates.useQuery();
+  const savedTemplatesQuery = trpc.outreach.savedTemplates.useQuery();
   const { data: projects = [] } = trpc.projects.list.useQuery();
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(["standard-1"]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
-  const [generatedTemplates, setGeneratedTemplates] = useState<OutreachTemplate[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = window.localStorage.getItem(GENERATED_TEMPLATES_STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as OutreachTemplate[]) : [];
-    } catch {
-      return [];
-    }
-  });
   const [stylePrompt, setStylePrompt] = useState("");
   const [importProjectId, setImportProjectId] = useState("");
   const [showAiPanel, setShowAiPanel] = useState(false);
@@ -122,21 +113,11 @@ export function OutreachWorkspace() {
   });
 
   const generateTemplate = trpc.outreach.generateTemplate.useMutation({
-    onSuccess: (template) => {
-      const newTemplate: OutreachTemplate = {
-        ...template,
-        id: `generated-${Date.now()}`,
-        generated: true,
-      };
-      const updated = [...generatedTemplates, newTemplate];
-      setGeneratedTemplates(updated);
-      window.localStorage.setItem(GENERATED_TEMPLATES_STORAGE_KEY, JSON.stringify(updated));
-      setSelectedTemplateIds((current) => [...new Set([...current, newTemplate.id])]);
+    onSuccess: async (saved) => {
+      await utils.outreach.savedTemplates.invalidate();
+      setSelectedTemplateIds((current) => [...new Set([...current, saved.id])]);
       setUiError(null);
-      toastManager.add({
-        type: "success",
-        title: `${newTemplate.title} created.`,
-      });
+      toastManager.add({ type: "success", title: `${saved.title} created.` });
     },
     onError: (error) => {
       setUiError(error.message);
@@ -144,8 +125,18 @@ export function OutreachWorkspace() {
     },
   });
 
+  const deleteTemplate = trpc.outreach.deleteTemplate.useMutation({
+    onSuccess: async () => {
+      await utils.outreach.savedTemplates.invalidate();
+    },
+    onError: (error) => {
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
+
   const leads = listQuery.data ?? [];
   const standardTemplates = templatesQuery.data ?? [];
+  const generatedTemplates = savedTemplatesQuery.data ?? [];
   const templates = [...standardTemplates, ...generatedTemplates];
   const selectedLeads = useMemo(
     () => leads.filter((lead) => selectedLeadIds.includes(lead.id)),
@@ -377,34 +368,42 @@ export function OutreachWorkspace() {
                 const selected = selectedTemplateIds.includes(template.id);
 
                 return (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => toggleTemplate(template.id)}
-                    className={`grid min-h-[520px] grid-rows-[72px_auto_1fr_88px] rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
-                      selected ? "border-red-400" : "border-border/70 hover:border-foreground/20"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="text-[1rem] font-semibold">{template.title}</div>
-                      {selected ? (
-                        <CheckCircle2Icon className="size-5 text-red-500" />
-                      ) : (
-                        <PencilIcon className="size-4 text-muted-foreground" />
-                      )}
-                    </div>
+                  <div key={template.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => toggleTemplate(template.id)}
+                      className={`grid min-h-[520px] w-full grid-rows-[72px_auto_1fr_88px] rounded-[1.2rem] border bg-card p-6 text-left shadow-sm transition-colors ${
+                        selected ? "border-red-400" : "border-border/70 hover:border-foreground/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-[1rem] font-semibold">{template.title}</div>
+                        {selected ? (
+                          <CheckCircle2Icon className="size-5 text-red-500" />
+                        ) : (
+                          <PencilIcon className="size-4 text-muted-foreground" />
+                        )}
+                      </div>
 
-                    <div className="h-px bg-border/70" />
+                      <div className="h-px bg-border/70" />
 
-                    <div className="self-start whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
-                      {template.body}
-                    </div>
+                      <div className="self-start whitespace-pre-line text-[0.98rem] leading-8 text-muted-foreground">
+                        {template.body}
+                      </div>
 
-                    <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
-                      <span className="line-clamp-2 min-h-12 text-muted-foreground">{template.subject}</span>
-                      <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
-                    </div>
-                  </button>
+                      <div className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 border-t border-border/70 pt-4 text-[0.95rem]">
+                        <span className="line-clamp-2 min-h-12 text-muted-foreground">{template.subject}</span>
+                        <span className="whitespace-nowrap font-medium">Reply rate {template.replyRate}</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTemplate.mutate({ id: template.id })}
+                      className="absolute right-3 top-3 rounded-lg p-1 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2Icon className="size-4" />
+                    </button>
+                  </div>
                 );
               })}
             </div>
