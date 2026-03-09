@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import type { Priority, ProjectAnalysisResult, XProfile } from "@/lib/types";
+import type { OutreachTemplate, Priority, ProjectAnalysisResult, XProfile } from "@/lib/types";
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";
 const DEFAULT_REASONING_EFFORT =
@@ -178,4 +178,54 @@ export async function analyzeLeadPoolForProject(input: {
       input.candidates.some((candidate) => candidate.id === id),
     ),
   };
+}
+
+export async function generateOutreachTemplate(input: {
+  projectNames: string[];
+  leads: Array<{
+    name: string;
+    handle: string;
+    bio: string;
+    followers: number;
+    topics: string[];
+    postActivity: string;
+  }>;
+  templateExamples: Array<{
+    title: string;
+    subject: string;
+    body: string;
+    replyRate: string;
+  }>;
+  requestedStyle?: string;
+}): Promise<Omit<OutreachTemplate, "id" | "generated">> {
+  const fallbackExample = input.templateExamples[0] ?? {
+    title: "Template",
+    subject: "Quick note",
+    body: "Hi {{name}},\n\nI came across your work and was really impressed.\n\nWould love to connect!\n\nBest,",
+    replyRate: "35%",
+  };
+
+  const fallback = {
+    title: "AI Template",
+    subject: fallbackExample.subject,
+    body: fallbackExample.body,
+    replyRate: fallbackExample.replyRate,
+  };
+
+  const result = await structuredResponse<typeof fallback>({
+    schemaName: "outreach_template_generation",
+    schema: z.object({
+      title: z.string(),
+      subject: z.string(),
+      body: z.string(),
+      replyRate: z.string(),
+    }),
+    instructions:
+      "Generate one outreach template for X/Twitter leads. Keep the output close in tone, size, and structure to the provided examples. It should be slightly more personalized using the project and lead context, but still concise. Keep the body short, plain-text, and suitable for variables like {{name}}. Reply rate should be a short estimate like 35% or 42%.",
+    input: JSON.stringify(input),
+    fallback,
+    maxOutputTokens: 260,
+  });
+
+  return result;
 }

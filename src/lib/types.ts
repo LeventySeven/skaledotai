@@ -58,6 +58,15 @@ export type ProjectAnalysisResult = {
   analyzedProjectIds: string[];
 };
 
+export type OutreachTemplate = {
+  id: string;
+  title: string;
+  subject: string;
+  body: string;
+  replyRate: string;
+  generated?: boolean;
+};
+
 export type Lead = {
   id: string;
   // id is used as crmId since CRM fields live on the lead itself
