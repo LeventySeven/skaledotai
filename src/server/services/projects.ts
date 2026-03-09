@@ -21,7 +21,7 @@ function rowToProject(row: typeof projects.$inferSelect, leadCount?: number): Pr
   };
 }
 
-function rowToPreviewLead(row: typeof leads.$inferSelect): ProjectPreviewLead {
+export function rowToPreviewLead(row: typeof leads.$inferSelect): ProjectPreviewLead {
   return {
     id: row.id,
     name: row.name,

@@ -10,20 +10,8 @@ import type {
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
 import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/constants";
-import { createProject } from "./projects";
+import { createProject, rowToPreviewLead } from "./projects";
 import { upsertPostStats } from "./stats";
-
-function rowToPreviewLead(row: typeof leads.$inferSelect): ProjectPreviewLead {
-  return {
-    id: row.id,
-    name: row.name,
-    handle: row.handle,
-    bio: row.bio,
-    followers: row.followers,
-    priority: row.priority as ProjectPreviewLead["priority"],
-    avatarUrl: row.avatarUrl ?? undefined,
-  };
-}
 
 function estimatePricingSignal(input: {
   bio: string;
