@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { assertProject } from "@/server/services/projects";

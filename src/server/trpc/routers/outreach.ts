@@ -1,3 +1,4 @@
+import "server-only";
 import { protectedProcedure, router } from "../trpc";
 import {
   buildAiOutreachTemplate,

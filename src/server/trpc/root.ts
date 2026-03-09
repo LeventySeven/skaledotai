@@ -1,3 +1,4 @@
+import "server-only";
 import { router } from "./trpc";
 import { projectsRouter } from "./routers/projects";
 import { leadsRouter } from "./routers/leads";

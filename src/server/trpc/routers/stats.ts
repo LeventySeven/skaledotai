@@ -1,3 +1,4 @@
+import "server-only";
 import { protectedProcedure, router } from "../trpc";
 import { getPostStats } from "@/server/services/stats";
 import { refreshProfileStats } from "@/server/services/search";
