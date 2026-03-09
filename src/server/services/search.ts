@@ -1,7 +1,8 @@
 import "server-only";
 import { TRPCError } from "@trpc/server";
 import { extractTopicsAndPriority, rankProfilesForQuery } from "@/lib/openai";
-import type { Lead, PostStats, Project, SearchLeadInput, XProfile } from "@/lib/types";
+import type { Lead } from "@/lib/validations/leads";
+import type { PostStats, Project, SearchLeadInput, XProfile } from "@/lib/types";
 import {
   buildPostSearchQuery,
   buildReplySearchQuery,

@@ -2,16 +2,8 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { assertProject } from "@/server/services/projects";
 import { deleteLead, enrichLeadEmails, listLeads, scanProjectEmails, updateLead, updateLeads } from "@/server/services/leads";
-
-const leadPatchSchema = z.object({
-  stage: z.enum(["found", "messaged", "replied", "agreed"]).optional(),
-  priority: z.enum(["P0", "P1"]).optional(),
-  dmComfort: z.boolean().optional(),
-  theAsk: z.string().optional(),
-  inOutreach: z.boolean().optional(),
-  email: z.string().nullable().optional(),
-  budget: z.number().nullable().optional(),
-});
+import { LeadPatchSchema } from "@/lib/validations/leads";
+import { LeadStageSchema } from "@/lib/validations/shared";
 
 export const leadsRouter = router({
   list: protectedProcedure
@@ -22,7 +14,7 @@ export const leadsRouter = router({
       search: z.string().default(""),
       projectId: z.string().uuid().optional(),
       inOutreach: z.boolean().optional(),
-      stage: z.enum(["all", "found", "messaged", "replied", "agreed"]).default("all"),
+      stage: z.enum(["all", ...LeadStageSchema.options]).default("all"),
     }))
     .query(async ({ ctx, input }) => {
       if (input.projectId) await assertProject(ctx.userId, input.projectId);
@@ -30,11 +22,11 @@ export const leadsRouter = router({
     }),
 
   update: protectedProcedure
-    .input(z.object({ crmId: z.string().uuid(), patch: leadPatchSchema }))
+    .input(z.object({ crmId: z.string().uuid(), patch: LeadPatchSchema }))
     .mutation(({ ctx, input }) => updateLead(ctx.userId, input.crmId, input.patch)),
 
   bulkUpdate: protectedProcedure
-    .input(z.object({ crmIds: z.array(z.string().uuid()).min(1), patch: leadPatchSchema }))
+    .input(z.object({ crmIds: z.array(z.string().uuid()).min(1), patch: LeadPatchSchema }))
     .mutation(({ ctx, input }) => updateLeads(ctx.userId, input.crmIds, input.patch)),
 
   remove: protectedProcedure

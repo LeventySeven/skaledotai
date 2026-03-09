@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
-import type { Lead, OutreachTemplate } from "@/lib/types";
+import type { Lead } from "@/lib/validations/leads";
+import type { OutreachTemplate } from "@/lib/types";
 
 const STORAGE_KEY = "skaleai-generated-outreach-templates";
 

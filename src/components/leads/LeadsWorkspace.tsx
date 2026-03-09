@@ -23,7 +23,7 @@ import { LeadDetailSheet } from "@/components/leads/LeadDetailSheet";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-import type { Lead } from "@/lib/types";
+import type { Lead } from "@/lib/validations/leads";
 
 const PAGE_SIZE = 10;
 

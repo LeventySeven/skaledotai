@@ -1,15 +1,6 @@
-export type Platform = "twitter";
-
-export type Priority = "P0" | "P1";
-
-export type LeadStage = "found" | "messaged" | "replied" | "agreed";
-
-export type DiscoverySource =
-  | "profile_search"
-  | "post_search"
-  | "reply_search"
-  | "followers"
-  | "following";
+import type { Priority } from "@/lib/validations/shared";
+export type { Platform, Priority, LeadStage, DiscoverySource } from "@/lib/validations/shared";
+export type { Lead, LeadPatch } from "@/lib/validations/leads";
 
 export type PostStats = {
   id: string;
@@ -67,35 +58,6 @@ export type OutreachTemplate = {
   generated?: boolean;
 };
 
-export type Lead = {
-  id: string;
-  // id is used as crmId since CRM fields live on the lead itself
-  crmId?: string;
-  projectId?: string;
-  projectName?: string;
-  xUserId?: string;
-  name: string;
-  handle: string;
-  bio: string;
-  platform: Platform;
-  followers: number;
-  following?: number;
-  avatarUrl?: string;
-  profileUrl?: string;
-  email?: string;
-  budget?: number;
-  priority: Priority;
-  dmComfort: boolean;
-  theAsk: string;
-  inOutreach: boolean;
-  stage: LeadStage;
-  discoverySource?: DiscoverySource;
-  discoveryQuery?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  editable?: boolean;
-};
-
 export type XProfile = {
   xUserId: string;
   username: string;
@@ -121,12 +83,3 @@ export type SearchLeadInput = {
   minFollowers?: number;
 };
 
-export type LeadPatch = Partial<{
-  stage: LeadStage;
-  priority: Priority;
-  dmComfort: boolean;
-  theAsk: string;
-  inOutreach: boolean;
-  email: string | null;
-  budget: number | null;
-}>;

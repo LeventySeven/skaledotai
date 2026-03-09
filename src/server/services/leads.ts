@@ -3,7 +3,9 @@ import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, projectLeads } from "@/db/schema";
-import type { DiscoverySource, Lead, LeadPatch, XProfile } from "@/lib/types";
+import type { Lead, LeadPatch } from "@/lib/validations/leads";
+import type { DiscoverySource } from "@/lib/validations/shared";
+import type { XProfile } from "@/lib/types";
 
 export function rowToLead(
   row: typeof leads.$inferSelect,

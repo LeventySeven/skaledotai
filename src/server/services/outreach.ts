@@ -4,7 +4,8 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, postStats, projectLeads, projects } from "@/db/schema";
 import { generateOutreachTemplate } from "@/lib/openai";
-import type { Lead, OutreachTemplate } from "@/lib/types";
+import type { Lead } from "@/lib/validations/leads";
+import type { OutreachTemplate } from "@/lib/types";
 import { listOutreachQueue } from "./leads";
 
 const STANDARD_TEMPLATE_EXAMPLES: Array<Omit<OutreachTemplate, "id" | "generated">> = [
