@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { outreachTemplates } from "@/db/schema";
@@ -38,10 +38,29 @@ export async function saveOutreachTemplate(
   return rowToTemplate(row);
 }
 
+export async function updateOutreachTemplate(
+  userId: string,
+  data: { id: string; title: string; subject: string; body: string; replyRate: string },
+): Promise<OutreachTemplate> {
+  const [row] = await db
+    .update(outreachTemplates)
+    .set({
+      title: data.title,
+      subject: data.subject,
+      body: data.body,
+      replyRate: data.replyRate,
+    })
+    .where(and(eq(outreachTemplates.id, data.id), eq(outreachTemplates.userId, userId)))
+    .returning();
+
+  if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+  return rowToTemplate(row);
+}
+
 export async function deleteOutreachTemplate(userId: string, id: string): Promise<void> {
   const deleted = await db
     .delete(outreachTemplates)
-    .where(eq(outreachTemplates.id, id))
+    .where(and(eq(outreachTemplates.id, id), eq(outreachTemplates.userId, userId)))
     .returning({ id: outreachTemplates.id });
 
   if (deleted.length === 0) throw new TRPCError({ code: "NOT_FOUND" });

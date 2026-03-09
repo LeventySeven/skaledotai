@@ -10,8 +10,13 @@ import {
   deleteOutreachTemplate,
   listOutreachTemplates,
   saveOutreachTemplate,
+  updateOutreachTemplate,
 } from "@/server/services/outreach-templates";
-import { GenerateTemplateInputSchema } from "@/lib/validations/outreach";
+import {
+  GenerateTemplateInputSchema,
+  SaveOutreachTemplateInputSchema,
+  UpdateOutreachTemplateInputSchema,
+} from "@/lib/validations/outreach";
 
 export const outreachRouter = router({
   list: protectedProcedure.query(({ ctx }) => getOutreachQueue(ctx.userId)),
@@ -32,6 +37,14 @@ export const outreachRouter = router({
       });
       return saveOutreachTemplate(ctx.userId, template);
     }),
+
+  createTemplate: protectedProcedure
+    .input(SaveOutreachTemplateInputSchema)
+    .mutation(({ ctx, input }) => saveOutreachTemplate(ctx.userId, input)),
+
+  updateTemplate: protectedProcedure
+    .input(UpdateOutreachTemplateInputSchema)
+    .mutation(({ ctx, input }) => updateOutreachTemplate(ctx.userId, input)),
 
   deleteTemplate: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))

@@ -16,3 +16,16 @@ export const GenerateTemplateInputSchema = z.object({
   requestedStyle: z.string().optional(),
 });
 export type GenerateTemplateInput = z.infer<typeof GenerateTemplateInputSchema>;
+
+export const SaveOutreachTemplateInputSchema = z.object({
+  title: z.string().min(1),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  replyRate: z.string().min(1),
+});
+export type SaveOutreachTemplateInput = z.infer<typeof SaveOutreachTemplateInputSchema>;
+
+export const UpdateOutreachTemplateInputSchema = SaveOutreachTemplateInputSchema.extend({
+  id: z.string().uuid(),
+});
+export type UpdateOutreachTemplateInput = z.infer<typeof UpdateOutreachTemplateInputSchema>;
