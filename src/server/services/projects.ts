@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, projectLeads, projects } from "@/db/schema";
 import { PROJECT_PREVIEW_LEAD_COUNT } from "@/lib/constants";
+import { PrioritySchema } from "@/lib/validations/shared";
 import type {
   Project,
   ProjectOverview,
@@ -28,7 +29,7 @@ export function rowToPreviewLead(row: typeof leads.$inferSelect): ProjectPreview
     handle: row.handle,
     bio: row.bio,
     followers: row.followers,
-    priority: row.priority as ProjectPreviewLead["priority"],
+    priority: PrioritySchema.parse(row.priority),
     avatarUrl: row.avatarUrl ?? undefined,
   };
 }

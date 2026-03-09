@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, projectLeads } from "@/db/schema";
 import type { Lead, LeadPatch, ListLeadsInput } from "@/lib/validations/leads";
+import { DiscoverySourceSchema, LeadStageSchema, PlatformSchema, PrioritySchema } from "@/lib/validations/shared";
 import type { DiscoverySource } from "@/lib/validations/shared";
 import type { XProfile } from "@/lib/validations/search";
 
@@ -21,19 +22,19 @@ export function rowToLead(
     name: row.name,
     handle: row.handle,
     bio: row.bio,
-    platform: row.platform as "twitter",
+    platform: PlatformSchema.parse(row.platform),
     followers: row.followers,
     following: row.following ?? undefined,
     avatarUrl: row.avatarUrl ?? undefined,
     profileUrl: row.profileUrl ?? undefined,
     email: row.email ?? undefined,
     budget: row.budget ? Number(row.budget) : undefined,
-    stage: (row.stage as Lead["stage"]) ?? "found",
-    priority: (row.priority as Lead["priority"]) ?? "P1",
+    stage: row.stage ? LeadStageSchema.parse(row.stage) : "found",
+    priority: row.priority ? PrioritySchema.parse(row.priority) : "P1",
     dmComfort: row.dmComfort,
     theAsk: row.theAsk,
     inOutreach: row.inOutreach,
-    discoverySource: row.discoverySource as DiscoverySource | undefined,
+    discoverySource: row.discoverySource ? DiscoverySourceSchema.parse(row.discoverySource) : undefined,
     discoveryQuery: row.discoveryQuery ?? undefined,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
