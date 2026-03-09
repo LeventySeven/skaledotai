@@ -3,7 +3,7 @@ import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, projectLeads } from "@/db/schema";
-import type { Lead, LeadPatch } from "@/lib/validations/leads";
+import type { Lead, LeadPatch, ListLeadsInput } from "@/lib/validations/leads";
 import type { DiscoverySource } from "@/lib/validations/shared";
 import type { XProfile } from "@/lib/validations/search";
 
@@ -40,16 +40,7 @@ export function rowToLead(
   };
 }
 
-export async function listLeads(input: {
-  userId: string;
-  page: number;
-  pageSize: number;
-  sort: "followers-desc" | "followers-asc" | "name-asc";
-  search: string;
-  projectId?: string;
-  inOutreach?: boolean;
-  stage: "all" | "found" | "messaged" | "replied" | "agreed";
-}): Promise<{ leads: Lead[]; total: number }> {
+export async function listLeads(input: ListLeadsInput & { userId: string }): Promise<{ leads: Lead[]; total: number }> {
   const { userId, page, pageSize, sort, search, projectId, inOutreach, stage } = input;
 
   const conditions = [eq(leads.userId, userId)];
