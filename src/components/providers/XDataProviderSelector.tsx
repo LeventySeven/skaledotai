@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   getXDataProviderLabel,
@@ -28,7 +30,7 @@ export function XDataProviderSelector({
         </p>
       ) : null}
 
-      <div className={cn("grid gap-2", compact ? "grid-cols-1" : "sm:grid-cols-3")}>
+      <div className={cn("space-y-2", compact && "space-y-1.5")}>
         {X_DATA_PROVIDER_OPTIONS.map((option) => (
           <ProviderButton
             key={option.value}
@@ -51,7 +53,9 @@ function ProviderButton({
   option: {
     value: XDataProvider;
     label: string;
+    badge: string;
     description: string;
+    integration: string;
   };
   onSelect: (provider: XDataProvider) => void;
 }) {
@@ -60,18 +64,50 @@ function ProviderButton({
       type="button"
       onClick={() => onSelect(option.value)}
       className={cn(
-        "rounded-[18px] border px-4 py-3 text-left transition-colors",
+        "flex w-full items-start gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
         active
           ? "border-foreground bg-foreground text-background"
           : "border-input bg-background text-foreground hover:bg-accent/50",
       )}
       aria-pressed={active}
     >
-      <div className="text-[0.98rem] font-semibold">{option.label}</div>
-      <div className={cn("mt-1 text-xs leading-5", active ? "text-background/78" : "text-muted-foreground")}>
-        {option.description}
+      <span
+        className={cn(
+          "mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full border",
+          active
+            ? "border-background/70 bg-background/12 text-background"
+            : "border-input text-transparent",
+        )}
+      >
+        <CheckIcon className="size-3.5" />
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="text-[1rem] font-semibold">{option.label}</span>
+          <Badge
+            size="sm"
+            variant={active ? "secondary" : "outline"}
+            className={cn(active && "bg-background/12 text-background")}
+          >
+            {option.badge}
+          </Badge>
+        </span>
+        <span className={cn("mt-1 block text-sm leading-6", active ? "text-background/78" : "text-muted-foreground")}>
+          {option.description}
+        </span>
+        <span className={cn("mt-2 block text-xs leading-5", active ? "text-background/68" : "text-muted-foreground/80")}>
+          {option.integration}
+        </span>
+      </span>
+      <div
+        className={cn(
+          "mt-1 hidden text-xs font-medium md:block",
+          active ? "text-background/78" : "text-muted-foreground",
+        )}
+      >
+        {active ? "Selected" : "Select"}
       </div>
     </button>
   );
 }
-

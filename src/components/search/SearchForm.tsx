@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { XDataProviderSelector } from "@/components/providers/XDataProviderSelector";
+import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummaryCard";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
@@ -124,13 +124,10 @@ export function SearchForm() {
         )}
       </div>
 
-      <div className="grid gap-5 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
+      <div className="grid gap-5 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">X data source</label>
-          <XDataProviderSelector showHint={false} />
-          <p className="text-[0.95rem] text-muted-foreground">
-            The selected provider is global and applies to search, imports, stats, and AI analysis.
-          </p>
+          <XDataSourceSummaryCard />
         </div>
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">Minimum followers</label>
