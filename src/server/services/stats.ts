@@ -3,9 +3,11 @@ import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, postStats } from "@/db/schema";
+import { X_PROVIDER_STATS_TWEET_LIMIT } from "@/lib/constants";
 import { extractTopicsAndPriority } from "@/lib/openai";
-import { getUserTweets, mapTweetsToMetrics } from "@/lib/x-api";
+import { getXDataClient, mapTweetsToMetrics } from "@/lib/x-data-client";
 import type { PostStats } from "@/lib/validations/stats";
+import type { XDataProvider } from "@/lib/x-provider";
 import { getLeadById, updateLead } from "./leads";
 
 function rowToPostStats(row: typeof postStats.$inferSelect): PostStats {
@@ -78,12 +80,20 @@ function avg(values: number[]): number {
 export async function refreshProfileStats(
   userId: string,
   input: { profileId: string; crmId?: string; niche?: string },
+  provider: XDataProvider = "x-api",
 ): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
+  const client = getXDataClient(provider);
   const profile = await getLeadById(userId, input.profileId);
   if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
-  if (!profile.xUserId) throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X user ID." });
+  if (!profile.xUserId && !profile.handle) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X identifier." });
+  }
 
-  const tweets = await getUserTweets(profile.xUserId, 30);
+  const tweets = await client.getUserTweets({
+    userId: profile.xUserId,
+    username: profile.handle,
+    maxResults: X_PROVIDER_STATS_TWEET_LIMIT,
+  });
   if (tweets.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "No recent X posts found." });
 
   const metrics = mapTweetsToMetrics(tweets);

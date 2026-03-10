@@ -9,13 +9,13 @@ export const searchRouter = router({
     .input(SearchLeadInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) await assertProject(ctx.userId, input.projectId);
-      return searchAndAddLeads(ctx.userId, input);
+      return searchAndAddLeads(ctx.userId, input, ctx.xDataProvider);
     }),
 
   importNetwork: protectedProcedure
     .input(ImportNetworkInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) await assertProject(ctx.userId, input.projectId);
-      return importAccountNetwork(ctx.userId, input);
+      return importAccountNetwork(ctx.userId, input, ctx.xDataProvider);
     }),
 });

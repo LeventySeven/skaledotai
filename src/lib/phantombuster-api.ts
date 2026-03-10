@@ -1,0 +1,303 @@
+import "server-only";
+import type { XProfile } from "@/lib/validations/search";
+import {
+  PHANTOMBUSTER_POLL_INTERVAL_MS,
+  X_PROVIDER_RETRY_BASE_DELAY_MS,
+  X_PROVIDER_RETRY_COUNT,
+  X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
+  X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR,
+} from "@/lib/constants";
+import type {
+  XDataClient,
+  XPostSearchResult,
+  XProfilesPage,
+  XResolvedTweet,
+  XUserReference,
+} from "@/lib/x-data-types";
+import {
+  dedupeProfiles,
+  extractNestedItems,
+  normalizeHandle,
+  normalizeScrapedProfile,
+  normalizeScrapedTweet,
+} from "@/lib/x-scraper-normalizers";
+
+const PHANTOM_BASE = "https://api.phantombuster.com/api/v2";
+
+function requirePhantomToken(): string {
+  const token = process.env.PHANTOM_TOKEN;
+  if (!token) {
+    throw new Error("PHANTOM_TOKEN is not set");
+  }
+  return token;
+}
+
+function requireAgentId(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not set`);
+  }
+  return value;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt += 1;
+      if (attempt >= retries) throw error;
+      await sleep(2 ** (attempt - 1) * X_PROVIDER_RETRY_BASE_DELAY_MS);
+    }
+  }
+}
+
+async function requestPhantom<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await withRetry(async () => {
+    const result = await fetch(`${PHANTOM_BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Phantombuster-Key-1": requirePhantomToken(),
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+
+    if (result.status === 429 || result.status >= 500) {
+      throw new Error(`PhantomBuster transient failure (${result.status})`);
+    }
+
+    return result;
+  }, X_PROVIDER_RETRY_COUNT);
+
+  if (!response.ok) {
+    throw new Error(`PhantomBuster request failed (${response.status}): ${await response.text()}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+function toProfileUrl(username: string): string {
+  return `https://x.com/${username}`;
+}
+
+function normalizeResultPayload(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.data)) return record.data;
+    if (Array.isArray(record.result)) return record.result;
+    if (Array.isArray(record.items)) return record.items;
+  }
+  return [];
+}
+
+function isContainerDone(value: unknown): boolean {
+  const state = typeof value === "string" ? value.toLowerCase() : "";
+  return ["done", "finished", "success", "succeeded"].includes(state);
+}
+
+function isContainerError(value: unknown): boolean {
+  const state = typeof value === "string" ? value.toLowerCase() : "";
+  return ["error", "failed", "failure"].includes(state);
+}
+
+async function waitForContainer(containerId: string): Promise<void> {
+  for (;;) {
+    const status = await requestPhantom<Record<string, unknown>>(`/containers/fetch?id=${encodeURIComponent(containerId)}`);
+    const state = status.state ?? status.status;
+
+    if (isContainerDone(state)) return;
+    if (isContainerError(state)) {
+      throw new Error("PhantomBuster container failed");
+    }
+
+    await sleep(PHANTOMBUSTER_POLL_INTERVAL_MS);
+  }
+}
+
+async function launchPhantom(agentId: string, input: Record<string, unknown>): Promise<unknown[]> {
+  const launch = await requestPhantom<Record<string, unknown>>("/agents/launch", {
+    method: "POST",
+    body: JSON.stringify({
+      id: agentId,
+      bonusArgument: input,
+    }),
+  });
+
+  const containerId = typeof launch.containerId === "string"
+    ? launch.containerId
+    : typeof launch.id === "string"
+      ? launch.id
+      : undefined;
+
+  if (!containerId) {
+    throw new Error("PhantomBuster launch did not return a container ID.");
+  }
+
+  await waitForContainer(containerId);
+
+  const agent = await requestPhantom<Record<string, unknown>>(`/agents/fetch?id=${encodeURIComponent(agentId)}`);
+  const folder = typeof agent.orgS3Folder === "string"
+    ? agent.orgS3Folder
+    : typeof agent.s3Folder === "string"
+      ? agent.s3Folder
+      : undefined;
+
+  if (!folder) {
+    throw new Error("PhantomBuster agent did not expose an output folder.");
+  }
+
+  const outputUrl = folder.endsWith("/") ? `${folder}result.json` : `${folder}/result.json`;
+  const response = await fetch(outputUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`PhantomBuster result fetch failed (${response.status})`);
+  }
+
+  return normalizeResultPayload(await response.json());
+}
+
+function requireUsername(reference: XUserReference): string {
+  const username = normalizeHandle(reference.username);
+  if (!username) {
+    throw new Error("PhantomBuster operations require a username-backed X profile.");
+  }
+  return username;
+}
+
+function isString(value: string | undefined): value is string {
+  return Boolean(value);
+}
+
+function collectProfiles(items: unknown[]): XProfile[] {
+  return dedupeProfiles(items
+    .map((item) => normalizeScrapedProfile(item))
+    .filter((profile): profile is XProfile => Boolean(profile)));
+}
+
+function collectNestedTweets(items: unknown[]): XResolvedTweet[] {
+  const tweets: XResolvedTweet[] = [];
+
+  for (const item of items) {
+    const nestedTweets = extractNestedItems(item, "tweets");
+    const sourceTweets = nestedTweets.length > 0 ? nestedTweets : [item];
+
+    for (const candidate of sourceTweets) {
+      const tweet = normalizeScrapedTweet(candidate, { excludeRepliesAndRetweets: true });
+      if (tweet) tweets.push(tweet);
+    }
+  }
+
+  return tweets;
+}
+
+function collectSearchResult(items: unknown[]): XPostSearchResult {
+  const tweets = items
+    .map((item) => normalizeScrapedTweet(item))
+    .filter((tweet): tweet is XResolvedTweet => Boolean(tweet));
+  const users = dedupeProfiles(items
+    .map((item) => normalizeScrapedProfile(item))
+    .filter((profile): profile is XProfile => Boolean(profile)));
+
+  return { tweets, users };
+}
+
+export const phantomBusterClient: XDataClient = {
+  provider: "phantombuster",
+
+  async searchUsers(query, maxResults = 25) {
+    const result = await launchPhantom(
+      requireAgentId("PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID"),
+      { search: query, limit: Math.min(100, maxResults * X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR) },
+    );
+
+    return collectSearchResult(result).users
+      .sort((a, b) => b.followersCount - a.followersCount)
+      .slice(0, maxResults);
+  },
+
+  async lookupUsersByUsernames(usernames) {
+    const handles = [...new Set(usernames.map((username) => normalizeHandle(username)).filter(isString))];
+    if (handles.length === 0) return [];
+
+    const result = await launchPhantom(
+      requireAgentId("PHANTOMBUSTER_TWITTER_PROFILE_SCRAPER_ID"),
+      {
+        profileUrls: handles.map((handle) => toProfileUrl(handle)),
+        numberOfTweets: 0,
+      },
+    );
+
+    return collectProfiles(result);
+  },
+
+  async getFollowersPage(input): Promise<XProfilesPage> {
+    const username = requireUsername(input);
+    const result = await launchPhantom(
+      requireAgentId("PHANTOMBUSTER_TWITTER_FOLLOWER_COLLECTOR_ID"),
+      {
+        profileUrls: [toProfileUrl(username)],
+        maxFollowers: input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
+        addFullProfile: true,
+      },
+    );
+
+    return {
+      profiles: collectProfiles(result).slice(0, input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT),
+    };
+  },
+
+  async getFollowingPage(input): Promise<XProfilesPage> {
+    const username = requireUsername(input);
+    const result = await launchPhantom(
+      requireAgentId("PHANTOMBUSTER_TWITTER_FOLLOWING_COLLECTOR_ID"),
+      {
+        profileUrls: [toProfileUrl(username)],
+        maxFollowing: input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
+        addFullProfile: true,
+      },
+    );
+
+    return {
+      profiles: collectProfiles(result).slice(0, input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT),
+    };
+  },
+
+  async searchRecentPosts(query, maxResults = 50) {
+    const result = await launchPhantom(
+      requireAgentId("PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID"),
+      { search: query, limit: maxResults },
+    );
+
+    return collectSearchResult(result);
+  },
+
+  async searchAllPosts(query, maxResults = 50) {
+    const result = await launchPhantom(
+      requireAgentId("PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID"),
+      { search: query, limit: maxResults },
+    );
+
+    return collectSearchResult(result);
+  },
+
+  async getUserTweets(input): Promise<XResolvedTweet[]> {
+    const username = requireUsername(input);
+    const result = await launchPhantom(
+      requireAgentId("PHANTOMBUSTER_TWITTER_PROFILE_SCRAPER_ID"),
+      {
+        profileUrls: [toProfileUrl(username)],
+        numberOfTweets: input.maxResults ?? 30,
+      },
+    );
+
+    return collectNestedTweets(result).slice(0, input.maxResults ?? 30);
+  },
+};

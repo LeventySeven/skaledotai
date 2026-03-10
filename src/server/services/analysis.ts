@@ -3,13 +3,15 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, postStats, projectLeads, projects } from "@/db/schema";
+import { X_PROVIDER_ANALYSIS_TWEET_LIMIT } from "@/lib/constants";
 import { analyzeLeadPoolForProject } from "@/lib/openai";
-import { getUserTweets, mapTweetsToMetrics } from "@/lib/x-api";
+import { getXDataClient, mapTweetsToMetrics } from "@/lib/x-data-client";
 import type {
   ProjectAnalysisResult,
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
 import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/constants";
+import type { XDataProvider } from "@/lib/x-provider";
 import { createProject, rowToPreviewLead } from "./projects";
 import { upsertPostStats } from "./stats";
 
@@ -78,7 +80,9 @@ export async function analyzeProjectsIntoNewProject(input: {
   userId: string;
   projectIds: string[];
   name?: string;
+  provider?: XDataProvider;
 }): Promise<ProjectAnalysisResult> {
+  const client = getXDataClient(input.provider ?? "x-api");
   const uniqueProjectIds = [...new Set(input.projectIds)];
   if (uniqueProjectIds.length === 0) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Select at least one project." });
@@ -154,9 +158,13 @@ export async function analyzeProjectsIntoNewProject(input: {
     let stats: NormalizedStats | null = candidate.stats;
     let samplePosts: string[] = [];
 
-    if (!stats && candidate.lead.xUserId) {
+    if (!stats && (candidate.lead.xUserId || candidate.lead.handle)) {
       try {
-        const tweets = await getUserTweets(candidate.lead.xUserId, 12);
+        const tweets = await client.getUserTweets({
+          userId: candidate.lead.xUserId ?? undefined,
+          username: candidate.lead.handle,
+          maxResults: X_PROVIDER_ANALYSIS_TWEET_LIMIT,
+        });
         const metrics = mapTweetsToMetrics(tweets);
         samplePosts = metrics.map((tweet) => tweet.text).filter(Boolean).slice(0, 3);
 

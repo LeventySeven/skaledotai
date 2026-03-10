@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon, LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { XDataProviderSelector } from "@/components/providers/XDataProviderSelector";
 import { signOutAction } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
@@ -102,6 +103,13 @@ function NavContent({ onNav }: { onNav?: () => void }) {
           <ProjectsList onNav={onNav} />
         </div>
       </nav>
+
+      <div className="border-t px-4 py-4">
+        <div className="px-1 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          X Data Source
+        </div>
+        <XDataProviderSelector className="mt-3" compact />
+      </div>
 
       <form action={signOutAction} className="border-t px-3 pb-4 pt-3">
         <Button

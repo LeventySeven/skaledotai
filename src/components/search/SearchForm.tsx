@@ -1,14 +1,14 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { XDataProviderSelector } from "@/components/providers/XDataProviderSelector";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
-import { cn } from "@/lib/utils";
 
 const FOLLOWER_FLOOR_OPTIONS = [
   { label: "Any size", value: 0 },
@@ -19,20 +19,6 @@ const FOLLOWER_FLOOR_OPTIONS = [
   { label: "50k+", value: 50_000 },
   { label: "100k+", value: 100_000 },
 ] as const;
-
-function SegmentedButton({ active, children }: { active: boolean; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "h-[42px] rounded-[12px] px-6 text-[0.98rem] font-medium transition-colors",
-        active ? "bg-white text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-foreground",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function SearchForm() {
   const router = useRouter();
@@ -140,10 +126,11 @@ export function SearchForm() {
 
       <div className="grid gap-5 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
         <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">Platform</label>
-          <div className="inline-flex rounded-2xl border border-input bg-muted/40 p-1">
-            <SegmentedButton active>X / Twitter</SegmentedButton>
-          </div>
+          <label className="block text-[1.05rem] font-semibold">X data source</label>
+          <XDataProviderSelector showHint={false} />
+          <p className="text-[0.95rem] text-muted-foreground">
+            The selected provider is global and applies to search, imports, stats, and AI analysis.
+          </p>
         </div>
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">Minimum followers</label>

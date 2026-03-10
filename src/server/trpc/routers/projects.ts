@@ -41,6 +41,7 @@ export const projectsRouter = router({
         userId: ctx.userId,
         projectIds: input.projectIds,
         name: input.name,
+        provider: ctx.xDataProvider,
       })),
 });
 

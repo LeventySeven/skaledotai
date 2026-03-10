@@ -27,7 +27,10 @@ flowchart TD
   Context --> Routers["tRPC routers"]
   Routers --> Services["Server service layer"]
   Services --> DB["Postgres via Drizzle ORM"]
-  Services --> XAPI["X API v2"]
+  Services --> XProvider["X data provider layer"]
+  XProvider --> XAPI["X API v2"]
+  XProvider --> Apify["Apify actors"]
+  XProvider --> Phantom["PhantomBuster phantoms"]
   Services --> OpenAI["OpenAI chat completions"]
   Browser --> BetterAuthRoute["/api/auth/[...all]"]
   BetterAuthRoute --> BetterAuth["Better Auth"]
@@ -113,8 +116,9 @@ How it works:
 
 1. `src/app/api/trpc/[trpc]/route.ts` exposes a fetch-based tRPC endpoint at `/api/trpc`.
 2. Each request builds context via `createContext`, which reads the Better Auth session from request headers.
-3. `protectedProcedure` rejects unauthenticated access by requiring `ctx.userId`.
-4. Routers delegate to a service layer instead of placing most business logic inline.
+3. The same context also reads the selected X provider from the `x-data-provider` request header.
+4. `protectedProcedure` rejects unauthenticated access by requiring `ctx.userId`.
+5. Routers delegate to a service layer instead of placing most business logic inline.
 5. On the client, `TRPCProvider` creates:
    - a TanStack Query `QueryClient`
    - a tRPC client using `httpBatchLink`
@@ -149,6 +153,14 @@ This is a good separation point in the current architecture:
 - services implement workflows
 - Drizzle handles persistence
 - integration helpers live in `src/lib`
+
+The X integration path is now provider-agnostic:
+
+- `src/lib/x-data-client.ts` selects the active provider implementation
+- `src/lib/x-api.ts` handles native X API requests
+- `src/lib/apify-api.ts` handles Apify actor execution
+- `src/lib/phantombuster-api.ts` handles PhantomBuster agent execution
+- `src/server/trpc/context.ts` carries the selected provider into services
 
 ## Domain Model
 
@@ -355,7 +367,10 @@ Files involved:
 
 - `src/server/trpc/routers/search.ts`
 - `src/server/services/search.ts`
+- `src/lib/x-data-client.ts`
 - `src/lib/x-api.ts`
+- `src/lib/apify-api.ts`
+- `src/lib/phantombuster-api.ts`
 - `src/lib/openai.ts`
 - `src/server/services/leads.ts`
 - `src/server/services/projects.ts`
@@ -366,16 +381,17 @@ Flow:
 2. The service resolves a project:
    - use an existing project if `projectId` is supplied
    - otherwise create a new project
-3. Candidate profiles are collected from multiple X sources:
+3. The active X provider is resolved from request context.
+4. Candidate profiles are collected from multiple X sources through the provider abstraction:
    - profile search
    - recent post search
    - reply search if a seed username is provided
    - follower network crawl if a seed username is provided
    - optional full-archive post search when enabled
-4. Candidates are deduplicated by X user ID.
-5. OpenAI ranks relevance when available.
-6. Top candidates are upserted into `leads`.
-7. The leads are linked to the project through `project_leads`.
+5. Candidates are deduplicated by X user ID.
+6. OpenAI ranks relevance when available.
+7. Top candidates are upserted into `leads`.
+8. The leads are linked to the project through `project_leads`.
 
 Notable constants:
 
@@ -388,10 +404,11 @@ Flow:
 
 1. A caller invokes `search.importNetwork`.
 2. The seed X account is resolved by username.
-3. A project is found or created.
-4. Followers and following are paged in parallel.
-5. Profiles are deduplicated.
-6. Profiles are added to the project as leads.
+3. The active X provider is resolved from request context.
+4. A project is found or created.
+5. Followers and following are paged in parallel.
+6. Profiles are deduplicated.
+7. Profiles are added to the project as leads.
 
 This workflow is heavier than query-based search and is built around network expansion rather than keyword relevance.
 
@@ -401,18 +418,22 @@ Files involved:
 
 - `src/server/services/search.ts`
 - `src/server/services/stats.ts`
+- `src/lib/x-data-client.ts`
 - `src/lib/x-api.ts`
+- `src/lib/apify-api.ts`
+- `src/lib/phantombuster-api.ts`
 - `src/lib/openai.ts`
 
 Flow:
 
 1. A caller invokes `stats.refresh`.
 2. The service loads the lead.
-3. It fetches recent user tweets from X.
-4. Raw tweet metrics are transformed into averages.
-5. OpenAI extracts topics and recommends `P0` or `P1`.
-6. `post_stats` is upserted.
-7. If `crmId` was provided, the lead priority is updated in `leads`.
+3. The active X provider is resolved from request context.
+4. It fetches recent user tweets through the provider abstraction.
+5. Raw tweet metrics are transformed into averages.
+6. OpenAI extracts topics and recommends `P0` or `P1`.
+7. `post_stats` is upserted.
+8. If `crmId` was provided, the lead priority is updated in `leads`.
 
 ### 6. Lead management
 
@@ -475,6 +496,7 @@ The main dashboard shell is already present:
 - mobile drawer header
 - nav entries for Search, Leads, Outreach, Settings
 - sign-out form in the sidebar
+- global X data source selector in the sidebar, persisted in browser storage and forwarded to tRPC
 
 Projects navigation is partially planned:
 

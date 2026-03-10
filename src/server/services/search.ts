@@ -4,18 +4,20 @@ import { rankProfilesForQuery } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
 import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
+import { getXDataClient } from "@/lib/x-data-client";
+import type { XDataProvider } from "@/lib/x-provider";
 import {
   buildPostSearchQuery,
   buildReplySearchQuery,
-  getFollowersPage,
-  getFollowingPage,
   isUnsupportedAuthenticationError,
-  lookupUsersByUsernames,
-  searchAllPosts,
-  searchRecentPosts,
-  searchUsers,
 } from "@/lib/x-api";
-import { NETWORK_TARGET, SEARCH_TARGET } from "@/lib/constants";
+import {
+  NETWORK_TARGET,
+  SEARCH_TARGET,
+  X_PROVIDER_NETWORK_PAGE_SIZE,
+  X_PROVIDER_POST_SEARCH_LIMIT,
+  X_PROVIDER_SEARCH_USERS_LIMIT,
+} from "@/lib/constants";
 import { addProfilesToProject } from "./leads";
 import { createProject, getProjectById } from "./projects";
 
@@ -58,37 +60,42 @@ async function collectSearchCandidates(
   query: string,
   followerUsername?: string,
   minFollowers = 0,
+  provider: XDataProvider = "x-api",
 ): Promise<Candidate[]> {
+  const client = getXDataClient(provider);
   const map = new Map<string, Candidate>();
 
   try {
-    for (const profile of await searchUsers(query, 25)) {
+    for (const profile of await client.searchUsers(query, X_PROVIDER_SEARCH_USERS_LIMIT)) {
       addCandidate(map, { ...profile, samplePosts: [], source: "profile_search" });
     }
   } catch (error) {
-    if (!isUnsupportedAuthenticationError(error)) {
+    if (provider !== "x-api" || !isUnsupportedAuthenticationError(error)) {
       throw error;
     }
   }
 
-  const recentPosts = await searchRecentPosts(buildPostSearchQuery(query), 50);
+  const recentPosts = await client.searchRecentPosts(buildPostSearchQuery(query), X_PROVIDER_POST_SEARCH_LIMIT);
   for (const profile of recentPosts.users) {
     const samplePosts = recentPosts.tweets
-      .filter((t) => t.author_id === profile.xUserId)
-      .map((t) => (t as { text?: string }).text ?? "")
+      .filter((tweet) => tweet.authorId === profile.xUserId)
+      .map((tweet) => tweet.text)
       .filter(Boolean)
       .slice(0, 3);
     addCandidate(map, { ...profile, samplePosts, source: "post_search" });
   }
 
   if (followerUsername) {
-    const [seed] = await lookupUsersByUsernames([followerUsername]);
+    const [seed] = await client.lookupUsersByUsernames([followerUsername]);
     if (seed) {
-      const replies = await searchRecentPosts(buildReplySearchQuery(query, followerUsername), 50);
+      const replies = await client.searchRecentPosts(
+        buildReplySearchQuery(query, followerUsername),
+        X_PROVIDER_POST_SEARCH_LIMIT,
+      );
       for (const profile of replies.users) {
         const samplePosts = replies.tweets
-          .filter((t) => t.author_id === profile.xUserId)
-          .map((t) => (t as { text?: string }).text ?? "")
+          .filter((tweet) => tweet.authorId === profile.xUserId)
+          .map((tweet) => tweet.text)
           .filter(Boolean)
           .slice(0, 3);
         addCandidate(map, { ...profile, samplePosts, source: "reply_search" });
@@ -97,7 +104,12 @@ async function collectSearchCandidates(
       let nextToken: string | undefined;
       let fetched = 0;
       while (fetched < NETWORK_TARGET) {
-        const page = await getFollowersPage(seed.xUserId, nextToken, 250);
+        const page = await client.getFollowersPage({
+          userId: seed.xUserId,
+          username: seed.username,
+          paginationToken: nextToken,
+          maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
+        });
         for (const p of page.profiles) addCandidate(map, { ...p, samplePosts: [], source: "followers" });
         fetched += page.profiles.length;
         nextToken = page.nextToken;
@@ -107,11 +119,11 @@ async function collectSearchCandidates(
   }
 
   if (map.size < SEARCH_TARGET && process.env.X_ENABLE_FULL_ARCHIVE === "true") {
-    const allPosts = await searchAllPosts(buildPostSearchQuery(query), 50);
+    const allPosts = await client.searchAllPosts(buildPostSearchQuery(query), X_PROVIDER_POST_SEARCH_LIMIT);
     for (const profile of allPosts.users) {
       const samplePosts = allPosts.tweets
-        .filter((t) => t.author_id === profile.xUserId)
-        .map((t) => (t as { text?: string }).text ?? "")
+        .filter((tweet) => tweet.authorId === profile.xUserId)
+        .map((tweet) => tweet.text)
         .filter(Boolean)
         .slice(0, 3);
       addCandidate(map, { ...profile, samplePosts, source: "post_search" });
@@ -138,11 +150,13 @@ async function collectSearchCandidates(
 export async function searchAndAddLeads(
   userId: string,
   input: SearchLeadInput,
+  provider: XDataProvider = "x-api",
 ): Promise<{ leads: Lead[]; project: Project }> {
   const candidates = await collectSearchCandidates(
     input.query,
     input.followerUsername,
     input.minFollowers ?? 0,
+    provider,
   );
   if (candidates.length === 0) {
     throw new TRPCError({
@@ -169,9 +183,11 @@ export async function searchAndAddLeads(
 export async function importAccountNetwork(
   userId: string,
   input: { username: string; projectId?: string; projectName?: string },
+  provider: XDataProvider = "x-api",
 ): Promise<{ leads: Lead[]; project: Project }> {
+  const client = getXDataClient(provider);
   const cleanHandle = input.username.replace(/^@/, "").trim();
-  const [seed] = await lookupUsersByUsernames([cleanHandle]);
+  const [seed] = await client.lookupUsersByUsernames([cleanHandle]);
   if (!seed) throw new TRPCError({ code: "NOT_FOUND", message: "X account not found." });
 
   const project = await resolveProject(userId, {
@@ -188,8 +204,18 @@ export async function importAccountNetwork(
 
   while (fetched < NETWORK_TARGET) {
     const [followersPage, followingPage] = await Promise.all([
-      getFollowersPage(seed.xUserId, nextFollowers, 250),
-      getFollowingPage(seed.xUserId, nextFollowing, 250),
+      client.getFollowersPage({
+        userId: seed.xUserId,
+        username: seed.username,
+        paginationToken: nextFollowers,
+        maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
+      }),
+      client.getFollowingPage({
+        userId: seed.xUserId,
+        username: seed.username,
+        paginationToken: nextFollowing,
+        maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
+      }),
     ]);
 
     for (const p of followersPage.profiles) addCandidate(candidates, { ...p, samplePosts: [], source: "followers" });

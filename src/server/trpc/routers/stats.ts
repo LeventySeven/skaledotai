@@ -10,5 +10,5 @@ export const statsRouter = router({
 
   refresh: protectedProcedure
     .input(RefreshStatsInputSchema)
-    .mutation(({ ctx, input }) => refreshProfileStats(ctx.userId, input)),
+    .mutation(({ ctx, input }) => refreshProfileStats(ctx.userId, input, ctx.xDataProvider)),
 });
