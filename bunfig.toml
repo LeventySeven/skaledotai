@@ -1,0 +1,11 @@
+[test]
+preload = ["./tests/_helpers/setup.ts"]
+
+# Coverage — run with `bun test --coverage` or `bun run test:coverage`
+coverageSkipTestFiles = true
+coverageReporter = ["text", "lcov"]
+coverageDir = "./coverage"
+
+# Path aliases matching tsconfig.json
+[test.moduleResolution]
+paths = { "@/*" = ["./src/*"] }
