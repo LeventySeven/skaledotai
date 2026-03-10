@@ -78,7 +78,7 @@ async function collectPostSearchCandidates(
 }
 
 function buildScreeningPool(candidates: Candidate[], targetLeadCount: number): Candidate[] {
-  const poolLimit = Math.min(SEARCH_CANDIDATE_POOL_LIMIT, getCandidateTarget(targetLeadCount));
+  const poolLimit = getCandidateTarget(targetLeadCount);
   const headCount = Math.min(candidates.length, Math.max(targetLeadCount, Math.ceil(poolLimit * 0.6)));
   const seen = new Set<string>();
   const pool: Candidate[] = [];
