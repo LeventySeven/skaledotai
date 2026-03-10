@@ -242,13 +242,9 @@ export const phantomBusterClient: XDataClient = {
     return collectSearchResult(result);
   },
 
-  async searchAllPosts(query, maxResults = 50) {
-    const result = await launchPhantom(
-      requireAgentId("PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID"),
-      { search: query, limit: maxResults },
-    );
-
-    return collectSearchResult(result);
+  searchAllPosts(query, maxResults = 50) {
+    // PhantomBuster has no recent/archive distinction — delegates to the same search
+    return phantomBusterClient.searchRecentPosts(query, maxResults);
   },
 
   async getUserTweets(input): Promise<XResolvedTweet[]> {

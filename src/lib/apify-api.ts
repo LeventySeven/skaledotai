@@ -193,6 +193,7 @@ export const apifyClient: XDataClient = {
   },
 
   searchAllPosts(query, maxResults = 50) {
+    // Apify has no recent/archive distinction — delegates to the same search
     return runAdvancedSearch(query, maxResults);
   },
 
