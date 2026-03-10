@@ -1,7 +1,6 @@
 import "server-only";
 import type { XProfile } from "@/lib/validations/search";
 import {
-  X_PROVIDER_RETRY_BASE_DELAY_MS,
   X_PROVIDER_RETRY_COUNT,
   X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
   X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
@@ -21,6 +20,13 @@ import {
   normalizeScrapedProfile,
   normalizeScrapedTweet,
 } from "@/lib/x-scraper-normalizers";
+import {
+  sleep,
+  withRetry,
+  requireUsername as requireUsernameBase,
+  isString,
+  collectNestedTweets,
+} from "@/lib/x-scraper-utils";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const APIFY_ADVANCED_SEARCH_ACTOR = "api-ninja/x-twitter-advanced-search";
@@ -36,24 +42,6 @@ function requireApifyToken(): string {
 
 function toActorPath(actorId: string): string {
   return actorId.replace("/", "~");
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
-  let attempt = 0;
-
-  while (true) {
-    try {
-      return await fn();
-    } catch (error) {
-      attempt += 1;
-      if (attempt >= retries) throw error;
-      await sleep(2 ** (attempt - 1) * X_PROVIDER_RETRY_BASE_DELAY_MS);
-    }
-  }
 }
 
 async function runActor<T>(actorId: string, input: Record<string, unknown>): Promise<T[]> {
@@ -85,15 +73,7 @@ async function runActor<T>(actorId: string, input: Record<string, unknown>): Pro
 }
 
 function requireUsername(reference: XUserReference): string {
-  const username = normalizeHandle(reference.username);
-  if (!username) {
-    throw new Error("Apify operations require a username-backed X profile.");
-  }
-  return username;
-}
-
-function isString(value: string | undefined): value is string {
-  return Boolean(value);
+  return requireUsernameBase(reference, "Apify");
 }
 
 function collectProfiles(items: unknown[]): XProfile[] {
@@ -116,22 +96,6 @@ function collectNestedProfiles(items: unknown[], key: "followers" | "following")
   }
 
   return dedupeProfiles(profiles);
-}
-
-function collectNestedTweets(items: unknown[]): XResolvedTweet[] {
-  const tweets: XResolvedTweet[] = [];
-
-  for (const item of items) {
-    const nestedTweets = extractNestedItems(item, "tweets");
-    const sourceTweets = nestedTweets.length > 0 ? nestedTweets : [item];
-
-    for (const candidate of sourceTweets) {
-      const tweet = normalizeScrapedTweet(candidate, { excludeRepliesAndRetweets: true });
-      if (tweet) tweets.push(tweet);
-    }
-  }
-
-  return tweets;
 }
 
 async function runAdvancedSearch(

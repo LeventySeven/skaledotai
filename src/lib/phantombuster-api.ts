@@ -2,7 +2,6 @@ import "server-only";
 import type { XProfile } from "@/lib/validations/search";
 import {
   PHANTOMBUSTER_POLL_INTERVAL_MS,
-  X_PROVIDER_RETRY_BASE_DELAY_MS,
   X_PROVIDER_RETRY_COUNT,
   X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
   X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR,
@@ -16,11 +15,17 @@ import type {
 } from "@/lib/x-data-types";
 import {
   dedupeProfiles,
-  extractNestedItems,
   normalizeHandle,
   normalizeScrapedProfile,
   normalizeScrapedTweet,
 } from "@/lib/x-scraper-normalizers";
+import {
+  sleep,
+  withRetry,
+  requireUsername as requireUsernameBase,
+  isString,
+  collectNestedTweets,
+} from "@/lib/x-scraper-utils";
 
 const PHANTOM_BASE = "https://api.phantombuster.com/api/v2";
 
@@ -38,24 +43,6 @@ function requireAgentId(name: string): string {
     throw new Error(`${name} is not set`);
   }
   return value;
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
-  let attempt = 0;
-
-  while (true) {
-    try {
-      return await fn();
-    } catch (error) {
-      attempt += 1;
-      if (attempt >= retries) throw error;
-      await sleep(2 ** (attempt - 1) * X_PROVIDER_RETRY_BASE_DELAY_MS);
-    }
-  }
 }
 
 async function requestPhantom<T>(path: string, init?: RequestInit): Promise<T> {
@@ -165,37 +152,13 @@ async function launchPhantom(agentId: string, input: Record<string, unknown>): P
 }
 
 function requireUsername(reference: XUserReference): string {
-  const username = normalizeHandle(reference.username);
-  if (!username) {
-    throw new Error("PhantomBuster operations require a username-backed X profile.");
-  }
-  return username;
-}
-
-function isString(value: string | undefined): value is string {
-  return Boolean(value);
+  return requireUsernameBase(reference, "PhantomBuster");
 }
 
 function collectProfiles(items: unknown[]): XProfile[] {
   return dedupeProfiles(items
     .map((item) => normalizeScrapedProfile(item))
     .filter((profile): profile is XProfile => Boolean(profile)));
-}
-
-function collectNestedTweets(items: unknown[]): XResolvedTweet[] {
-  const tweets: XResolvedTweet[] = [];
-
-  for (const item of items) {
-    const nestedTweets = extractNestedItems(item, "tweets");
-    const sourceTweets = nestedTweets.length > 0 ? nestedTweets : [item];
-
-    for (const candidate of sourceTweets) {
-      const tweet = normalizeScrapedTweet(candidate, { excludeRepliesAndRetweets: true });
-      if (tweet) tweets.push(tweet);
-    }
-  }
-
-  return tweets;
 }
 
 function collectSearchResult(items: unknown[]): XPostSearchResult {
