@@ -266,6 +266,13 @@ export function normalizeScrapedTweet(
     "conversation_id",
     "threadId",
   ], readString);
+  const createdAt = readFromRecords(records, [
+    "createdAt",
+    "created_at",
+    "timestamp",
+    "time",
+    "date",
+  ], readString);
 
   if (options?.excludeRepliesAndRetweets && isReplyOrRetweet(records, text, id, conversationId)) {
     return null;
@@ -273,25 +280,21 @@ export function normalizeScrapedTweet(
 
   if (!id && !text) return null;
 
+  const authorId =
+    readFromRecords(records, [
+      "authorId",
+      "author_id",
+      "userId",
+      "user_id",
+      "ownerId",
+    ], readString)
+    ?? authorProfile?.xUserId;
+
   return {
-    id: id ?? `${authorProfile?.xUserId ?? "tweet"}:${text.slice(0, 32)}`,
-    authorId:
-      readFromRecords(records, [
-        "authorId",
-        "author_id",
-        "userId",
-        "user_id",
-        "ownerId",
-      ], readString)
-      ?? authorProfile?.xUserId,
+    id: id ?? [authorId ?? "tweet", createdAt, text].filter(Boolean).join(":"),
+    authorId,
     conversationId,
-    createdAt: readFromRecords(records, [
-      "createdAt",
-      "created_at",
-      "timestamp",
-      "time",
-      "date",
-    ], readString),
+    createdAt,
     text,
     viewCount:
       readFromRecords(records, [
