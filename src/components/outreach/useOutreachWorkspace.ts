@@ -160,6 +160,10 @@ export function useOutreachWorkspace() {
   }
 
   async function handleGenerateTemplate() {
+    if (effectiveProjectIds.length === 0) {
+      setUiError("Select at least one project.");
+      return;
+    }
     setUiError(null);
     await generateTemplate.mutateAsync({
       projectIds: effectiveProjectIds,
