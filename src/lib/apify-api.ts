@@ -21,7 +21,6 @@ import {
   normalizeScrapedTweet,
 } from "@/lib/x-scraper-normalizers";
 import {
-  sleep,
   withRetry,
   requireUsername as requireUsernameBase,
   isString,
