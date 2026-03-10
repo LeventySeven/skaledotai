@@ -62,6 +62,8 @@ const SEARCH_NON_LEAD_TERMS = [
   "bot",
 ];
 
+const SEARCH_FALLBACK_SCORE_THRESHOLD = 20;
+
 const SEARCH_PERSON_TERMS = [
   "founder",
   "cofounder",
@@ -140,7 +142,7 @@ function getFallbackScreenedIds(
       score: getFallbackSearchScore(query, candidate),
       followers: candidate.followersCount,
     }))
-    .filter((candidate) => candidate.score >= 20)
+    .filter((candidate) => candidate.score >= SEARCH_FALLBACK_SCORE_THRESHOLD)
     .sort((a, b) => b.score - a.score || b.followers - a.followers)
     .slice(0, maxResults)
     .map((candidate) => candidate.id);
@@ -154,7 +156,7 @@ function getFallbackScreeningDecisions(
     const score = getFallbackSearchScore(query, candidate);
     return {
       profileId: candidate.xUserId,
-      include: score >= 20,
+      include: score >= SEARCH_FALLBACK_SCORE_THRESHOLD,
       score,
     };
   });
