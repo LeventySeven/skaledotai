@@ -31,10 +31,10 @@ describe("PrioritySchema", () => {
 });
 
 describe("LeadStageSchema", () => {
-  const valid = ["found", "messaged", "replied", "agreed"] as const;
-
-  test.each(valid)("accepts %s", (stage: string) => {
-    expect(LeadStageSchema.parse(stage)).toBe(stage);
+  test("accepts all valid stages", () => {
+    for (const stage of ["found", "messaged", "replied", "agreed"] as const) {
+      expect(LeadStageSchema.parse(stage)).toBe(stage);
+    }
   });
 
   test("rejects invalid stage", () => {
@@ -44,16 +44,10 @@ describe("LeadStageSchema", () => {
 });
 
 describe("DiscoverySourceSchema", () => {
-  const valid = [
-    "profile_search",
-    "post_search",
-    "reply_search",
-    "followers",
-    "following",
-  ] as const;
-
-  test.each(valid)("accepts %s", (source: string) => {
-    expect(DiscoverySourceSchema.parse(source)).toBe(source);
+  test("accepts all valid sources", () => {
+    for (const source of ["profile_search", "post_search", "reply_search", "followers", "following"] as const) {
+      expect(DiscoverySourceSchema.parse(source)).toBe(source);
+    }
   });
 
   test("rejects invalid source", () => {

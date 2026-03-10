@@ -166,7 +166,8 @@ describe("buildAiOutreachTemplate", () => {
   test("passes requestedStyle to generator", async () => {
     selectResults = [[{ lead: LEAD_ROW, stats: null, projectName: null }]];
     await buildAiOutreachTemplate({ userId: "user-1", requestedStyle: "casual" });
-    const callArgs = generateTemplateMock.mock.calls[0][0] as any;
-    expect(callArgs.requestedStyle).toBe("casual");
+    expect(generateTemplateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ requestedStyle: "casual" }),
+    );
   });
 });

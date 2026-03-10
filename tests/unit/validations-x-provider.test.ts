@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { XDataProviderSchema } from "@/lib/validations/x-provider";
 
 describe("XDataProviderSchema", () => {
-  test.each(["x-api", "apify", "phantombuster"] as const)("accepts %s", (provider: string) => {
-    expect(XDataProviderSchema.parse(provider)).toBe(provider);
+  test("accepts all valid providers", () => {
+    for (const provider of ["x-api", "apify", "phantombuster"] as const) {
+      expect(XDataProviderSchema.parse(provider)).toBe(provider);
+    }
   });
 
   test("rejects unknown provider", () => {
