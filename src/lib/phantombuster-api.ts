@@ -94,7 +94,7 @@ function isContainerDone(value: unknown): boolean {
 
 function isContainerError(value: unknown): boolean {
   const state = typeof value === "string" ? value.toLowerCase() : "";
-  return ["error", "failed", "failure"].includes(state);
+  return ["error", "failed", "failure", "launch error"].includes(state);
 }
 
 async function waitForContainer(containerId: string): Promise<void> {
@@ -138,24 +138,8 @@ async function launchPhantom(agentId: string, input: Record<string, unknown>): P
 
   await waitForContainer(containerId);
 
-  const agent = await requestPhantom<Record<string, unknown>>(`/agents/fetch?id=${encodeURIComponent(agentId)}`);
-  const folder = typeof agent.orgS3Folder === "string"
-    ? agent.orgS3Folder
-    : typeof agent.s3Folder === "string"
-      ? agent.s3Folder
-      : undefined;
-
-  if (!folder) {
-    throw new Error("PhantomBuster agent did not expose an output folder.");
-  }
-
-  const outputUrl = folder.endsWith("/") ? `${folder}result.json` : `${folder}/result.json`;
-  const response = await fetch(outputUrl, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`PhantomBuster result fetch failed (${response.status})`);
-  }
-
-  return normalizeResultPayload(await response.json());
+  const resultObject = await requestPhantom<unknown>(`/containers/fetch-result-object?id=${encodeURIComponent(containerId)}`);
+  return normalizeResultPayload(resultObject);
 }
 
 function requireUsername(reference: XUserReference): string {
