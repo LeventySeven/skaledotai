@@ -2,6 +2,7 @@ import "server-only";
 import type { XProfile } from "@/lib/validations/search";
 import {
   PHANTOMBUSTER_POLL_INTERVAL_MS,
+  PHANTOMBUSTER_MAX_WAIT_MS,
   X_PROVIDER_RETRY_COUNT,
   X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
   X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR,
@@ -97,6 +98,8 @@ function isContainerError(value: unknown): boolean {
 }
 
 async function waitForContainer(containerId: string): Promise<void> {
+  const deadline = Date.now() + PHANTOMBUSTER_MAX_WAIT_MS;
+
   for (;;) {
     const status = await requestPhantom<Record<string, unknown>>(`/containers/fetch?id=${encodeURIComponent(containerId)}`);
     const state = status.state ?? status.status;
@@ -104,6 +107,10 @@ async function waitForContainer(containerId: string): Promise<void> {
     if (isContainerDone(state)) return;
     if (isContainerError(state)) {
       throw new Error("PhantomBuster container failed");
+    }
+
+    if (Date.now() >= deadline) {
+      throw new Error(`PhantomBuster container timed out after ${PHANTOMBUSTER_MAX_WAIT_MS / 1000}s`);
     }
 
     await sleep(PHANTOMBUSTER_POLL_INTERVAL_MS);
