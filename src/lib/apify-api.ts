@@ -118,7 +118,7 @@ async function runAdvancedSearch(
     .filter((tweet): tweet is XResolvedTweet => Boolean(tweet));
   const users = dedupeProfiles(items
     .map((item) => normalizeScrapedProfile(item))
-    .filter((profile): profile is XProfile => Boolean(profile)));
+    .filter((profile): profile is XProfile => profile !== null && Boolean(profile.username)));
 
   return {
     tweets,
