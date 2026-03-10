@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useRef, useMemo, useState } from "react";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
@@ -45,17 +45,18 @@ export function useOutreachWorkspace() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(["standard-1"]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const hasUserToggledProjects = useRef(false);
   const [stylePrompt, setStylePrompt] = useState("");
   const [importProjectId, setImportProjectId] = useState("");
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [uiError, setUiError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (projects.length > 0 && selectedProjectIds.length === 0) {
-      setSelectedProjectIds(projects.map((p) => p.id));
-      setImportProjectId((current) => current || projects[0]?.id || "");
-    }
-  }, [projects, selectedProjectIds.length]);
+  const effectiveProjectIds =
+    hasUserToggledProjects.current || selectedProjectIds.length > 0
+      ? selectedProjectIds
+      : projects.map((p) => p.id);
+
+  const effectiveImportProjectId = importProjectId || projects[0]?.id || "";
 
   const updateLead = trpc.leads.update.useMutation({
     onSuccess: async () => {
@@ -136,6 +137,7 @@ export function useOutreachWorkspace() {
   }
 
   function toggleProject(projectId: string) {
+    hasUserToggledProjects.current = true;
     setSelectedProjectIds((current) =>
       current.includes(projectId)
         ? current.filter((id) => id !== projectId)
@@ -152,15 +154,15 @@ export function useOutreachWorkspace() {
   }
 
   async function handleImportFolder() {
-    if (!importProjectId) { setUiError("Select a folder to import."); return; }
+    if (!effectiveImportProjectId) { setUiError("Select a folder to import."); return; }
     setUiError(null);
-    await queueAllLeads.mutateAsync({ projectId: importProjectId });
+    await queueAllLeads.mutateAsync({ projectId: effectiveImportProjectId });
   }
 
   async function handleGenerateTemplate() {
     setUiError(null);
     await generateTemplate.mutateAsync({
-      projectIds: selectedProjectIds,
+      projectIds: effectiveProjectIds,
       requestedStyle: stylePrompt.trim() || undefined,
     });
   }
@@ -208,13 +210,13 @@ export function useOutreachWorkspace() {
     selectedLeadIds,
     setSelectedLeadIds,
     selectedTemplateIds,
-    selectedProjectIds,
+    selectedProjectIds: effectiveProjectIds,
     selectedLeads,
     selectedTemplates,
     // ui state
     stylePrompt,
     setStylePrompt,
-    importProjectId,
+    importProjectId: effectiveImportProjectId,
     setImportProjectId,
     showAiPanel,
     setShowAiPanel,
