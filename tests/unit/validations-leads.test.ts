@@ -99,7 +99,7 @@ describe("LeadPatchSchema", () => {
 });
 
 describe("LeadSortSchema", () => {
-  test.each(["followers-desc", "followers-asc", "name-asc"] as const)("accepts %s", (sort) => {
+  test.each(["followers-desc", "followers-asc", "name-asc"] as const)("accepts %s", (sort: string) => {
     expect(LeadSortSchema.parse(sort)).toBe(sort);
   });
 

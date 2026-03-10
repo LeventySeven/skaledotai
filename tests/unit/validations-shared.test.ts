@@ -33,7 +33,7 @@ describe("PrioritySchema", () => {
 describe("LeadStageSchema", () => {
   const valid = ["found", "messaged", "replied", "agreed"] as const;
 
-  test.each(valid)("accepts %s", (stage) => {
+  test.each(valid)("accepts %s", (stage: string) => {
     expect(LeadStageSchema.parse(stage)).toBe(stage);
   });
 
@@ -52,7 +52,7 @@ describe("DiscoverySourceSchema", () => {
     "following",
   ] as const;
 
-  test.each(valid)("accepts %s", (source) => {
+  test.each(valid)("accepts %s", (source: string) => {
     expect(DiscoverySourceSchema.parse(source)).toBe(source);
   });
 
