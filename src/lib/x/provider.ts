@@ -2,6 +2,7 @@ import {
   XDataProviderSchema,
   type XDataProvider,
 } from "@/lib/validations/x-provider";
+export { XDataProviderSchema, type XDataProvider };
 
 export const DEFAULT_X_DATA_PROVIDER: XDataProvider = "x-api";
 export const X_DATA_PROVIDER_STORAGE_KEY = "skaleai.x-data-provider";
@@ -102,5 +103,3 @@ export function getXDataProviderOption(provider: XDataProvider): XDataProviderOp
   return X_DATA_PROVIDER_OPTIONS.find((option) => option.value === provider) ?? X_DATA_PROVIDER_OPTIONS[0];
 }
 
-export { XDataProviderSchema };
-export type { XDataProvider };

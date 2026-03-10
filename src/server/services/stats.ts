@@ -5,9 +5,9 @@ import { db } from "@/db";
 import { leads, postStats } from "@/db/schema";
 import { X_PROVIDER_STATS_TWEET_LIMIT } from "@/lib/constants";
 import { extractTopicsAndPriority } from "@/lib/openai";
-import { getXDataClient, mapTweetsToMetrics } from "@/lib/x-data-client";
+import { getXDataClient, mapTweetsToMetrics } from "@/lib/x";
+import type { XDataProvider } from "@/lib/x";
 import type { PostStats } from "@/lib/validations/stats";
-import type { XDataProvider } from "@/lib/x-provider";
 import { getLeadById, updateLead } from "./leads";
 
 function rowToPostStats(row: typeof postStats.$inferSelect): PostStats {

@@ -4,7 +4,7 @@ import {
   DEFAULT_X_DATA_PROVIDER,
   parseXDataProvider,
   type XDataProvider,
-} from "@/lib/x-provider";
+} from "@/lib/x";
 
 export type Context = {
   userId?: string;

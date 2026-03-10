@@ -5,13 +5,13 @@ import { db } from "@/db";
 import { leads, postStats, projectLeads, projects } from "@/db/schema";
 import { X_PROVIDER_ANALYSIS_TWEET_LIMIT } from "@/lib/constants";
 import { analyzeLeadPoolForProject } from "@/lib/openai";
-import { getXDataClient, mapTweetsToMetrics } from "@/lib/x-data-client";
+import { getXDataClient, mapTweetsToMetrics } from "@/lib/x";
+import type { XDataProvider } from "@/lib/x";
 import type {
   ProjectAnalysisResult,
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
 import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/constants";
-import type { XDataProvider } from "@/lib/x-provider";
 import { createProject, rowToPreviewLead } from "./projects";
 import { upsertPostStats } from "./stats";
 

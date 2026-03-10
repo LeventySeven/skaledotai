@@ -7,7 +7,7 @@ import {
   getXDataProviderLabel,
   X_DATA_PROVIDER_OPTIONS,
   type XDataProvider,
-} from "@/lib/x-provider";
+} from "@/lib/x";
 import { useXDataProviderPreference } from "./XDataProviderPreference";
 
 export function XDataProviderSelector({

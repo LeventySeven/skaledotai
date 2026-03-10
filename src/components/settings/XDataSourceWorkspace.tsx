@@ -14,7 +14,7 @@ import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummar
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { X_DATA_PROVIDER_OPTIONS } from "@/lib/x-provider";
+import { X_DATA_PROVIDER_OPTIONS } from "@/lib/x";
 
 const ARCHITECTURE_STEPS = [
   {

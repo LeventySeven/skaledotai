@@ -4,13 +4,13 @@ import { rankProfilesForQuery } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
 import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
-import { getXDataClient } from "@/lib/x-data-client";
-import type { XDataProvider } from "@/lib/x-provider";
 import {
+  getXDataClient,
   buildPostSearchQuery,
   buildReplySearchQuery,
   isUnsupportedAuthenticationError,
-} from "@/lib/x-api";
+} from "@/lib/x";
+import type { XDataProvider } from "@/lib/x";
 import {
   NETWORK_TARGET,
   SEARCH_TARGET,

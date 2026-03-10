@@ -12,7 +12,7 @@ import {
   parseXDataProvider,
   X_DATA_PROVIDER_STORAGE_KEY,
   type XDataProvider,
-} from "@/lib/x-provider";
+} from "@/lib/x";
 
 type XDataProviderPreferenceContextValue = {
   provider: XDataProvider;

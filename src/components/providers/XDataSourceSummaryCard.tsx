@@ -9,7 +9,7 @@ import {
   getXDataProviderOption,
   X_DATA_PROVIDER_SURFACES,
   type XDataProvider,
-} from "@/lib/x-provider";
+} from "@/lib/x";
 import { useXDataProviderPreference } from "./XDataProviderPreference";
 
 export function XDataSourceSummaryCard({
