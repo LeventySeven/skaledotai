@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Sheet, SheetPopup, SheetHeader, SheetTitle, SheetDescription,
   SheetPanel, SheetFooter,
@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import type { Lead } from "@/lib/validations/leads";
-import type { PostStats } from "@/lib/validations/stats";
 import { cn } from "@/lib/utils";
 import { BarChart2Icon } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -42,7 +41,6 @@ function initials(name: string): string {
 export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: LeadDetailSheetProps) {
   const utils = trpc.useUtils();
   const [importing, setImporting] = useState(false);
-  const [postStats, setPostStats] = useState<PostStats | null>(null);
   const statsQuery = trpc.stats.get.useQuery(
     { profileId: lead?.id ?? "00000000-0000-0000-0000-000000000000" },
     {
@@ -52,9 +50,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
   const refreshStats = trpc.stats.refresh.useMutation();
   const importNetwork = trpc.search.importNetwork.useMutation();
 
-  useEffect(() => {
-    setPostStats(statsQuery.data ?? null);
-  }, [statsQuery.data, lead?.id]);
+  const postStats = statsQuery.data ?? null;
 
   async function handleImportFollowing() {
     if (!lead || lead.platform !== "twitter") return;
@@ -91,7 +87,6 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
         crmId: lead.crmId,
         niche,
       });
-      setPostStats(data.stats);
       await utils.stats.get.invalidate({ profileId: lead.id });
       if (data.priority) await onPatch(lead.id, { priority: data.priority });
       toastManager.add({ type: "success", title: `Stats fetched. AI set priority to ${data.priority}.` });
@@ -164,15 +159,15 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
                   </Button>
                 </div>
 
-                {statsQuery.isLoading && (
+                {(statsQuery.isLoading || statsQuery.isFetching || refreshStats.isPending) && (
                   <p className="text-xs text-muted-foreground">Loading...</p>
                 )}
 
-                {!statsQuery.isLoading && !postStats && !refreshStats.isPending && (
+                {!statsQuery.isLoading && !statsQuery.isFetching && !postStats && !refreshStats.isPending && (
                   <p className="text-xs text-muted-foreground">No stats yet. Click Fetch Stats to analyze recent X posts.</p>
                 )}
 
-                {postStats && (
+                {postStats && !refreshStats.isPending && !statsQuery.isFetching && (
                   <div className="grid grid-cols-2 gap-y-1.5 text-sm">
                     <span className="text-muted-foreground">Posts analyzed</span>
                     <span className="font-medium">{postStats.postCount}</span>
