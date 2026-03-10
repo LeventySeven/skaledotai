@@ -99,7 +99,6 @@ function getPlannerModel(): ChatOpenAI {
   return new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5",
-    temperature: 0,
   });
 }
 
