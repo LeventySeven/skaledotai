@@ -47,11 +47,12 @@ function toActorPath(actorId: string): string {
 async function runActor<T>(actorId: string, input: Record<string, unknown>): Promise<T[]> {
   const response = await withRetry(async () => {
     const result = await fetch(
-      `${APIFY_BASE}/acts/${toActorPath(actorId)}/run-sync-get-dataset-items?token=${requireApifyToken()}&format=json`,
+      `${APIFY_BASE}/acts/${toActorPath(actorId)}/run-sync-get-dataset-items?format=json`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${requireApifyToken()}`,
         },
         body: JSON.stringify(input),
         cache: "no-store",
