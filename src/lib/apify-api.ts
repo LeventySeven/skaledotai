@@ -41,7 +41,8 @@ function requireApifyToken(): string {
 }
 
 function toActorPath(actorId: string): string {
-  return actorId.replace("/", "~");
+  // Docs: actorId is "username~actor-name"; input uses "/" so convert all slashes
+  return actorId.replaceAll("/", "~");
 }
 
 async function runActor<T>(actorId: string, input: Record<string, unknown>): Promise<T[]> {
@@ -65,6 +66,11 @@ async function runActor<T>(actorId: string, input: Record<string, unknown>): Pro
 
     return result;
   }, X_PROVIDER_RETRY_COUNT);
+
+  // 408 = sync run exceeded Apify's 300s hard limit — not retryable
+  if (response.status === 408) {
+    throw new Error("Apify actor run timed out (408). The actor exceeded the 300s sync limit.");
+  }
 
   if (!response.ok) {
     throw new Error(`Apify request failed (${response.status}): ${await response.text()}`);
