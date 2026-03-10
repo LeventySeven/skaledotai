@@ -1,0 +1,231 @@
+import "server-only";
+import type {
+  XDataClient,
+  XDiscoveryInput,
+  XDiscoveryProvider,
+  XLeadCandidate,
+  XPostSearchResult,
+  XProfilesPage,
+  XResolvedTweet,
+  XUserReference,
+} from "./types";
+import { XProviderRuntimeError } from "./types";
+import { buildLeadCandidate } from "./discovery";
+import {
+  dedupeProfiles,
+  normalizeHandle,
+  normalizeScrapedProfile,
+  normalizeScrapedTweet,
+} from "./normalizers";
+import { collectNestedTweets, requireUsername } from "./scraper-utils";
+
+const OXYLABS_BASE_URL = process.env.OXYLABS_BASE_URL ?? "https://realtime.oxylabs.io/v1/queries";
+
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as JsonRecord
+    : null;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function unsupported(capability: "network"): never {
+  throw new XProviderRuntimeError({
+    provider: "oxylabs",
+    capability,
+    code: "CAPABILITY_UNSUPPORTED",
+    message: `Oxylabs does not support ${capability} operations in the current integration.`,
+  });
+}
+
+function requireOxylabsAuth(): { username: string; password: string } {
+  const username = process.env.OXYLABS_USERNAME;
+  const password = process.env.OXYLABS_PASSWORD;
+  const fixtureReady = process.env.OXYLABS_FIXTURE_READY;
+  const missingEnv = [
+    !username ? "OXYLABS_USERNAME" : null,
+    !password ? "OXYLABS_PASSWORD" : null,
+    fixtureReady === "true" ? null : "OXYLABS_FIXTURE_READY",
+  ].filter((value): value is string => Boolean(value));
+
+  if (missingEnv.length > 0) {
+    throw new XProviderRuntimeError({
+      provider: "oxylabs",
+      code: "NOT_CONFIGURED",
+      message: "Oxylabs requires credentials and a verified fixture gate before it can be enabled.",
+      missingEnv,
+    });
+  }
+
+  return { username: username!, password: password! };
+}
+
+function getAuthHeader(): string {
+  const { username, password } = requireOxylabsAuth();
+  return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+}
+
+async function queryOxylabs(url: string): Promise<unknown> {
+  const response = await fetch(OXYLABS_BASE_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": getAuthHeader(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source: "universal",
+      url,
+      parse: true,
+      render: "html",
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Oxylabs request failed (${response.status}): ${await response.text()}`);
+  }
+
+  return response.json();
+}
+
+function extractOxylabsItems(value: unknown): unknown[] {
+  const record = asRecord(value);
+  if (!record) return [];
+
+  const directItems = [
+    ...asArray(record.results),
+    ...asArray(record.items),
+    ...asArray(record.data),
+  ];
+
+  const flattened = directItems.flatMap((item) => {
+    const child = asRecord(item);
+    if (!child) return [item];
+    return [
+      child,
+      ...asArray(child.results),
+      ...asArray(child.items),
+      ...asArray(child.data),
+      ...asArray(child.content),
+      ...(child.content ? [child.content] : []),
+      ...(child.page ? [child.page] : []),
+      ...(child.parsed ? [child.parsed] : []),
+    ];
+  });
+
+  return flattened.length > 0 ? flattened : [record];
+}
+
+function normalizeProfiles(payload: unknown): ReturnType<typeof dedupeProfiles> {
+  return dedupeProfiles(
+    extractOxylabsItems(payload)
+      .map((item) => normalizeScrapedProfile(item))
+      .filter((profile): profile is NonNullable<ReturnType<typeof normalizeScrapedProfile>> => Boolean(profile)),
+  );
+}
+
+function normalizeSearchResult(payload: unknown): XPostSearchResult {
+  const items = extractOxylabsItems(payload);
+  const tweets = items
+    .map((item) => normalizeScrapedTweet(item))
+    .filter((tweet): tweet is XResolvedTweet => Boolean(tweet));
+  const users = dedupeProfiles(
+    items
+      .map((item) => normalizeScrapedProfile(item))
+      .filter((profile): profile is NonNullable<ReturnType<typeof normalizeScrapedProfile>> => Boolean(profile)),
+  );
+
+  return { tweets, users };
+}
+
+async function scrapeProfile(reference: XUserReference): Promise<unknown> {
+  const username = requireUsername(reference, "Oxylabs");
+  return queryOxylabs(`https://x.com/${username}`);
+}
+
+export const oxylabsDiscoveryProvider: XDiscoveryProvider = {
+  provider: "oxylabs",
+  async discoverCandidates(input: XDiscoveryInput): Promise<XLeadCandidate[]> {
+    const queries = [
+      `https://x.com/search?q=${encodeURIComponent(input.niche)}&src=typed_query&f=user`,
+      `https://x.com/search?q=${encodeURIComponent(input.niche)}&src=typed_query&f=live`,
+    ];
+
+    if (input.seedHandle) {
+      queries.push(`https://x.com/search?q=${encodeURIComponent(`to:${input.seedHandle} ${input.niche}`)}&src=typed_query&f=live`);
+    }
+
+    const results = await Promise.all(queries.map((url) => queryOxylabs(url)));
+    const byHandle = new Map<string, XLeadCandidate>();
+
+    for (const result of results) {
+      const search = normalizeSearchResult(result);
+
+      for (const profile of search.users) {
+        const tweets = search.tweets.filter((tweet) => tweet.authorId === profile.xUserId);
+        const candidate = buildLeadCandidate(
+          "oxylabs",
+          input.niche,
+          profile,
+          tweets.length > 0 ? "post_search" : "profile_search",
+          tweets,
+        );
+
+        if (candidate.account.followers < (input.minFollowers ?? 0)) continue;
+        byHandle.set(candidate.account.handle.toLowerCase(), candidate);
+      }
+    }
+
+    return [...byHandle.values()]
+      .sort((a, b) => b.account.followers - a.account.followers)
+      .slice(0, input.limit * 2);
+  },
+};
+
+export const oxylabsClient: XDataClient = {
+  provider: "oxylabs",
+  async searchUsers(query, maxResults = 25) {
+    const candidates = await oxylabsDiscoveryProvider.discoverCandidates({ niche: query, limit: maxResults });
+    return candidates.slice(0, maxResults).map((candidate) => ({
+      xUserId: candidate.account.xUserId ?? candidate.account.handle,
+      username: candidate.account.handle,
+      displayName: candidate.account.name,
+      bio: candidate.account.bio,
+      followersCount: candidate.account.followers,
+      followingCount: candidate.account.following,
+      verified: candidate.account.isVerified,
+      profileUrl: candidate.account.profileUrl,
+      avatarUrl: candidate.account.avatarUrl,
+    }));
+  },
+  async lookupUsersByUsernames(usernames) {
+    const handles = [...new Set(usernames.map((username) => normalizeHandle(username)).filter(Boolean))];
+    const payloads = await Promise.all(handles.map((handle) => scrapeProfile({ username: handle })));
+    return dedupeProfiles(payloads.flatMap((payload) => normalizeProfiles(payload)));
+  },
+  getFollowersPage(): Promise<XProfilesPage> {
+    unsupported("network");
+  },
+  getFollowingPage(): Promise<XProfilesPage> {
+    unsupported("network");
+  },
+  async searchRecentPosts(query, maxResults = 50) {
+    const payload = await queryOxylabs(`https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`);
+    const result = normalizeSearchResult(payload);
+    return {
+      tweets: result.tweets.slice(0, maxResults),
+      users: result.users.slice(0, maxResults),
+    };
+  },
+  searchAllPosts(query, maxResults = 50) {
+    return oxylabsClient.searchRecentPosts(query, maxResults);
+  },
+  async getUserTweets(input) {
+    const payload = await scrapeProfile(input);
+    return collectNestedTweets(extractOxylabsItems(payload)).slice(0, input.maxResults ?? 30);
+  },
+};

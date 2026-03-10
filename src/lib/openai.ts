@@ -5,6 +5,7 @@ import type { ProjectAnalysisResult } from "@/lib/validations/projects";
 import type { Priority } from "@/lib/validations/shared";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
 import type { XProfile } from "@/lib/validations/search";
+import type { InfluencerScore, XLeadCandidate } from "@/lib/x";
 import {
   DEFAULT_OPENAI_MODEL,
   DEFAULT_OPENAI_REASONING_EFFORT,
@@ -78,6 +79,57 @@ const SEARCH_PERSON_TERMS = [
   "i build",
   "building",
 ];
+
+function classifyCreatorStage(followers: number): InfluencerScore["stage"] {
+  if (followers >= 250_000) return "macro";
+  if (followers >= 50_000) return "mid";
+  if (followers >= 10_000) return "micro";
+  return "nano";
+}
+
+function getFallbackInfluencerScore(candidate: XLeadCandidate): InfluencerScore {
+  const haystack = [
+    candidate.account.name,
+    candidate.account.handle,
+    candidate.account.bio,
+    candidate.posts.map((post) => post.text).join(" "),
+  ].join(" ").toLowerCase();
+  const nicheTerms = getSearchQueryTerms(candidate.niche);
+  const nicheMatchScore = Math.min(
+    100,
+    nicheTerms.filter((term) => haystack.includes(term)).length * 18,
+  );
+  const engagementScore = Math.min(
+    100,
+    Math.round(
+      Math.log10(
+        candidate.metrics.avgLikes
+        + candidate.metrics.avgReplies * 2
+        + candidate.metrics.avgReposts * 2
+        + 10,
+      ) * 28,
+    ),
+  );
+  const authenticityPenalty = SEARCH_NON_LEAD_TERMS.some((term) => haystack.includes(term)) ? 35 : 0;
+  const authenticityBonus = SEARCH_PERSON_TERMS.some((term) => haystack.includes(term)) ? 18 : 0;
+  const authenticityScore = Math.max(0, Math.min(100, 65 + authenticityBonus - authenticityPenalty));
+  const overallScore = Math.round((nicheMatchScore * 0.45) + (engagementScore * 0.25) + (authenticityScore * 0.3));
+  const isInfluencer = overallScore >= 55 && authenticityScore >= 45;
+  const fitForNiche = nicheMatchScore >= 40;
+
+  return {
+    is_influencer: isInfluencer,
+    fit_for_niche: fitForNiche,
+    overall_score: overallScore,
+    stage: classifyCreatorStage(candidate.account.followers),
+    niche_match_score: nicheMatchScore,
+    engagement_score: engagementScore,
+    authenticity_score: authenticityScore,
+    topics: nicheTerms.slice(0, 5),
+    notes: candidate.posts.slice(0, 2).map((post) => post.text).filter(Boolean),
+    red_flags: authenticityPenalty > 0 ? ["Possible brand/product or non-person account signal"] : [],
+  };
+}
 
 function getClient(): OpenAI | null {
   if (client !== undefined) return client;
@@ -304,6 +356,31 @@ export async function screenProfilesForLeadSearch(
   return selectedIds.length > 0
     ? selectedIds
     : getFallbackScreenedIds(query, candidates, maxResults);
+}
+
+export async function scoreLeadCandidate(candidate: XLeadCandidate): Promise<InfluencerScore> {
+  const fallback = getFallbackInfluencerScore(candidate);
+
+  return structuredResponse<InfluencerScore>({
+    schemaName: "influencer_candidate_score",
+    schema: z.object({
+      is_influencer: z.boolean(),
+      fit_for_niche: z.boolean(),
+      overall_score: z.number().int().min(0).max(100),
+      stage: z.enum(["nano", "micro", "mid", "macro"]),
+      niche_match_score: z.number().int().min(0).max(100),
+      engagement_score: z.number().int().min(0).max(100),
+      authenticity_score: z.number().int().min(0).max(100),
+      topics: z.array(z.string()),
+      notes: z.array(z.string()),
+      red_flags: z.array(z.string()),
+    }),
+    instructions:
+      "Score whether this X/Twitter account is a strong influencer or creator lead for the niche. Prefer real individual creators, founders, operators, engineers, and domain experts. Penalize brands, bots, generic product accounts, and weak niche fit. Return conservative, internally consistent scores.",
+    input: JSON.stringify(candidate),
+    fallback,
+    maxOutputTokens: 240,
+  });
 }
 
 export async function extractTopicsAndPriority(

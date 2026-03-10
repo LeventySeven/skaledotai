@@ -3,23 +3,41 @@
 
 export type {
   XDataClient,
+  XDiscoveryInput,
+  XDiscoveryProvider,
+  XLeadCandidate,
+  XLeadCandidatePost,
+  InfluencerScore,
   XResolvedTweet,
   XProfilesPage,
   XPostSearchResult,
   XTweetMetrics,
   XUserReference,
 } from "./types";
+export { XProviderRuntimeError } from "./types";
 
 export {
   DEFAULT_X_DATA_PROVIDER,
+  DEFAULT_X_CAPABILITY_FALLBACK_PROVIDER,
   X_DATA_PROVIDER_STORAGE_KEY,
   X_DATA_PROVIDER_SURFACES,
   X_DATA_PROVIDER_OPTIONS,
+  X_PROVIDER_CAPABILITIES,
+  XDataProviderSchema,
   parseXDataProvider,
   getXDataProviderLabel,
   getXDataProviderOption,
+  getXProviderCapabilities,
+  supportsXProviderCapability,
+  isFullXDataProvider,
 } from "./provider";
-export type { XDataProvider, XDataProviderOption, XDataProviderDocLink } from "./provider";
+export type {
+  XDataProvider,
+  XDataProviderOption,
+  XDataProviderDocLink,
+  XProviderCapability,
+  XProviderCapabilities,
+} from "./provider";
 
 // NOTE: getXDataClient and mapTweetsToMetrics are server-only.
 // Server code should import them from "@/lib/x/client" directly.

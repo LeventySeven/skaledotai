@@ -32,9 +32,8 @@ export function XDataSourceWorkspace() {
           <div className="max-w-[720px]">
             <h2 className="text-[1.7rem] font-semibold tracking-[-0.03em]">Provider selection</h2>
             <p className="mt-2 text-[0.98rem] leading-7 text-muted-foreground">
-              Each option plugs into the same adapter contract, but the execution model is different: direct REST
-              calls for X API, synchronous Actor runs for Apify, and agent launches with container polling for
-              PhantomBuster.
+              Each option plugs into the same adapter contract. Search always uses the selected provider for discovery,
+              and unsupported lookup, network, or tweet-history surfaces fall back through the configured full provider.
             </p>
           </div>
 

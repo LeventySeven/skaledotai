@@ -38,6 +38,89 @@ export type XTweetMetrics = {
   repostCount: number;
 };
 
+export type XLeadCandidatePost = {
+  id?: string;
+  text: string;
+  createdAt: string;
+  likes: number;
+  replies: number;
+  reposts: number;
+  views?: number;
+};
+
+export type XLeadCandidate = {
+  source: XDataProvider;
+  niche: string;
+  discoverySource: "profile_search" | "post_search" | "reply_search" | "followers" | "following";
+  account: {
+    handle: string;
+    name: string;
+    bio: string;
+    followers: number;
+    following: number;
+    isVerified?: boolean;
+    createdAt?: string;
+    avatarUrl?: string;
+    profileUrl?: string;
+    xUserId?: string;
+  };
+  metrics: {
+    avgLikes: number;
+    avgReplies: number;
+    avgReposts: number;
+    avgViews?: number;
+    postsSampleSize: number;
+  };
+  posts: XLeadCandidatePost[];
+};
+
+export type InfluencerScore = {
+  is_influencer: boolean;
+  fit_for_niche: boolean;
+  overall_score: number;
+  stage: "nano" | "micro" | "mid" | "macro";
+  niche_match_score: number;
+  engagement_score: number;
+  authenticity_score: number;
+  topics: string[];
+  notes: string[];
+  red_flags: string[];
+};
+
+export type XDiscoveryInput = {
+  niche: string;
+  seedHandle?: string;
+  limit: number;
+  minFollowers?: number;
+};
+
+export interface XDiscoveryProvider {
+  provider: XDataProvider;
+  discoverCandidates(input: XDiscoveryInput): Promise<XLeadCandidate[]>;
+}
+
+export class XProviderRuntimeError extends Error {
+  readonly provider: XDataProvider;
+  readonly code: "NOT_CONFIGURED" | "CAPABILITY_UNSUPPORTED" | "UPSTREAM_INVALID_RESPONSE";
+  readonly capability?: "discovery" | "lookup" | "network" | "tweets";
+  readonly missingEnv: string[];
+
+  constructor(input: {
+    provider: XDataProvider;
+    code: "NOT_CONFIGURED" | "CAPABILITY_UNSUPPORTED" | "UPSTREAM_INVALID_RESPONSE";
+    message: string;
+    capability?: "discovery" | "lookup" | "network" | "tweets";
+    missingEnv?: string[];
+  }) {
+    super(input.message);
+    this.name = "XProviderRuntimeError";
+    this.provider = input.provider;
+    this.code = input.code;
+    this.capability = input.capability;
+    this.missingEnv = input.missingEnv ?? [];
+  }
+}
+
 export interface XDataClient {
   provider: XDataProvider;
   searchUsers(query: string, maxResults?: number): Promise<XProfile[]>;
@@ -64,4 +147,3 @@ export interface XDataClient {
     maxResults?: number;
   }): Promise<XResolvedTweet[]>;
 }
-

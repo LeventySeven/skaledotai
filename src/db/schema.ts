@@ -120,6 +120,24 @@ export const projectLeads = pgTable("project_leads", {
   primaryKey({ columns: [table.projectId, table.leadId] }),
 ]);
 
+export const projectRuns = pgTable("project_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  operationType: text("operation_type").notNull(),
+  requestedProvider: text("requested_provider").notNull(),
+  discoveryProvider: text("discovery_provider").notNull(),
+  lookupProvider: text("lookup_provider").notNull(),
+  networkProvider: text("network_provider").notNull(),
+  tweetsProvider: text("tweets_provider").notNull(),
+  query: text("query"),
+  seedUsername: text("seed_username"),
+  leadCount: integer("lead_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("project_runs_project_id_idx").on(table.projectId),
+  index("project_runs_requested_provider_idx").on(table.requestedProvider),
+]);
+
 export const postStats = pgTable("post_stats", {
   id: uuid("id").primaryKey().defaultRandom(),
   leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }).unique(),

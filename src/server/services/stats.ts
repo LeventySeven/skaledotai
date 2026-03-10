@@ -5,8 +5,9 @@ import { db } from "@/db";
 import { leads, postStats } from "@/db/schema";
 import { X_PROVIDER_STATS_TWEET_LIMIT } from "@/lib/constants";
 import { extractTopicsAndPriority } from "@/lib/openai";
-import { getXDataClient, mapTweetsToMetrics } from "@/lib/x/client";
+import { getXDataClientForCapability, mapTweetsToMetrics } from "@/lib/x/client";
 import type { XDataProvider } from "@/lib/x";
+import { XProviderRuntimeError } from "@/lib/x";
 import type { PostStats } from "@/lib/validations/stats";
 import { getLeadById, updateLead } from "./leads";
 
@@ -82,40 +83,52 @@ export async function refreshProfileStats(
   input: { profileId: string; crmId?: string; niche?: string },
   provider: XDataProvider = "x-api",
 ): Promise<{ stats: PostStats; priority: "P0" | "P1" }> {
-  const client = getXDataClient(provider);
-  const profile = await getLeadById(userId, input.profileId);
-  if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
-  if (!profile.xUserId && !profile.handle) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X identifier." });
+  try {
+    const { client } = getXDataClientForCapability(provider, "tweets");
+    const profile = await getLeadById(userId, input.profileId);
+    if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found." });
+    if (!profile.xUserId && !profile.handle) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Lead has no X identifier." });
+    }
+
+    const tweets = await client.getUserTweets({
+      userId: profile.xUserId,
+      username: profile.handle,
+      maxResults: X_PROVIDER_STATS_TWEET_LIMIT,
+    });
+    if (tweets.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "No recent X posts found." });
+
+    const metrics = mapTweetsToMetrics(tweets);
+    const ai = await extractTopicsAndPriority(
+      input.niche,
+      profile.bio,
+      metrics.map((t) => t.text).filter(Boolean),
+    );
+
+    const stats = await upsertPostStats({
+      leadId: input.profileId,
+      postCount: metrics.length,
+      avgViews: avg(metrics.map((t) => t.viewCount)),
+      avgLikes: avg(metrics.map((t) => t.likeCount)),
+      avgReplies: avg(metrics.map((t) => t.replyCount)),
+      avgReposts: avg(metrics.map((t) => t.repostCount)),
+      topTopics: ai.topics,
+    });
+
+    if (input.crmId) {
+      await updateLead(userId, input.crmId, { priority: ai.priority });
+    }
+
+    return { stats, priority: ai.priority };
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+    if (error instanceof XProviderRuntimeError) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `${error.message}${error.missingEnv.length > 0 ? ` Missing configuration: ${error.missingEnv.join(", ")}.` : ""}`,
+        cause: error,
+      });
+    }
+    throw error;
   }
-
-  const tweets = await client.getUserTweets({
-    userId: profile.xUserId,
-    username: profile.handle,
-    maxResults: X_PROVIDER_STATS_TWEET_LIMIT,
-  });
-  if (tweets.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "No recent X posts found." });
-
-  const metrics = mapTweetsToMetrics(tweets);
-  const ai = await extractTopicsAndPriority(
-    input.niche,
-    profile.bio,
-    metrics.map((t) => t.text).filter(Boolean),
-  );
-
-  const stats = await upsertPostStats({
-    leadId: input.profileId,
-    postCount: metrics.length,
-    avgViews: avg(metrics.map((t) => t.viewCount)),
-    avgLikes: avg(metrics.map((t) => t.likeCount)),
-    avgReplies: avg(metrics.map((t) => t.replyCount)),
-    avgReposts: avg(metrics.map((t) => t.repostCount)),
-    topTopics: ai.topics,
-  });
-
-  if (input.crmId) {
-    await updateLead(userId, input.crmId, { priority: ai.priority });
-  }
-
-  return { stats, priority: ai.priority };
 }

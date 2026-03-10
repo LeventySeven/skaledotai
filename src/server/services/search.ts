@@ -4,99 +4,81 @@ import { screenProfilesForLeadSearch } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
 import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
-import { getXDataClient } from "@/lib/x/client";
 import {
-  buildPostSearchQuery,
-  buildReplySearchQuery,
-  isUnsupportedAuthenticationError,
-} from "@/lib/x";
-import type { XDataProvider } from "@/lib/x";
-import {
-  NETWORK_TARGET,
-  SEARCH_CANDIDATE_OVERFETCH_FACTOR,
-  SEARCH_CANDIDATE_POOL_LIMIT,
-  SEARCH_POST_SEARCH_PAGE_LIMIT,
-  SEARCH_TARGET,
-  X_PROVIDER_NETWORK_PAGE_SIZE,
-  X_PROVIDER_POST_SEARCH_LIMIT,
-  X_PROVIDER_SEARCH_USERS_LIMIT,
-} from "@/lib/constants";
+  getXDataClientForCapability,
+  getXDiscoveryProvider,
+  resolveXProviderForCapability,
+} from "@/lib/x/client";
+import type { XDataProvider, XLeadCandidate, XProviderCapability } from "@/lib/x";
+import { XProviderRuntimeError } from "@/lib/x";
 import { addProfilesToProject } from "./leads";
+import { recordProjectRun } from "./project-runs";
 import { createProject, getProjectById } from "./projects";
+import { getCandidateSampleTexts, toXProfileFromCandidate } from "@/lib/x/discovery";
+import { NETWORK_TARGET, SEARCH_TARGET, X_PROVIDER_NETWORK_PAGE_SIZE } from "@/lib/constants";
 
-type Candidate = XProfile & {
+type CanonicalCandidate = XProfile & {
   samplePosts: string[];
-  source: "profile_search" | "post_search" | "reply_search" | "followers" | "following";
+  source: XLeadCandidate["discoverySource"];
 };
 
-function byFollowersDesc(a: XProfile, b: XProfile): number {
-  return b.followersCount - a.followersCount;
-}
+function toProviderError(error: unknown): TRPCError {
+  if (error instanceof TRPCError) return error;
 
-function getCandidateTarget(targetLeadCount: number): number {
-  return Math.min(SEARCH_CANDIDATE_POOL_LIMIT, targetLeadCount * SEARCH_CANDIDATE_OVERFETCH_FACTOR);
-}
-
-function addCandidate(map: Map<string, Candidate>, candidate: Candidate): void {
-  const existing = map.get(candidate.xUserId);
-  if (!existing) {
-    map.set(candidate.xUserId, candidate);
-    return;
+  if (error instanceof XProviderRuntimeError) {
+    const suffix = error.missingEnv.length > 0
+      ? ` Missing configuration: ${error.missingEnv.join(", ")}.`
+      : "";
+    return new TRPCError({
+      code: "BAD_REQUEST",
+      message: `${error.message}${suffix}`,
+      cause: error,
+    });
   }
-  existing.samplePosts = [...existing.samplePosts, ...candidate.samplePosts].slice(0, 5);
-  if (candidate.followersCount > existing.followersCount) {
-    map.set(candidate.xUserId, { ...candidate, samplePosts: existing.samplePosts });
-  }
+
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: error instanceof Error ? error.message : "Unexpected X provider failure.",
+    cause: error instanceof Error ? error : undefined,
+  });
 }
 
-async function collectPostSearchCandidates(
-  map: Map<string, Candidate>,
-  targetCount: number,
-  source: Candidate["source"],
-  search: (nextToken?: string) => Promise<{
-    tweets: Array<{ authorId?: string; text: string }>;
-    users: XProfile[];
-    nextToken?: string;
-  }>,
-): Promise<void> {
-  let nextToken: string | undefined;
-
-  for (let page = 0; page < SEARCH_POST_SEARCH_PAGE_LIMIT && map.size < targetCount; page++) {
-    const result = await search(nextToken);
-    for (const profile of result.users) {
-      const samplePosts = result.tweets
-        .filter((tweet) => tweet.authorId === profile.xUserId)
-        .map((tweet) => tweet.text)
-        .filter(Boolean)
-        .slice(0, 3);
-      addCandidate(map, { ...profile, samplePosts, source });
-    }
-
-    nextToken = result.nextToken;
-    if (!nextToken || result.tweets.length === 0) break;
-  }
+function dedupeProviders(providers: XDataProvider[]): XDataProvider[] {
+  return [...new Set(providers)];
 }
 
-function buildScreeningPool(candidates: Candidate[], targetLeadCount: number): Candidate[] {
-  const poolLimit = getCandidateTarget(targetLeadCount);
-  const headCount = Math.min(candidates.length, Math.max(targetLeadCount, Math.ceil(poolLimit * 0.6)));
+function byFollowersDesc(a: XLeadCandidate, b: XLeadCandidate): number {
+  return b.account.followers - a.account.followers;
+}
+
+function buildScreeningPool(candidates: XLeadCandidate[], targetLeadCount: number): XLeadCandidate[] {
+  const headCount = Math.min(candidates.length, Math.max(targetLeadCount, Math.ceil(targetLeadCount * 1.4)));
   const seen = new Set<string>();
-  const pool: Candidate[] = [];
+  const pool: XLeadCandidate[] = [];
 
-  function push(candidate: Candidate): void {
-    if (seen.has(candidate.xUserId) || pool.length >= poolLimit) return;
-    seen.add(candidate.xUserId);
+  function push(candidate: XLeadCandidate): void {
+    const key = candidate.account.handle.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
     pool.push(candidate);
   }
 
   for (const candidate of candidates.slice(0, headCount)) push(candidate);
-  for (const candidate of candidates.filter((candidate) => candidate.samplePosts.length > 0)) push(candidate);
-  for (const candidate of candidates.filter((candidate) => candidate.source === "profile_search" || candidate.source === "reply_search")) {
+  for (const candidate of candidates.filter((candidate) => candidate.posts.length > 0)) push(candidate);
+  for (const candidate of candidates.filter((candidate) => candidate.discoverySource === "profile_search" || candidate.discoverySource === "reply_search")) {
     push(candidate);
   }
   for (const candidate of candidates) push(candidate);
 
   return pool;
+}
+
+function toScreeningCandidate(candidate: XLeadCandidate): XProfile & { samplePosts: string[]; source: string } {
+  return {
+    ...toXProfileFromCandidate(candidate),
+    samplePosts: getCandidateSampleTexts(candidate),
+    source: candidate.discoverySource,
+  };
 }
 
 async function resolveProject(userId: string, input: SearchLeadInput): Promise<Project> {
@@ -113,85 +95,38 @@ async function resolveProject(userId: string, input: SearchLeadInput): Promise<P
   });
 }
 
-async function collectSearchCandidates(
-  query: string,
-  targetLeadCount: number,
-  followerUsername?: string,
-  minFollowers = 0,
-  provider: XDataProvider = "x-api",
-): Promise<Candidate[]> {
-  const client = getXDataClient(provider);
-  const map = new Map<string, Candidate>();
-  const candidateTarget = getCandidateTarget(targetLeadCount);
-
-  try {
-    for (const profile of await client.searchUsers(query, X_PROVIDER_SEARCH_USERS_LIMIT)) {
-      addCandidate(map, { ...profile, samplePosts: [], source: "profile_search" });
-    }
-  } catch (error) {
-    if (provider !== "x-api" || !isUnsupportedAuthenticationError(error)) {
-      throw error;
-    }
-  }
-
-  await collectPostSearchCandidates(
-    map,
-    candidateTarget,
-    "post_search",
-    (nextToken) => client.searchRecentPosts(buildPostSearchQuery(query), X_PROVIDER_POST_SEARCH_LIMIT, nextToken),
+async function canonicalizeCandidates(
+  provider: XDataProvider,
+  candidates: XLeadCandidate[],
+): Promise<{ profiles: CanonicalCandidate[]; lookupProvider: XDataProvider }> {
+  const { client, resolution } = getXDataClientForCapability(provider, "lookup");
+  const handles = [...new Set(candidates.map((candidate) => candidate.account.handle.replace(/^@/, "").trim()).filter(Boolean))];
+  const lookedUpProfiles = handles.length > 0 ? await client.lookupUsersByUsernames(handles) : [];
+  const profilesByHandle = new Map(
+    lookedUpProfiles.map((profile) => [profile.username.toLowerCase(), profile]),
   );
 
-  if (followerUsername) {
-    const [seed] = await client.lookupUsersByUsernames([followerUsername]);
-    if (seed) {
-      await collectPostSearchCandidates(
-        map,
-        candidateTarget,
-        "reply_search",
-        (nextToken) => client.searchRecentPosts(
-          buildReplySearchQuery(query, followerUsername),
-          X_PROVIDER_POST_SEARCH_LIMIT,
-          nextToken,
-        ),
-      );
+  const profiles = candidates.map((candidate) => {
+    const handle = candidate.account.handle.replace(/^@/, "").toLowerCase();
+    const canonical = profilesByHandle.get(handle);
 
-      let nextToken: string | undefined;
-      let fetched = 0;
-      while (fetched < NETWORK_TARGET && map.size < candidateTarget) {
-        const page = await client.getFollowersPage({
-          userId: seed.xUserId,
-          username: seed.username,
-          paginationToken: nextToken,
-          maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
-        });
-        for (const p of page.profiles) addCandidate(map, { ...p, samplePosts: [], source: "followers" });
-        fetched += page.profiles.length;
-        nextToken = page.nextToken;
-        if (!nextToken || page.profiles.length === 0) break;
-      }
-    }
-  }
+    return {
+      ...(canonical ?? toXProfileFromCandidate(candidate)),
+      samplePosts: getCandidateSampleTexts(candidate),
+      source: candidate.discoverySource,
+    };
+  });
 
-  if (map.size < candidateTarget && process.env.X_ENABLE_FULL_ARCHIVE === "true") {
-    await collectPostSearchCandidates(
-      map,
-      candidateTarget,
-      "post_search",
-      (nextToken) => client.searchAllPosts(buildPostSearchQuery(query), X_PROVIDER_POST_SEARCH_LIMIT, nextToken),
-    );
-  }
+  return { profiles, lookupProvider: resolution.effectiveProvider };
+}
 
-  const filteredCandidates = [...map.values()]
-    .filter((candidate) => candidate.followersCount >= minFollowers)
-    .sort(byFollowersDesc);
-
-  const screeningPool = buildScreeningPool(filteredCandidates, targetLeadCount);
-  const selectedIds = await screenProfilesForLeadSearch(query, screeningPool, targetLeadCount);
-  const candidatesById = new Map(filteredCandidates.map((candidate) => [candidate.xUserId, candidate]));
-
-  return selectedIds
-    .map((id) => candidatesById.get(id))
-    .filter((candidate): candidate is Candidate => Boolean(candidate));
+function resolveOperationProviders(requestedProvider: XDataProvider): Record<XProviderCapability, XDataProvider> {
+  return {
+    discovery: resolveXProviderForCapability(requestedProvider, "discovery").effectiveProvider,
+    lookup: resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider,
+    network: resolveXProviderForCapability(requestedProvider, "network").effectiveProvider,
+    tweets: resolveXProviderForCapability(requestedProvider, "tweets").effectiveProvider,
+  };
 }
 
 export async function searchAndAddLeads(
@@ -199,34 +134,85 @@ export async function searchAndAddLeads(
   input: SearchLeadInput,
   provider: XDataProvider = "x-api",
 ): Promise<{ leads: Lead[]; project: Project }> {
-  const targetLeadCount = input.targetLeadCount ?? SEARCH_TARGET;
-  const candidates = await collectSearchCandidates(
-    input.query,
-    targetLeadCount,
-    input.followerUsername,
-    input.minFollowers ?? 0,
-    provider,
-  );
-  if (candidates.length === 0) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message:
-        (input.minFollowers ?? 0) > 0
-          ? `No relevant X leads found for this query with at least ${input.minFollowers} followers.`
-          : "No relevant X leads found for this query.",
+  try {
+    const targetLeadCount = input.targetLeadCount ?? SEARCH_TARGET;
+    const { provider: discoveryProvider } = getXDiscoveryProvider(provider);
+    const discoveredCandidates = await discoveryProvider.discoverCandidates({
+      niche: input.query,
+      seedHandle: input.followerUsername?.replace(/^@/, ""),
+      limit: targetLeadCount,
+      minFollowers: input.minFollowers ?? 0,
     });
+
+    if (discoveredCandidates.length === 0) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message:
+          (input.minFollowers ?? 0) > 0
+            ? `No relevant X leads found for this query with at least ${input.minFollowers} followers.`
+            : "No relevant X leads found for this query.",
+      });
+    }
+
+    const screeningPool = buildScreeningPool(
+      discoveredCandidates
+        .filter((candidate) => candidate.account.followers >= (input.minFollowers ?? 0))
+        .sort(byFollowersDesc),
+      targetLeadCount,
+    );
+
+    const selectedIds = await screenProfilesForLeadSearch(
+      input.query,
+      screeningPool.map(toScreeningCandidate),
+      targetLeadCount,
+    );
+    const selectedSet = new Set(selectedIds);
+    const screenedCandidates = screeningPool.filter((candidate) =>
+      selectedSet.has(candidate.account.xUserId ?? candidate.account.handle.replace(/^@/, "").toLowerCase())
+      || selectedSet.has(candidate.account.handle.replace(/^@/, "").toLowerCase()),
+    );
+
+    if (screenedCandidates.length === 0) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "No relevant X leads passed AI filtering for this query.",
+      });
+    }
+
+    const { profiles, lookupProvider } = await canonicalizeCandidates(provider, screenedCandidates);
+    const project = await resolveProject(userId, input);
+    const leadsList = await addProfilesToProject({
+      userId,
+      projectId: project.id,
+      profiles,
+      discoverySource: input.followerUsername ? "followers" : "profile_search",
+      discoveryQuery: input.query,
+    });
+
+    const operationProviders = resolveOperationProviders(provider);
+    await recordProjectRun({
+      projectId: project.id,
+      operationType: "search",
+      requestedProvider: provider,
+      discoveryProvider: discoveryProvider.provider,
+      lookupProvider,
+      networkProvider: operationProviders.network,
+      tweetsProvider: operationProviders.tweets,
+      query: input.query,
+      seedUsername: input.followerUsername?.replace(/^@/, ""),
+      leadCount: leadsList.length,
+    });
+
+    return {
+      leads: leadsList,
+      project: {
+        ...project,
+        sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
+      },
+    };
+  } catch (error) {
+    throw toProviderError(error);
   }
-
-  const project = await resolveProject(userId, input);
-  const leadsList = await addProfilesToProject({
-    userId,
-    projectId: project.id,
-    profiles: candidates,
-    discoverySource: input.followerUsername ? "followers" : "profile_search",
-    discoveryQuery: input.query,
-  });
-
-  return { leads: leadsList, project };
 }
 
 export async function importAccountNetwork(
@@ -234,56 +220,88 @@ export async function importAccountNetwork(
   input: { username: string; projectId?: string; projectName?: string },
   provider: XDataProvider = "x-api",
 ): Promise<{ leads: Lead[]; project: Project }> {
-  const client = getXDataClient(provider);
-  const cleanHandle = input.username.replace(/^@/, "").trim();
-  const [seed] = await client.lookupUsersByUsernames([cleanHandle]);
-  if (!seed) throw new TRPCError({ code: "NOT_FOUND", message: "X account not found." });
+  try {
+    const lookup = getXDataClientForCapability(provider, "lookup");
+    const network = getXDataClientForCapability(provider, "network");
+    const tweetsProvider = resolveXProviderForCapability(provider, "tweets").effectiveProvider;
 
-  const project = await resolveProject(userId, {
-    query: `${cleanHandle} network`,
-    projectId: input.projectId,
-    projectName: input.projectName || `${cleanHandle} network`,
-    followerUsername: cleanHandle,
-  });
+    const cleanHandle = input.username.replace(/^@/, "").trim();
+    const [seed] = await lookup.client.lookupUsersByUsernames([cleanHandle]);
+    if (!seed) throw new TRPCError({ code: "NOT_FOUND", message: "X account not found." });
 
-  const candidates = new Map<string, Candidate>();
-  let nextFollowers: string | undefined;
-  let nextFollowing: string | undefined;
-  let fetched = 0;
+    const project = await resolveProject(userId, {
+      query: `${cleanHandle} network`,
+      projectId: input.projectId,
+      projectName: input.projectName || `${cleanHandle} network`,
+      followerUsername: cleanHandle,
+    });
 
-  while (fetched < NETWORK_TARGET) {
-    const [followersPage, followingPage] = await Promise.all([
-      client.getFollowersPage({
-        userId: seed.xUserId,
-        username: seed.username,
-        paginationToken: nextFollowers,
-        maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
-      }),
-      client.getFollowingPage({
-        userId: seed.xUserId,
-        username: seed.username,
-        paginationToken: nextFollowing,
-        maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
-      }),
-    ]);
+    const candidates = new Map<string, CanonicalCandidate>();
+    let nextFollowers: string | undefined;
+    let nextFollowing: string | undefined;
+    let fetched = 0;
 
-    for (const p of followersPage.profiles) addCandidate(candidates, { ...p, samplePosts: [], source: "followers" });
-    for (const p of followingPage.profiles) addCandidate(candidates, { ...p, samplePosts: [], source: "following" });
+    while (fetched < NETWORK_TARGET) {
+      const [followersPage, followingPage] = await Promise.all([
+        network.client.getFollowersPage({
+          userId: seed.xUserId,
+          username: seed.username,
+          paginationToken: nextFollowers,
+          maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
+        }),
+        network.client.getFollowingPage({
+          userId: seed.xUserId,
+          username: seed.username,
+          paginationToken: nextFollowing,
+          maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
+        }),
+      ]);
 
-    fetched += followersPage.profiles.length + followingPage.profiles.length;
-    nextFollowers = followersPage.nextToken;
-    nextFollowing = followingPage.nextToken;
+      for (const profile of followersPage.profiles) {
+        candidates.set(profile.username.toLowerCase(), { ...profile, samplePosts: [], source: "followers" });
+      }
+      for (const profile of followingPage.profiles) {
+        candidates.set(profile.username.toLowerCase(), { ...profile, samplePosts: [], source: "following" });
+      }
 
-    if ((!nextFollowers && !nextFollowing) || (followersPage.profiles.length === 0 && followingPage.profiles.length === 0)) break;
+      fetched += followersPage.profiles.length + followingPage.profiles.length;
+      nextFollowers = followersPage.nextToken;
+      nextFollowing = followingPage.nextToken;
+
+      if ((!nextFollowers && !nextFollowing) || (followersPage.profiles.length === 0 && followingPage.profiles.length === 0)) {
+        break;
+      }
+    }
+
+    const leadsList = await addProfilesToProject({
+      userId,
+      projectId: project.id,
+      profiles: [...candidates.values()],
+      discoverySource: "followers",
+      discoveryQuery: cleanHandle,
+    });
+
+    await recordProjectRun({
+      projectId: project.id,
+      operationType: "network_import",
+      requestedProvider: provider,
+      discoveryProvider: resolveXProviderForCapability(provider, "discovery").effectiveProvider,
+      lookupProvider: lookup.resolution.effectiveProvider,
+      networkProvider: network.resolution.effectiveProvider,
+      tweetsProvider,
+      query: `${cleanHandle} network`,
+      seedUsername: cleanHandle,
+      leadCount: leadsList.length,
+    });
+
+    return {
+      leads: leadsList,
+      project: {
+        ...project,
+        sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
+      },
+    };
+  } catch (error) {
+    throw toProviderError(error);
   }
-
-  const leadsList = await addProfilesToProject({
-    userId,
-    projectId: project.id,
-    profiles: [...candidates.values()],
-    discoverySource: "followers",
-    discoveryQuery: cleanHandle,
-  });
-
-  return { leads: leadsList, project };
 }

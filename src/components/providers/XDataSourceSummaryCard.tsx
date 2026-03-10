@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowUpRightIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
   getXDataProviderOption,
@@ -26,6 +27,8 @@ export function XDataSourceSummaryCard({
   const preference = useXDataProviderPreference();
   const provider = providerOverride ?? preference.provider;
   const option = getXDataProviderOption(provider);
+  const { data: runtimeStatuses = [] } = trpc.settings.xProviders.list.useQuery();
+  const status = runtimeStatuses.find((item) => item.provider === provider);
 
   return (
     <div
@@ -42,8 +45,9 @@ export function XDataSourceSummaryCard({
               Global
             </Badge>
             <Badge size="sm" variant="secondary">
-              {option.badge}
+              {status && !status.configured ? "Not configured" : option.badge}
             </Badge>
+            {option.experimental ? <Badge size="sm" variant="outline">Experimental</Badge> : null}
           </div>
           <div className={cn("mt-3 text-[1.15rem] font-semibold tracking-[-0.02em]", compact && "text-[1.02rem]")}>
             {option.label}
@@ -67,15 +71,31 @@ export function XDataSourceSummaryCard({
       </div>
 
       <p className={cn("mt-3 text-xs leading-5 text-muted-foreground", compact && "mt-2")}>
-        {option.integration}
+        {status?.capabilityNote ?? option.integration}
       </p>
+      {status && !status.configured && status.missingEnv.length > 0 ? (
+        <p className={cn("mt-2 text-xs leading-5 text-muted-foreground", compact && "mt-1.5")}>
+          Missing: {status.missingEnv.join(", ")}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {X_DATA_PROVIDER_SURFACES.map((surface) => (
-          <Badge key={surface} size="sm" variant="outline">
-            {surface}
-          </Badge>
-        ))}
+        {X_DATA_PROVIDER_SURFACES.map((surface, index) => {
+          const capability = index === 0
+            ? "discovery"
+            : index === 1
+              ? "network"
+              : index === 2
+                ? "tweets"
+                : "lookup";
+          const supported = status ? status.capabilities[capability] : true;
+
+          return (
+            <Badge key={surface} size="sm" variant="outline">
+              {surface} {supported ? "Direct" : `Fallback`}
+            </Badge>
+          );
+        })}
       </div>
     </div>
   );

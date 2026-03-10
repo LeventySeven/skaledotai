@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PrioritySchema } from "./shared";
+import { XDataProviderSchema } from "./x-provider";
 
 export const ProjectSchema = z.object({
   id: z.string(),
@@ -8,6 +9,7 @@ export const ProjectSchema = z.object({
   seedUsername: z.string().optional(),
   createdAt: z.string(),
   leadCount: z.number().optional(),
+  sourceProviders: z.array(XDataProviderSchema).default([]),
 });
 export type Project = z.infer<typeof ProjectSchema>;
 

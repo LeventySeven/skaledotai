@@ -108,14 +108,36 @@ function collectNestedProfiles(items: unknown[], key: "followers" | "following")
   return dedupeProfiles(profiles);
 }
 
+export function buildApifyAdvancedSearchInput(query: string, maxResults = 50): Record<string, unknown> {
+  return {
+    query,
+    numberOfTweets: Math.max(20, maxResults),
+  };
+}
+
+export function buildApifyUserScraperInput(
+  usernames: string[],
+  options: {
+    getFollowers?: boolean;
+    getFollowing?: boolean;
+    maxItems?: number;
+  } = {},
+): Record<string, unknown> {
+  const handles = [...new Set(usernames.map((username) => normalizeHandle(username)).filter(isString))];
+
+  return {
+    twitterHandles: handles.map((handle) => `@${handle}`),
+    getFollowers: options.getFollowers ?? false,
+    getFollowing: options.getFollowing ?? false,
+    maxItems: Math.max(handles.length, options.maxItems ?? X_PROVIDER_THIRD_PARTY_MIN_RESULTS),
+  };
+}
+
 async function runAdvancedSearch(
   query: string,
   maxResults = 50,
 ): Promise<XPostSearchResult> {
-  const items = await runActor<unknown>(APIFY_ADVANCED_SEARCH_ACTOR, {
-    query,
-    numberOfTweets: Math.max(20, maxResults),
-  });
+  const items = await runActor<unknown>(APIFY_ADVANCED_SEARCH_ACTOR, buildApifyAdvancedSearchInput(query, maxResults));
 
   const tweets = items
     .map((item) => normalizeScrapedTweet(item))
@@ -147,25 +169,24 @@ export const apifyClient: XDataClient = {
     const handles = [...new Set(usernames.map((username) => normalizeHandle(username)).filter(isString))];
     if (handles.length === 0) return Promise.resolve([]);
 
-    return runActor<unknown>(APIFY_USER_SCRAPER_ACTOR, {
-      twitterHandles: handles.map((handle) => `@${handle}`),
-      getFollowers: false,
-      getFollowing: false,
-      maxItems: Math.max(handles.length, X_PROVIDER_THIRD_PARTY_MIN_RESULTS),
-    }).then(collectProfiles);
+    return runActor<unknown>(
+      APIFY_USER_SCRAPER_ACTOR,
+      buildApifyUserScraperInput(handles, { maxItems: X_PROVIDER_THIRD_PARTY_MIN_RESULTS }),
+    ).then(collectProfiles);
   },
 
   async getFollowersPage(input): Promise<XProfilesPage> {
     const username = requireUsername(input);
-    const items = await runActor<unknown>(APIFY_USER_SCRAPER_ACTOR, {
-      twitterHandles: [`@${username}`],
-      getFollowers: true,
-      getFollowing: false,
-      maxItems: Math.max(
-        X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
-        input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
-      ),
-    });
+    const items = await runActor<unknown>(
+      APIFY_USER_SCRAPER_ACTOR,
+      buildApifyUserScraperInput([username], {
+        getFollowers: true,
+        maxItems: Math.max(
+          X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
+          input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
+        ),
+      }),
+    );
 
     return {
       profiles: collectNestedProfiles(items, "followers").slice(
@@ -177,15 +198,16 @@ export const apifyClient: XDataClient = {
 
   async getFollowingPage(input): Promise<XProfilesPage> {
     const username = requireUsername(input);
-    const items = await runActor<unknown>(APIFY_USER_SCRAPER_ACTOR, {
-      twitterHandles: [`@${username}`],
-      getFollowers: false,
-      getFollowing: true,
-      maxItems: Math.max(
-        X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
-        input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
-      ),
-    });
+    const items = await runActor<unknown>(
+      APIFY_USER_SCRAPER_ACTOR,
+      buildApifyUserScraperInput([username], {
+        getFollowing: true,
+        maxItems: Math.max(
+          X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
+          input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
+        ),
+      }),
+    );
 
     return {
       profiles: collectNestedProfiles(items, "following").slice(
@@ -206,12 +228,12 @@ export const apifyClient: XDataClient = {
 
   async getUserTweets(input): Promise<XResolvedTweet[]> {
     const username = requireUsername(input);
-    const items = await runActor<unknown>(APIFY_USER_SCRAPER_ACTOR, {
-      twitterHandles: [`@${username}`],
-      getFollowers: false,
-      getFollowing: false,
-      maxItems: Math.max(X_PROVIDER_THIRD_PARTY_MIN_RESULTS, input.maxResults ?? 30),
-    });
+    const items = await runActor<unknown>(
+      APIFY_USER_SCRAPER_ACTOR,
+      buildApifyUserScraperInput([username], {
+        maxItems: Math.max(X_PROVIDER_THIRD_PARTY_MIN_RESULTS, input.maxResults ?? 30),
+      }),
+    );
 
     return collectNestedTweets(items).slice(0, input.maxResults ?? 30);
   },

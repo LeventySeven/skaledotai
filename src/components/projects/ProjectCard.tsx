@@ -6,6 +6,7 @@ import { CheckIcon, FolderOpenIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getXDataProviderOption } from "@/lib/x";
 import type { ProjectOverview } from "@/lib/validations/projects";
 
 function formatFollowers(value: number): string {
@@ -64,6 +65,11 @@ export function ProjectCard({
         <div>
           <div className="flex items-center gap-2.5">
             <div className="text-[1.15rem] font-semibold">{project.name}</div>
+            {project.sourceProviders.map((provider) => (
+              <Badge key={provider} variant="outline" className="h-6 rounded-full px-2 text-[0.72rem] font-semibold">
+                {getXDataProviderOption(provider).label}
+              </Badge>
+            ))}
             {analysisMode && selected ? (
               <Badge className="h-6 rounded-full px-2 text-[0.72rem] font-semibold">
                 <CheckIcon className="size-3.5" />

@@ -2,6 +2,7 @@
 
 import { CheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
   getXDataProviderLabel,
@@ -20,6 +21,8 @@ export function XDataProviderSelector({
   showHint?: boolean;
 }) {
   const { provider, setProvider } = useXDataProviderPreference();
+  const { data: runtimeStatuses = [] } = trpc.settings.xProviders.list.useQuery();
+  const statusByProvider = new Map(runtimeStatuses.map((status) => [status.provider, status]));
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -36,6 +39,7 @@ export function XDataProviderSelector({
             key={option.value}
             active={provider === option.value}
             option={option}
+            runtimeStatus={statusByProvider.get(option.value)}
             onSelect={setProvider}
           />
         ))}
@@ -47,6 +51,7 @@ export function XDataProviderSelector({
 function ProviderButton({
   active,
   option,
+  runtimeStatus,
   onSelect,
 }: {
   active: boolean;
@@ -56,20 +61,32 @@ function ProviderButton({
     badge: string;
     description: string;
     integration: string;
+    experimental?: boolean;
+  };
+  runtimeStatus?: {
+    configured: boolean;
+    missingEnv: string[];
+    capabilityNote: string;
   };
   onSelect: (provider: XDataProvider) => void;
 }) {
+  const disabled = runtimeStatus ? !runtimeStatus.configured : false;
+
   return (
     <button
       type="button"
-      onClick={() => onSelect(option.value)}
+      onClick={() => {
+        if (!disabled) onSelect(option.value);
+      }}
       className={cn(
         "flex w-full items-start gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
         active
           ? "border-foreground bg-foreground text-background"
           : "border-input bg-background text-foreground hover:bg-accent/50",
+        disabled && "cursor-not-allowed opacity-60 hover:bg-background",
       )}
       aria-pressed={active}
+      disabled={disabled}
     >
       <span
         className={cn(
@@ -90,15 +107,33 @@ function ProviderButton({
             variant={active ? "secondary" : "outline"}
             className={cn(active && "bg-background/12 text-background")}
           >
-            {option.badge}
+            {disabled ? "Not configured" : option.badge}
           </Badge>
+          {option.experimental ? (
+            <Badge
+              size="sm"
+              variant={active ? "secondary" : "outline"}
+              className={cn(active && "bg-background/12 text-background")}
+            >
+              Experimental
+            </Badge>
+          ) : null}
         </span>
         <span className={cn("mt-1 block text-sm leading-6", active ? "text-background/78" : "text-muted-foreground")}>
           {option.description}
         </span>
         <span className={cn("mt-2 block text-xs leading-5", active ? "text-background/68" : "text-muted-foreground/80")}>
-          {option.integration}
+          {runtimeStatus?.capabilityNote ?? option.integration}
         </span>
+        {disabled && runtimeStatus?.missingEnv.length ? (
+          <span className={cn("mt-2 block text-xs leading-5", active ? "text-background/68" : "text-muted-foreground/80")}>
+            Missing: {runtimeStatus.missingEnv.join(", ")}
+          </span>
+        ) : (
+          <span className={cn("mt-2 block text-xs leading-5", active ? "text-background/68" : "text-muted-foreground/80")}>
+            {option.integration}
+          </span>
+        )}
       </span>
       <div
         className={cn(

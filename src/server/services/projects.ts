@@ -10,8 +10,14 @@ import type {
   ProjectOverview,
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
+import type { XDataProvider } from "@/lib/x";
+import { getProjectSourceProvidersByProjectIds } from "./project-runs";
 
-function rowToProject(row: typeof projects.$inferSelect, leadCount?: number): Project {
+function rowToProject(
+  row: typeof projects.$inferSelect,
+  leadCount?: number,
+  sourceProviders: XDataProvider[] = [],
+): Project {
   return {
     id: row.id,
     name: row.name,
@@ -19,6 +25,7 @@ function rowToProject(row: typeof projects.$inferSelect, leadCount?: number): Pr
     seedUsername: row.seedUsername ?? undefined,
     createdAt: row.createdAt.toISOString(),
     leadCount,
+    sourceProviders,
   };
 }
 
@@ -46,7 +53,12 @@ export async function getProjects(userId: string): Promise<Project[]> {
     .groupBy(projects.id)
     .orderBy(desc(projects.createdAt));
 
-  return rows.map((r) => rowToProject(r.project, r.leadCount));
+  const sourceProvidersByProject = await getProjectSourceProvidersByProjectIds(
+    userId,
+    rows.map((row) => row.project.id),
+  );
+
+  return rows.map((r) => rowToProject(r.project, r.leadCount, sourceProvidersByProject.get(r.project.id) ?? []));
 }
 
 export async function getProjectOverviews(userId: string): Promise<ProjectOverview[]> {
@@ -110,7 +122,9 @@ export async function getProjectById(userId: string, projectId: string): Promise
     .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
     .limit(1);
 
-  return row ? rowToProject(row) : null;
+  if (!row) return null;
+  const sourceProvidersByProject = await getProjectSourceProvidersByProjectIds(userId, [projectId]);
+  return rowToProject(row, undefined, sourceProvidersByProject.get(projectId) ?? []);
 }
 
 export async function assertProject(userId: string, projectId: string): Promise<Project> {
@@ -128,7 +142,7 @@ export async function createProject(
     .values({ userId, ...data })
     .returning();
 
-  return rowToProject(row);
+  return rowToProject(row, undefined, []);
 }
 
 export async function deleteProject(userId: string, projectId: string): Promise<void> {

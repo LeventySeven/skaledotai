@@ -12,28 +12,57 @@ function chain(value: unknown): any {
   return proxy;
 }
 
-const searchUsersMock = mock(async () => []);
-const lookupUsersByUsernamesMock = mock(async () => []);
-const getFollowersPageMock = mock(async () => ({ profiles: [], nextToken: undefined }));
-const getFollowingPageMock = mock(async () => ({ profiles: [], nextToken: undefined }));
-const searchRecentPostsMock = mock(async () => ({ tweets: [], users: [], nextToken: undefined }));
-const searchAllPostsMock = mock(async () => ({ tweets: [], users: [], nextToken: undefined }));
-const getUserTweetsMock = mock(async () => []);
-
-mock.module("@/lib/x/client", () => ({
-  getXDataClient: mock(() => ({
-    provider: "x-api",
-    searchUsers: searchUsersMock,
+const discoverCandidatesMock = mock(async (_input?: unknown): Promise<any[]> => []);
+const lookupUsersByUsernamesMock = mock(async (_usernames?: unknown): Promise<any[]> => []);
+const getFollowersPageMock = mock(async (_input?: unknown): Promise<{ profiles: any[]; nextToken?: string }> => ({ profiles: [], nextToken: undefined }));
+const getFollowingPageMock = mock(async (_input?: unknown): Promise<{ profiles: any[]; nextToken?: string }> => ({ profiles: [], nextToken: undefined }));
+const searchRecentPostsMock = mock(async (_query?: unknown, _maxResults?: unknown, _nextToken?: unknown): Promise<{ tweets: any[]; users: any[]; nextToken?: string }> => ({ tweets: [], users: [], nextToken: undefined }));
+const searchAllPostsMock = mock(async (_query?: unknown, _maxResults?: unknown, _nextToken?: unknown): Promise<{ tweets: any[]; users: any[]; nextToken?: string }> => ({ tweets: [], users: [], nextToken: undefined }));
+const getUserTweetsMock = mock(async (_input?: unknown): Promise<any[]> => []);
+const getXDataClientForCapabilityMock = mock((provider: string, capability: string) => ({
+  client: {
+    provider,
+    searchUsers: discoverCandidatesMock,
     lookupUsersByUsernames: lookupUsersByUsernamesMock,
     getFollowersPage: getFollowersPageMock,
     getFollowingPage: getFollowingPageMock,
     searchRecentPosts: searchRecentPostsMock,
     searchAllPosts: searchAllPostsMock,
     getUserTweets: getUserTweetsMock,
-  })),
+  },
+  resolution: {
+    requestedProvider: provider,
+    effectiveProvider: capability === "lookup" ? provider : "x-api",
+    capability,
+    usedFallback: capability !== "lookup",
+  },
+}));
+const getXDiscoveryProviderMock = mock((provider: string) => ({
+  provider: {
+    provider,
+    discoverCandidates: discoverCandidatesMock,
+  },
+  resolution: {
+    requestedProvider: provider,
+    effectiveProvider: provider,
+    capability: "discovery",
+    usedFallback: false,
+  },
+}));
+const resolveXProviderForCapabilityMock = mock((provider: string, capability: string) => ({
+  requestedProvider: provider,
+  effectiveProvider: capability === "lookup" ? provider : "x-api",
+  capability,
+  usedFallback: capability !== "lookup",
 }));
 
-const screenProfilesForLeadSearchMock = mock(async () => []);
+mock.module("@/lib/x/client", () => ({
+  getXDataClientForCapability: getXDataClientForCapabilityMock,
+  getXDiscoveryProvider: getXDiscoveryProviderMock,
+  resolveXProviderForCapability: resolveXProviderForCapabilityMock,
+}));
+
+const screenProfilesForLeadSearchMock = mock(async (_query?: unknown, _candidates?: unknown, _maxResults?: unknown): Promise<string[]> => []);
 mock.module("@/lib/openai", () => ({
   screenProfilesForLeadSearch: screenProfilesForLeadSearchMock,
   rankProfilesForQuery: mock(async () => []),
@@ -153,7 +182,7 @@ function profile(overrides: Partial<{
   followersCount: number;
   followingCount: number;
 }> = {}) {
-  return {
+  const base = {
     xUserId: "user-1",
     username: "alice",
     displayName: "Alice",
@@ -162,22 +191,48 @@ function profile(overrides: Partial<{
     followingCount: 300,
     ...overrides,
   };
+
+  return {
+    source: "x-api" as const,
+    niche: "founding engineers",
+    discoverySource: "profile_search" as const,
+    account: {
+      handle: base.username,
+      name: base.displayName,
+      bio: base.bio,
+      followers: base.followersCount,
+      following: base.followingCount,
+      xUserId: base.xUserId,
+      profileUrl: `https://x.com/${base.username}`,
+    },
+    metrics: {
+      avgLikes: 0,
+      avgReplies: 0,
+      avgReposts: 0,
+      avgViews: 0,
+      postsSampleSize: 0,
+    },
+    posts: [],
+  };
 }
 
 beforeEach(() => {
   insertCallIndex = 0;
   insertedValues = [];
   insertMock.mockClear();
-  searchUsersMock.mockReset();
+  discoverCandidatesMock.mockReset();
   lookupUsersByUsernamesMock.mockReset();
   getFollowersPageMock.mockReset();
   getFollowingPageMock.mockReset();
   searchRecentPostsMock.mockReset();
   searchAllPostsMock.mockReset();
   getUserTweetsMock.mockReset();
+  getXDataClientForCapabilityMock.mockClear();
+  getXDiscoveryProviderMock.mockClear();
+  resolveXProviderForCapabilityMock.mockClear();
   screenProfilesForLeadSearchMock.mockReset();
 
-  searchUsersMock.mockResolvedValue([]);
+  discoverCandidatesMock.mockResolvedValue([]);
   lookupUsersByUsernamesMock.mockResolvedValue([]);
   getFollowersPageMock.mockResolvedValue({ profiles: [], nextToken: undefined });
   getFollowingPageMock.mockResolvedValue({ profiles: [], nextToken: undefined });
@@ -189,7 +244,7 @@ beforeEach(() => {
 
 describe("searchAndAddLeads", () => {
   test("persists only GPT-approved leads and bumps provider fetch limits", async () => {
-    searchUsersMock.mockResolvedValue([
+    discoverCandidatesMock.mockResolvedValue([
       profile({
         xUserId: "grok-id",
         username: "grok",
@@ -213,7 +268,8 @@ describe("searchAndAddLeads", () => {
       }),
     ]);
 
-    screenProfilesForLeadSearchMock.mockImplementation(async (_query, candidates, maxResults) => {
+    screenProfilesForLeadSearchMock.mockImplementation(async (_query: unknown, rawCandidates: unknown, maxResults: unknown) => {
+      const candidates = rawCandidates as Array<{ username: string; xUserId: string }>;
       expect(maxResults).toBe(100);
       expect(candidates.some((candidate: { username: string }) => candidate.username === "grok")).toBe(true);
       return candidates
@@ -226,20 +282,21 @@ describe("searchAndAddLeads", () => {
       projectName: "Founding Engineers",
     });
 
-    expect(searchUsersMock).toHaveBeenCalledWith("founding engineers", 100);
-    expect(searchRecentPostsMock).toHaveBeenCalledWith(
-      "(founding engineers) lang:en -is:retweet",
-      100,
-      undefined,
-    );
+    expect(discoverCandidatesMock).toHaveBeenCalledWith({
+      niche: "founding engineers",
+      seedHandle: undefined,
+      limit: 100,
+      minFollowers: 0,
+    });
 
     const leadInsertValues = insertedValues[1] as Array<{ handle: string }>;
     expect(leadInsertValues.map((value) => value.handle)).toEqual(["austinxwalker", "dannycrichton"]);
     expect(result.leads.map((lead) => lead.handle)).toEqual(["austinxwalker", "dannycrichton"]);
+    expect(result.project.sourceProviders).toEqual(["x-api"]);
   });
 
   test("respects the API targetLeadCount override within the new range", async () => {
-    searchUsersMock.mockResolvedValue([
+    discoverCandidatesMock.mockResolvedValue([
       profile({
         xUserId: "builder-id",
         username: "builder",
@@ -249,7 +306,8 @@ describe("searchAndAddLeads", () => {
       }),
     ]);
 
-    screenProfilesForLeadSearchMock.mockImplementation(async (_query, candidates, maxResults) => {
+    screenProfilesForLeadSearchMock.mockImplementation(async (_query: unknown, rawCandidates: unknown, maxResults: unknown) => {
+      const candidates = rawCandidates as Array<{ xUserId: string }>;
       expect(maxResults).toBe(120);
       return candidates.map((candidate: { xUserId: string }) => candidate.xUserId);
     });
@@ -259,10 +317,17 @@ describe("searchAndAddLeads", () => {
       projectName: "Founding Engineers",
       targetLeadCount: 120,
     });
+
+    expect(discoverCandidatesMock).toHaveBeenCalledWith({
+      niche: "founding engineers",
+      seedHandle: undefined,
+      limit: 120,
+      minFollowers: 0,
+    });
   });
 
   test("throws NOT_FOUND when screening removes every candidate", async () => {
-    searchUsersMock.mockResolvedValue([
+    discoverCandidatesMock.mockResolvedValue([
       profile({
         xUserId: "grok-id",
         username: "grok",
@@ -279,9 +344,9 @@ describe("searchAndAddLeads", () => {
       projectName: "Founding Engineers",
     })).rejects.toMatchObject({
       code: "NOT_FOUND",
-      message: "No relevant X leads found for this query.",
+      message: "No relevant X leads passed AI filtering for this query.",
     });
 
-    expect(insertMock).not.toHaveBeenCalled();
+    expect(insertCallIndex).toBe(0);
   });
 });

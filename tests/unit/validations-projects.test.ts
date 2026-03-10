@@ -24,6 +24,7 @@ describe("ProjectSchema", () => {
       seedUsername: "alice",
       createdAt: "2024-01-01T00:00:00.000Z",
       leadCount: 42,
+      sourceProviders: ["x-api", "openrouter"],
     });
     expect(result.success).toBe(true);
   });
@@ -40,6 +41,7 @@ describe("ProjectOverviewSchema", () => {
       name: "Test",
       createdAt: "2024-01-01T00:00:00.000Z",
       leadCount: 10,
+      sourceProviders: ["x-api"],
       avgFollowers: 5000,
       topFollowers: 50000,
       p0LeadCount: 2,
@@ -63,6 +65,7 @@ describe("ProjectOverviewSchema", () => {
       name: "Test",
       createdAt: "2024-01-01T00:00:00.000Z",
       leadCount: 0,
+      sourceProviders: [],
       avgFollowers: 0,
       topFollowers: 0,
       p0LeadCount: 0,

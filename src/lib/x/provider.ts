@@ -4,7 +4,12 @@ import {
 } from "@/lib/validations/x-provider";
 export { XDataProviderSchema, type XDataProvider };
 
+export type XProviderCapability = "discovery" | "lookup" | "network" | "tweets";
+
+export type XProviderCapabilities = Record<XProviderCapability, boolean>;
+
 export const DEFAULT_X_DATA_PROVIDER: XDataProvider = "x-api";
+export const DEFAULT_X_CAPABILITY_FALLBACK_PROVIDER: XDataProvider = "x-api";
 export const X_DATA_PROVIDER_STORAGE_KEY = "skaleai.x-data-provider";
 
 export type XDataProviderDocLink = {
@@ -19,6 +24,8 @@ export type XDataProviderOption = {
   description: string;
   integration: string;
   docs: XDataProviderDocLink[];
+  experimental?: boolean;
+  capabilities: XProviderCapabilities;
 };
 
 export const X_DATA_PROVIDER_SURFACES = [
@@ -28,6 +35,45 @@ export const X_DATA_PROVIDER_SURFACES = [
   "AI",
 ] as const;
 
+export const X_PROVIDER_CAPABILITIES: Record<XDataProvider, XProviderCapabilities> = {
+  "x-api": {
+    discovery: true,
+    lookup: true,
+    network: true,
+    tweets: true,
+  },
+  apify: {
+    discovery: true,
+    lookup: true,
+    network: true,
+    tweets: true,
+  },
+  phantombuster: {
+    discovery: true,
+    lookup: true,
+    network: true,
+    tweets: true,
+  },
+  oxylabs: {
+    discovery: true,
+    lookup: true,
+    network: false,
+    tweets: true,
+  },
+  multiagent: {
+    discovery: true,
+    lookup: true,
+    network: false,
+    tweets: true,
+  },
+  openrouter: {
+    discovery: true,
+    lookup: false,
+    network: false,
+    tweets: false,
+  },
+};
+
 export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
   {
     value: "x-api",
@@ -35,6 +81,7 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
     badge: "Native",
     description: "Direct X API v2 access with the existing bearer token setup.",
     integration: "Native REST endpoints for user search, lookups, follows, and post search.",
+    capabilities: X_PROVIDER_CAPABILITIES["x-api"],
     docs: [
       {
         label: "X posts search",
@@ -56,6 +103,7 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
     badge: "Actors",
     description: "Actor-based scraping for search, profiles, tweets, and network snapshots.",
     integration: "Synchronous Actor runs that return dataset items which Skale normalizes into one adapter.",
+    capabilities: X_PROVIDER_CAPABILITIES.apify,
     docs: [
       {
         label: "Actors overview",
@@ -65,6 +113,14 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
         label: "Run sync API",
         href: "https://docs.apify.com/api/v2/act-run-sync-get-dataset-items-post",
       },
+      {
+        label: "Advanced search actor",
+        href: "https://apify.com/api-ninja/x-twitter-advanced-search",
+      },
+      {
+        label: "User scraper actor",
+        href: "https://apify.com/apidojo/twitter-user-scraper/input-schema",
+      },
     ],
   },
   {
@@ -73,6 +129,7 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
     badge: "Agents",
     description: "Agent-based scraping for profiles, searches, and follower graphs.",
     integration: "Agent launches plus container polling, then result ingestion from PhantomBuster storage.",
+    capabilities: X_PROVIDER_CAPABILITIES.phantombuster,
     docs: [
       {
         label: "API overview",
@@ -85,6 +142,67 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
       {
         label: "Fetch containers",
         href: "https://hub.phantombuster.com/reference/get_api-v2-containers-fetch",
+      },
+    ],
+  },
+  {
+    value: "oxylabs",
+    label: "Oxylabs",
+    badge: "Experimental",
+    description: "Enterprise scraper API wrapper for X profile and search URL extraction.",
+    integration: "Server-side scraper API calls normalize parsed page results into the shared adapter contract.",
+    experimental: true,
+    capabilities: X_PROVIDER_CAPABILITIES.oxylabs,
+    docs: [
+      {
+        label: "Web scraper API",
+        href: "https://oxylabs.io/products/scraper-api/web",
+      },
+    ],
+  },
+  {
+    value: "multiagent",
+    label: "Multi-Agent",
+    badge: "Experimental",
+    description: "LangGraph pipeline that plans discovery, finds X URLs, scrapes profiles, and aggregates candidates.",
+    integration: "Bounded LangGraph workflow with Tavily discovery, AgentQL extraction, and GPT-5 orchestration.",
+    experimental: true,
+    capabilities: X_PROVIDER_CAPABILITIES.multiagent,
+    docs: [
+      {
+        label: "LangGraph JS",
+        href: "https://github.com/langchain-ai/langgraphjs",
+      },
+      {
+        label: "LangGraph supervisor",
+        href: "https://github.com/langchain-ai/langgraph-supervisor-js",
+      },
+      {
+        label: "Tavily search",
+        href: "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+      },
+      {
+        label: "AgentQL query_data",
+        href: "https://docs.agentql.com/scraping/scraping-data-sdk",
+      },
+    ],
+  },
+  {
+    value: "openrouter",
+    label: "OpenRouter (Grok 4.1)",
+    badge: "Experimental",
+    description: "LLM-driven X lead discovery through OpenRouter web search and structured JSON extraction.",
+    integration: "OpenRouter web search constrained to X domains, then canonicalized through the shared lookup path.",
+    experimental: true,
+    capabilities: X_PROVIDER_CAPABILITIES.openrouter,
+    docs: [
+      {
+        label: "Web search plugin",
+        href: "https://openrouter.ai/docs/guides/features/plugins/web-search",
+      },
+      {
+        label: "Structured outputs",
+        href: "https://openrouter.ai/docs/guides/features/structured-outputs",
       },
     ],
   },
@@ -103,3 +221,18 @@ export function getXDataProviderOption(provider: XDataProvider): XDataProviderOp
   return X_DATA_PROVIDER_OPTIONS.find((option) => option.value === provider) ?? X_DATA_PROVIDER_OPTIONS[0];
 }
 
+export function getXProviderCapabilities(provider: XDataProvider): XProviderCapabilities {
+  return X_PROVIDER_CAPABILITIES[provider];
+}
+
+export function supportsXProviderCapability(
+  provider: XDataProvider,
+  capability: XProviderCapability,
+): boolean {
+  return X_PROVIDER_CAPABILITIES[provider][capability];
+}
+
+export function isFullXDataProvider(provider: XDataProvider): boolean {
+  const capabilities = getXProviderCapabilities(provider);
+  return capabilities.discovery && capabilities.lookup && capabilities.network && capabilities.tweets;
+}
