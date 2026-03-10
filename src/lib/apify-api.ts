@@ -75,7 +75,11 @@ async function runActor<T>(actorId: string, input: Record<string, unknown>): Pro
     throw new Error(`Apify request failed (${response.status}): ${await response.text()}`);
   }
 
-  return response.json() as Promise<T[]>;
+  const data: unknown = await response.json();
+  if (!Array.isArray(data)) {
+    throw new Error(`Apify returned unexpected response shape (expected array, got ${typeof data})`);
+  }
+  return data as T[];
 }
 
 function requireUsername(reference: XUserReference): string {
