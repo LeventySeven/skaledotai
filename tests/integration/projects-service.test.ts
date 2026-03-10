@@ -220,8 +220,9 @@ describe("getProjects", () => {
 describe("queueProjectInfluencers", () => {
   test("returns 0 when project has no leads", async () => {
     // assertProject (select) → project found
+    // project source providers → none
     // select projectLeads → empty
-    selectResults = [[PROJECT_ROW], []];
+    selectResults = [[PROJECT_ROW], [], []];
     const count = await queueProjectInfluencers("user-1", "proj-uuid-1");
     expect(count).toBe(0);
     expect(updateMock).not.toHaveBeenCalled();
@@ -230,6 +231,7 @@ describe("queueProjectInfluencers", () => {
   test("returns count of updated leads", async () => {
     selectResults = [
       [PROJECT_ROW],                          // assertProject
+      [],                                     // source providers
       [{ leadId: "l-1" }, { leadId: "l-2" }], // projectLeads
     ];
     updateReturning = [{ id: "l-1" }, { id: "l-2" }];

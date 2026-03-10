@@ -8,6 +8,13 @@
       "when": 1773091018015,
       "tag": "0000_wealthy_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773183422723,
+      "tag": "0001_wise_king_cobra",
+      "breakpoints": true
     }
   ]
 }

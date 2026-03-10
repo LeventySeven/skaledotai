@@ -61,7 +61,30 @@ const SEARCH_NON_LEAD_TERMS = [
   "news",
   "assistant",
   "bot",
+  "vc",
+  "venture",
+  "capital",
+  "partners",
+  "labs",
+  "fund",
+  "studio",
+  "research",
+  "university",
+  "firm",
+  "investor",
 ];
+
+const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
+  "grok",
+  "chatgpt",
+  "claude",
+  "claudeai",
+  "gemini",
+  "openai",
+  "xai",
+  "langchain",
+  "ieee",
+]);
 
 const SEARCH_FALLBACK_SCORE_THRESHOLD = 20;
 
@@ -78,6 +101,36 @@ const SEARCH_PERSON_TERMS = [
   "indie hacker",
   "i build",
   "building",
+  "i'm",
+  "i am",
+  "my work",
+  "i write",
+  "i build",
+  "working on",
+];
+
+const SEARCH_FIRST_PERSON_TERMS = [
+  " i'm ",
+  " i am ",
+  " my ",
+  " i build ",
+  " working on ",
+  " founded ",
+  " building ",
+  " i write ",
+];
+
+const SEARCH_ORG_TERMS = [
+  "official account",
+  "venture capital",
+  "investment firm",
+  "research lab",
+  "open source framework",
+  "media company",
+  "technical community",
+  "newsletter",
+  "podcast",
+  "accelerator",
 ];
 
 function classifyCreatorStage(followers: number): InfluencerScore["stage"] {
@@ -167,18 +220,51 @@ function buildSearchCandidateText(candidate: SearchScreeningCandidate): string {
     .toLowerCase();
 }
 
+function hasPersonSignal(candidate: SearchScreeningCandidate, haystack: string): boolean {
+  const displayName = candidate.displayName.trim();
+  const looksLikeOrgName = /\b(partners|capital|labs|ventures|foundation|institute|media|studio|fund|org|university)\b/i.test(displayName);
+  const looksLikePersonName = /^[a-z][a-z.'-]+(?:\s+[a-z][a-z.'-]+){1,3}$/i.test(displayName) && !looksLikeOrgName;
+  const firstPersonSignal = SEARCH_FIRST_PERSON_TERMS.some((term) => haystack.includes(term));
+  if (looksLikeOrgName) return firstPersonSignal;
+  return looksLikePersonName || firstPersonSignal || SEARCH_PERSON_TERMS.some((term) => haystack.includes(term));
+}
+
+function hasOrgSignal(candidate: SearchScreeningCandidate, haystack: string): boolean {
+  return (
+    SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())
+    || SEARCH_NON_LEAD_TERMS.some((term) => haystack.includes(term))
+    || SEARCH_ORG_TERMS.some((term) => haystack.includes(term))
+  );
+}
+
+function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidate): boolean {
+  const haystack = buildSearchCandidateText(candidate);
+  const personSignal = hasPersonSignal(candidate, haystack);
+  const orgSignal = hasOrgSignal(candidate, haystack);
+
+  if (SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())) return true;
+  if (orgSignal && !personSignal) return true;
+  if (candidate.followersCount > 100_000 && orgSignal && !personSignal) return true;
+
+  return false;
+}
+
 function getFallbackSearchScore(query: string, candidate: SearchScreeningCandidate): number {
+  if (isHardRejectedSearchCandidate(candidate)) return 0;
+
   const queryTerms = getSearchQueryTerms(query);
   const haystack = buildSearchCandidateText(candidate);
   const matchedTerms = queryTerms.filter((term) => haystack.includes(term)).length;
-  const hasPersonSignal = SEARCH_PERSON_TERMS.some((term) => haystack.includes(term));
-  const hasNonLeadSignal = SEARCH_NON_LEAD_TERMS.some((term) => haystack.includes(term));
+  const personSignal = hasPersonSignal(candidate, haystack);
+  const hasNonLeadSignal = hasOrgSignal(candidate, haystack);
   const followerScore = Math.min(20, Math.round(Math.log10(candidate.followersCount + 10) * 6));
   const postScore = candidate.samplePosts?.length ? 12 : 0;
 
   let score = Math.min(36, matchedTerms * 12) + followerScore + postScore;
-  if (hasPersonSignal) score += 18;
-  if (hasNonLeadSignal && !hasPersonSignal) score -= 28;
+  if (personSignal) score += 22;
+  if (!personSignal) score -= 18;
+  if (hasNonLeadSignal && !personSignal) score -= 45;
+  if (matchedTerms === 0 && !personSignal) score -= 22;
 
   return Math.max(0, Math.min(100, score));
 }
@@ -299,10 +385,12 @@ export async function screenProfilesForLeadSearch(
   maxResults: number,
 ): Promise<string[]> {
   if (candidates.length === 0) return [];
+  const prefilteredCandidates = candidates.filter((candidate) => !isHardRejectedSearchCandidate(candidate));
+  if (prefilteredCandidates.length === 0) return [];
 
   const selectedScores = new Map<string, number>();
 
-  for (const batch of chunk(candidates, SEARCH_AI_BATCH_SIZE)) {
+  for (const batch of chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE)) {
     const validIds = new Set(batch.map((candidate) => candidate.xUserId));
     const result = await structuredResponse<{
       decisions: Array<{ profileId: string; include: boolean; score: number }>;
@@ -316,7 +404,7 @@ export async function screenProfilesForLeadSearch(
         })),
       }),
       instructions:
-        "You are screening X/Twitter search results for an outreach CRM. Keep only profiles that are plausible leads for the query. Favor real people, operators, founders, engineers, or niche experts who clearly match the search intent. Exclude obvious brands, products, AI assistants, bots, meme pages, institutions, newsletters, media accounts, communities, and anything that is only tangentially related. Return one decision per candidate with include=true only when the account should actually be saved as a lead.",
+        "You are screening X/Twitter search results for an outreach CRM. Keep only accounts that are likely real people or clearly personal operator accounts who actively post in the niche. Favor founders, engineers, builders, creators, operators, and domain experts speaking in first person. Exclude AI assistants like @grok, bots, brands, products, org accounts, VC firms, partner accounts, media accounts, newsletters, communities, universities, research labs, meme pages, and generic promotional accounts. Return include=true only when the account should actually be saved as a lead.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -344,7 +432,7 @@ export async function screenProfilesForLeadSearch(
     }
   }
 
-  const selectedIds = candidates
+  const selectedIds = prefilteredCandidates
     .filter((candidate) => selectedScores.has(candidate.xUserId))
     .sort((a, b) => {
       const scoreDiff = (selectedScores.get(b.xUserId) ?? 0) - (selectedScores.get(a.xUserId) ?? 0);
@@ -355,7 +443,7 @@ export async function screenProfilesForLeadSearch(
 
   return selectedIds.length > 0
     ? selectedIds
-    : getFallbackScreenedIds(query, candidates, maxResults);
+    : getFallbackScreenedIds(query, prefilteredCandidates, maxResults);
 }
 
 export async function scoreLeadCandidate(candidate: XLeadCandidate): Promise<InfluencerScore> {

@@ -29,6 +29,9 @@ type TavilyResult = {
   score?: number;
 };
 
+const MULTIAGENT_MAX_QUERIES = 4;
+const MULTIAGENT_MAX_URLS = 18;
+
 const MultiAgentState = Annotation.Root({
   niche: Annotation<string>,
   seedHandle: Annotation<string | undefined>,
@@ -116,19 +119,23 @@ async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
   return result.queries;
 }
 
+export function buildTavilySearchRequest(query: string, limit: number): Record<string, unknown> {
+  return {
+    api_key: requireEnv("TAVILY_API_KEY"),
+    query,
+    search_depth: "basic",
+    include_domains: ["x.com", "twitter.com"],
+    max_results: Math.max(5, Math.min(10, limit)),
+  };
+}
+
 async function searchTavily(query: string, limit: number): Promise<TavilyResult[]> {
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${requireEnv("TAVILY_API_KEY")}`,
     },
-    body: JSON.stringify({
-      query,
-      search_depth: "basic",
-      include_domains: ["x.com", "twitter.com"],
-      max_results: Math.max(5, Math.min(10, limit)),
-    }),
+    body: JSON.stringify(buildTavilySearchRequest(query, limit)),
     cache: "no-store",
   });
 
@@ -169,34 +176,7 @@ async function queryAgentQl(url: string): Promise<unknown> {
       "Content-Type": "application/json",
       "X-API-Key": requireEnv("AGENTQL_API_KEY"),
     },
-    body: JSON.stringify({
-      url,
-      query: `
-        query XProfileData {
-          profile {
-            id
-            username
-            name
-            bio
-            profileUrl
-            avatarUrl
-            followersCount
-            followingCount
-            verified
-          }
-          tweets(limit: 12) {
-            id
-            text
-            createdAt
-            likeCount
-            replyCount
-            repostCount
-            viewCount
-            authorId
-          }
-        }
-      `,
-    }),
+    body: JSON.stringify(buildAgentQlQueryRequest(url)),
     cache: "no-store",
   });
 
@@ -205,6 +185,37 @@ async function queryAgentQl(url: string): Promise<unknown> {
   }
 
   return response.json();
+}
+
+export function buildAgentQlQueryRequest(url: string): Record<string, unknown> {
+  return {
+    url,
+    query: `
+      query XProfileData {
+        profile {
+          id
+          username
+          name
+          bio
+          profileUrl
+          avatarUrl
+          followersCount
+          followingCount
+          verified
+        }
+        tweets(limit: 12) {
+          id
+          text
+          createdAt
+          likeCount
+          replyCount
+          repostCount
+          viewCount
+          authorId
+        }
+      }
+    `,
+  };
 }
 
 function extractAgentQlItems(value: unknown): unknown[] {
@@ -254,15 +265,16 @@ const graph = new StateGraph(MultiAgentState)
   }))
   .addNode("url_finder", async (state) => {
     const results = await Promise.all(
-      state.queries.slice(0, 4).map((query) => searchTavily(query, state.limit)),
+      state.queries.slice(0, MULTIAGENT_MAX_QUERIES).map((query) => searchTavily(query, state.limit)),
     );
     return {
-      urls: normalizeDiscoveredUrls(results.flat(), Math.max(6, Math.min(18, state.limit * 2))),
+      // Keep fan-out bounded so the graph stays deterministic and avoids the unbounded-loop anti-pattern.
+      urls: normalizeDiscoveredUrls(results.flat(), Math.max(6, Math.min(MULTIAGENT_MAX_URLS, state.limit * 2))),
     };
   })
   .addNode("profile_scraper", async (state) => ({
     scraped: await Promise.all(
-      state.urls.slice(0, Math.max(6, Math.min(18, state.limit * 2))).map((url) => queryAgentQl(url)),
+      state.urls.slice(0, Math.max(6, Math.min(MULTIAGENT_MAX_URLS, state.limit * 2))).map((url) => queryAgentQl(url)),
     ),
   }))
   .addNode("aggregator", async (state) => {

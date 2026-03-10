@@ -117,10 +117,12 @@ export function buildOpenRouterDiscoveryRequest(input: XDiscoveryInput): Record<
     plugins: [
       {
         id: "web",
+        engine: "native",
         max_results: Math.max(12, Math.min(50, input.limit * 2)),
         search_prompt: [
           "Search only for x.com or twitter.com profile and tweet pages.",
-          "Prioritize individual creators and operator accounts, not products, brands, bots, or institutions.",
+          "Prioritize real individual creators and operator accounts that are active in the niche.",
+          "Do not surface AI assistants, products, brands, bots, org accounts, VC firms, media, or institutions.",
         ].join(" "),
       },
     ],
@@ -129,8 +131,8 @@ export function buildOpenRouterDiscoveryRequest(input: XDiscoveryInput): Record<
         role: "system",
         content: [
           "Find high-quality X lead candidates for the provided niche.",
-          "Only include individual people who actively post in the niche.",
-          "Exclude brands, bots, official product accounts, publications, and generic hype accounts.",
+          "Only include real individual people who actively post in the niche or clearly personal operator accounts.",
+          "Exclude AI assistants like Grok, brands, bots, official product accounts, publications, VC firms, and generic hype accounts.",
           "Return valid JSON that matches the provided schema.",
         ].join(" "),
       },
