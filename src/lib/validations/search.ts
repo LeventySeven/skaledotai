@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SEARCH_TARGET_MAX, SEARCH_TARGET_MIN } from "@/lib/constants";
 
 export const SearchLeadInputSchema = z.object({
   query: z.string().min(1),
@@ -6,6 +7,7 @@ export const SearchLeadInputSchema = z.object({
   projectName: z.string().optional(),
   followerUsername: z.string().optional(),
   minFollowers: z.number().int().nonnegative().optional(),
+  targetLeadCount: z.number().int().min(SEARCH_TARGET_MIN).max(SEARCH_TARGET_MAX).optional(),
 });
 export type SearchLeadInput = z.infer<typeof SearchLeadInputSchema>;
 

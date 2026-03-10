@@ -27,6 +27,7 @@ describe("SearchLeadInputSchema", () => {
       projectName: "My Project",
       followerUsername: "bob",
       minFollowers: 1000,
+      targetLeadCount: 100,
     });
     expect(result.success).toBe(true);
   });
@@ -50,6 +51,16 @@ describe("SearchLeadInputSchema", () => {
   test("accepts zero minFollowers", () => {
     const result = SearchLeadInputSchema.safeParse({ query: "test", minFollowers: 0 });
     expect(result.success).toBe(true);
+  });
+
+  test("accepts targetLeadCount within the supported range", () => {
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 80 }).success).toBe(true);
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 120 }).success).toBe(true);
+  });
+
+  test("rejects targetLeadCount outside the supported range", () => {
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 79 }).success).toBe(false);
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 121 }).success).toBe(false);
   });
 });
 

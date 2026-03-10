@@ -37,6 +37,7 @@ const generateTemplateMock = mock(async () => ({
 mock.module("@/lib/openai", () => ({
   generateOutreachTemplate: generateTemplateMock,
   rankProfilesForQuery: mock(async () => []),
+  screenProfilesForLeadSearch: mock(async () => []),
   extractTopicsAndPriority: mock(async () => ({ topics: [], priority: "P1" })),
 }));
 

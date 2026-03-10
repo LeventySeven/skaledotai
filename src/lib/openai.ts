@@ -5,7 +5,11 @@ import type { ProjectAnalysisResult } from "@/lib/validations/projects";
 import type { Priority } from "@/lib/validations/shared";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
 import type { XProfile } from "@/lib/validations/search";
-import { DEFAULT_OPENAI_MODEL, DEFAULT_OPENAI_REASONING_EFFORT } from "@/lib/constants";
+import {
+  DEFAULT_OPENAI_MODEL,
+  DEFAULT_OPENAI_REASONING_EFFORT,
+  SEARCH_AI_BATCH_SIZE,
+} from "@/lib/constants";
 
 type StructuredResponse<T> = {
   schemaName: string;
@@ -18,11 +22,142 @@ type StructuredResponse<T> = {
 
 let client: OpenAI | null | undefined;
 
+type SearchScreeningCandidate = XProfile & {
+  samplePosts?: string[];
+  source?: string;
+};
+
+const SEARCH_QUERY_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "any",
+  "best",
+  "for",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "twitter",
+  "x",
+]);
+
+const SEARCH_NON_LEAD_TERMS = [
+  "official",
+  "platform",
+  "product",
+  "brand",
+  "community",
+  "newsletter",
+  "podcast",
+  "conference",
+  "foundation",
+  "institute",
+  "magazine",
+  "media",
+  "news",
+  "assistant",
+  "bot",
+];
+
+const SEARCH_PERSON_TERMS = [
+  "founder",
+  "cofounder",
+  "engineer",
+  "developer",
+  "designer",
+  "builder",
+  "cto",
+  "ceo",
+  "operator",
+  "indie hacker",
+  "i build",
+  "building",
+];
+
 function getClient(): OpenAI | null {
   if (client !== undefined) return client;
   const apiKey = process.env.OPENAI_API_KEY;
   client = apiKey ? new OpenAI({ apiKey }) : null;
   return client;
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function getSearchQueryTerms(query: string): string[] {
+  return [...new Set(
+    query
+      .toLowerCase()
+      .split(/[^a-z0-9+#.-]+/)
+      .map((term) => term.trim())
+      .filter((term) => term.length >= 3 && !SEARCH_QUERY_STOP_WORDS.has(term)),
+  )];
+}
+
+function buildSearchCandidateText(candidate: SearchScreeningCandidate): string {
+  return [
+    candidate.displayName,
+    candidate.username,
+    candidate.bio,
+    candidate.samplePosts?.join(" ") ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function getFallbackSearchScore(query: string, candidate: SearchScreeningCandidate): number {
+  const queryTerms = getSearchQueryTerms(query);
+  const haystack = buildSearchCandidateText(candidate);
+  const matchedTerms = queryTerms.filter((term) => haystack.includes(term)).length;
+  const hasPersonSignal = SEARCH_PERSON_TERMS.some((term) => haystack.includes(term));
+  const hasNonLeadSignal = SEARCH_NON_LEAD_TERMS.some((term) => haystack.includes(term));
+  const followerScore = Math.min(20, Math.round(Math.log10(candidate.followersCount + 10) * 6));
+  const postScore = candidate.samplePosts?.length ? 12 : 0;
+
+  let score = Math.min(36, matchedTerms * 12) + followerScore + postScore;
+  if (hasPersonSignal) score += 18;
+  if (hasNonLeadSignal && !hasPersonSignal) score -= 28;
+
+  return Math.max(0, Math.min(100, score));
+}
+
+function getFallbackScreenedIds(
+  query: string,
+  candidates: SearchScreeningCandidate[],
+  maxResults: number,
+): string[] {
+  return candidates
+    .map((candidate) => ({
+      id: candidate.xUserId,
+      score: getFallbackSearchScore(query, candidate),
+      followers: candidate.followersCount,
+    }))
+    .filter((candidate) => candidate.score >= 20)
+    .sort((a, b) => b.score - a.score || b.followers - a.followers)
+    .slice(0, maxResults)
+    .map((candidate) => candidate.id);
+}
+
+function getFallbackScreeningDecisions(
+  query: string,
+  candidates: SearchScreeningCandidate[],
+): Array<{ profileId: string; include: boolean; score: number }> {
+  return candidates.map((candidate) => {
+    const score = getFallbackSearchScore(query, candidate);
+    return {
+      profileId: candidate.xUserId,
+      include: score >= 20,
+      score,
+    };
+  });
 }
 
 async function structuredResponse<T>({
@@ -102,6 +237,71 @@ export async function rankProfilesForQuery(
   });
 
   return result.profileIds;
+}
+
+export async function screenProfilesForLeadSearch(
+  query: string,
+  candidates: SearchScreeningCandidate[],
+  maxResults: number,
+): Promise<string[]> {
+  if (candidates.length === 0) return [];
+
+  const selectedScores = new Map<string, number>();
+
+  for (const batch of chunk(candidates, SEARCH_AI_BATCH_SIZE)) {
+    const validIds = new Set(batch.map((candidate) => candidate.xUserId));
+    const result = await structuredResponse<{
+      decisions: Array<{ profileId: string; include: boolean; score: number }>;
+    }>({
+      schemaName: "lead_search_screening",
+      schema: z.object({
+        decisions: z.array(z.object({
+          profileId: z.string(),
+          include: z.boolean(),
+          score: z.number().int().min(0).max(100),
+        })),
+      }),
+      instructions:
+        "You are screening X/Twitter search results for an outreach CRM. Keep only profiles that are plausible leads for the query. Favor real people, operators, founders, engineers, or niche experts who clearly match the search intent. Exclude obvious brands, products, AI assistants, bots, meme pages, institutions, newsletters, media accounts, communities, and anything that is only tangentially related. Return one decision per candidate with include=true only when the account should actually be saved as a lead.",
+      input: JSON.stringify({
+        query,
+        candidates: batch.map((candidate) => ({
+          id: candidate.xUserId,
+          handle: `@${candidate.username}`,
+          name: candidate.displayName,
+          bio: candidate.bio,
+          followers: candidate.followersCount,
+          source: candidate.source,
+          posts: candidate.samplePosts?.slice(0, 3) ?? [],
+        })),
+      }),
+      fallback: {
+        decisions: getFallbackScreeningDecisions(query, batch),
+      },
+      maxOutputTokens: 1_200,
+    });
+
+    for (const decision of result.decisions) {
+      if (!validIds.has(decision.profileId) || !decision.include) continue;
+      const current = selectedScores.get(decision.profileId) ?? -1;
+      if (decision.score > current) {
+        selectedScores.set(decision.profileId, decision.score);
+      }
+    }
+  }
+
+  const selectedIds = candidates
+    .filter((candidate) => selectedScores.has(candidate.xUserId))
+    .sort((a, b) => {
+      const scoreDiff = (selectedScores.get(b.xUserId) ?? 0) - (selectedScores.get(a.xUserId) ?? 0);
+      return scoreDiff || b.followersCount - a.followersCount;
+    })
+    .slice(0, maxResults)
+    .map((candidate) => candidate.xUserId);
+
+  return selectedIds.length > 0
+    ? selectedIds
+    : getFallbackScreenedIds(query, candidates, maxResults);
 }
 
 export async function extractTopicsAndPriority(

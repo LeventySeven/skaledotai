@@ -1,8 +1,14 @@
 // Search tuning
-export const SEARCH_TARGET = 40;
+export const SEARCH_TARGET_MIN = 80;
+export const SEARCH_TARGET = 100;
+export const SEARCH_TARGET_MAX = 120;
+export const SEARCH_CANDIDATE_OVERFETCH_FACTOR = 2;
+export const SEARCH_CANDIDATE_POOL_LIMIT = 240;
+export const SEARCH_POST_SEARCH_PAGE_LIMIT = 2;
+export const SEARCH_AI_BATCH_SIZE = 40;
 export const NETWORK_TARGET = 1000;
-export const X_PROVIDER_SEARCH_USERS_LIMIT = 25;
-export const X_PROVIDER_POST_SEARCH_LIMIT = 50;
+export const X_PROVIDER_SEARCH_USERS_LIMIT = 100;
+export const X_PROVIDER_POST_SEARCH_LIMIT = 100;
 export const X_PROVIDER_NETWORK_PAGE_SIZE = 250;
 export const X_PROVIDER_STATS_TWEET_LIMIT = 30;
 export const X_PROVIDER_ANALYSIS_TWEET_LIMIT = 12;
