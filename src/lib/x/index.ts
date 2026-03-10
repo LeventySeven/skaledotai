@@ -21,10 +21,8 @@ export {
 } from "./provider";
 export type { XDataProvider, XDataProviderOption, XDataProviderDocLink } from "./provider";
 
-export {
-  getXDataClient,
-  mapTweetsToMetrics,
-} from "./client";
+// NOTE: getXDataClient and mapTweetsToMetrics are server-only.
+// Server code should import them from "@/lib/x/client" directly.
 
 export {
   XApiError,

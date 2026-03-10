@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { leads, postStats, projectLeads, projects } from "@/db/schema";
 import { X_PROVIDER_ANALYSIS_TWEET_LIMIT } from "@/lib/constants";
 import { analyzeLeadPoolForProject } from "@/lib/openai";
-import { getXDataClient, mapTweetsToMetrics } from "@/lib/x";
+import { getXDataClient, mapTweetsToMetrics } from "@/lib/x/client";
 import type { XDataProvider } from "@/lib/x";
 import type {
   ProjectAnalysisResult,

@@ -4,8 +4,8 @@ import { rankProfilesForQuery } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
 import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
+import { getXDataClient } from "@/lib/x/client";
 import {
-  getXDataClient,
   buildPostSearchQuery,
   buildReplySearchQuery,
   isUnsupportedAuthenticationError,
