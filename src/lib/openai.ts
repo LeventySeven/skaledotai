@@ -280,7 +280,7 @@ export async function screenProfilesForLeadSearch(
       fallback: {
         decisions: getFallbackScreeningDecisions(query, batch),
       },
-      maxOutputTokens: 1_200,
+      maxOutputTokens: 3_000,
     });
 
     for (const decision of result.decisions) {
