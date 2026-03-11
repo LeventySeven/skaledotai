@@ -372,30 +372,36 @@ export function buildAgentQlQueryRequest(url: string): Record<string, unknown> {
   return {
     url,
     query: `
-      query XProfileData {
+      {
         profile {
           id
           username
           name
           bio
-          profileUrl
-          avatarUrl
-          followersCount
-          followingCount
-          verified
+          profile_url
+          avatar_url
+          followers_count(integer)
+          following_count(integer)
+          verified(boolean)
         }
-        tweets(limit: 12) {
+        tweets[] {
           id
           text
-          createdAt
-          likeCount
-          replyCount
-          repostCount
-          viewCount
-          authorId
+          created_at
+          likes(integer)
+          replies(integer)
+          reposts(integer)
+          views(integer)
+          author_id
         }
       }
     `,
+    params: {
+      wait_for: 0,
+      mode: "fast",
+      browser_profile: "stealth",
+      is_screenshot_enabled: false,
+    },
   };
 }
 

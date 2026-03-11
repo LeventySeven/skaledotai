@@ -96,11 +96,20 @@ describe("Multi-agent request builders", () => {
     const payload = buildAgentQlQueryRequest("https://x.com/austinxwalker") as {
       url: string;
       query: string;
+      params: {
+        wait_for: number;
+        mode: string;
+        browser_profile: string;
+        is_screenshot_enabled: boolean;
+      };
     };
 
     expect(payload.url).toBe("https://x.com/austinxwalker");
-    expect(payload.query).toContain("query XProfileData");
-    expect(payload.query).toContain("tweets(limit: 12)");
+    expect(payload.query).toContain("{");
+    expect(payload.query).toContain("tweets[]");
+    expect(payload.query).toContain("followers_count(integer)");
+    expect(payload.params.mode).toBe("fast");
+    expect(payload.params.browser_profile).toBe("stealth");
   });
 });
 
