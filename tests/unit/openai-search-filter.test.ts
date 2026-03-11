@@ -42,4 +42,20 @@ describe("OpenAI search screening fallback", () => {
 
     expect(result).toEqual(["austin-id"]);
   });
+
+  test("keeps plausible people even when niche fit is only borderline", async () => {
+    const result = await screenProfilesForLeadSearch("founding engineers", [
+      {
+        xUserId: "builder-id",
+        username: "buildermax",
+        displayName: "Max Rivera",
+        bio: "building products, sharing progress, writing code",
+        followersCount: 2200,
+        followingCount: 500,
+        samplePosts: ["shipping a new project this week", "writing code again tonight"],
+      },
+    ], 10);
+
+    expect(result).toEqual(["builder-id"]);
+  });
 });

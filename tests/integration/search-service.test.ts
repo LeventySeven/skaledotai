@@ -285,7 +285,7 @@ describe("searchAndAddLeads", () => {
     expect(discoverCandidatesMock).toHaveBeenCalledWith({
       niche: "founding engineers",
       seedHandle: undefined,
-      limit: 100,
+      limit: 200,
       minFollowers: 0,
     });
 
@@ -321,7 +321,7 @@ describe("searchAndAddLeads", () => {
     expect(discoverCandidatesMock).toHaveBeenCalledWith({
       niche: "founding engineers",
       seedHandle: undefined,
-      limit: 120,
+      limit: 200,
       minFollowers: 0,
     });
   });
@@ -348,5 +348,53 @@ describe("searchAndAddLeads", () => {
     });
 
     expect(insertCallIndex).toBe(0);
+  });
+
+  test("re-runs discovery with alternate queries when the first pass is too small", async () => {
+    discoverCandidatesMock
+      .mockResolvedValueOnce([
+        profile({
+          xUserId: "one-id",
+          username: "one",
+          displayName: "One Person",
+          followersCount: 2400,
+        }),
+      ])
+      .mockResolvedValueOnce([
+        profile({
+          xUserId: "two-id",
+          username: "two",
+          displayName: "Two Person",
+          followersCount: 4200,
+        }),
+        profile({
+          xUserId: "three-id",
+          username: "three",
+          displayName: "Three Person",
+          followersCount: 5100,
+        }),
+      ])
+      .mockResolvedValueOnce([]);
+
+    screenProfilesForLeadSearchMock.mockResolvedValue(["one-id", "two-id", "three-id"]);
+
+    await searchAndAddLeads("user-1", {
+      query: "founding engineers",
+      projectName: "Founding Engineers",
+    }, "apify");
+
+    expect(discoverCandidatesMock).toHaveBeenCalledTimes(3);
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, {
+      niche: "founding engineers",
+      seedHandle: undefined,
+      limit: 200,
+      minFollowers: 0,
+    });
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, {
+      niche: "founding engineers founder builder engineer creator operator",
+      seedHandle: undefined,
+      limit: 260,
+      minFollowers: 0,
+    });
   });
 });

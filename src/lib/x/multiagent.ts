@@ -197,10 +197,13 @@ async function withTimeout<T>(
   work: () => Promise<T>,
 ): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const workPromise = work();
+  // Avoid unhandled rejections from the losing branch when Promise.race settles first.
+  void workPromise.catch(() => undefined);
 
   try {
     return await Promise.race([
-      work(),
+      workPromise,
       new Promise<T>((_, reject) => {
         timeoutId = setTimeout(() => {
           const error = new Error(`${upstream} request timed out after ${timeoutMs}ms.`);

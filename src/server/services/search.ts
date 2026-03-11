@@ -14,7 +14,12 @@ import { addProfilesToProject } from "./leads";
 import { recordProjectRun } from "./project-runs";
 import { createProject, getProjectById } from "./projects";
 import { getCandidateSampleTexts, toXProfileFromCandidate } from "@/lib/x/discovery";
-import { NETWORK_TARGET, SEARCH_TARGET, X_PROVIDER_NETWORK_PAGE_SIZE } from "@/lib/constants";
+import {
+  NETWORK_TARGET,
+  SEARCH_DISCOVERY_METADATA,
+  SEARCH_TARGET,
+  X_PROVIDER_NETWORK_PAGE_SIZE,
+} from "@/lib/constants";
 import { toXProviderTrpcError } from "@/lib/x/error-handling";
 
 type CanonicalCandidate = XProfile & {
@@ -28,6 +33,31 @@ function dedupeProviders(providers: XDataProvider[]): XDataProvider[] {
 
 function byFollowersDesc(a: XLeadCandidate, b: XLeadCandidate): number {
   return b.account.followers - a.account.followers;
+}
+
+function buildRetryQueries(query: string, seedHandle?: string): string[] {
+  const normalizedSeed = seedHandle?.replace(/^@/, "").trim();
+  const variants = [
+    `${query} founder builder engineer creator operator`,
+    `${query} indie hacker builder founder`,
+    normalizedSeed ? `${query} people similar to @${normalizedSeed}` : "",
+  ].filter(Boolean);
+
+  return [...new Set(variants)];
+}
+
+function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
+  const byHandle = new Map<string, XLeadCandidate>();
+
+  for (const candidate of candidates) {
+    const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
+    const existing = byHandle.get(key);
+    if (!existing || candidate.account.followers > existing.account.followers) {
+      byHandle.set(key, candidate);
+    }
+  }
+
+  return [...byHandle.values()];
 }
 
 function buildScreeningPool(candidates: XLeadCandidate[], targetLeadCount: number): XLeadCandidate[] {
@@ -110,6 +140,45 @@ async function canonicalizeCandidates(
   return { profiles, lookupProvider: resolution.effectiveProvider };
 }
 
+async function discoverCandidatesWithRetry(
+  provider: XDataProvider,
+  discoveryProvider: { provider: XDataProvider; discoverCandidates: (input: { niche: string; seedHandle?: string; limit: number; minFollowers?: number }) => Promise<XLeadCandidate[]> },
+  query: string,
+  seedHandle: string | undefined,
+  minFollowers: number,
+): Promise<XLeadCandidate[]> {
+  const firstPass = await discoveryProvider.discoverCandidates({
+    niche: query,
+    seedHandle,
+    limit: SEARCH_DISCOVERY_METADATA.parseAccountsTarget,
+    minFollowers,
+  });
+
+  if (firstPass.length === 0) return firstPass;
+
+  const firstFiltered = firstPass.filter((candidate) => candidate.account.followers >= minFollowers);
+  if (firstFiltered.length >= SEARCH_DISCOVERY_METADATA.minimumFinalLeadsBeforeRetry) {
+    return dedupeCandidates(firstFiltered);
+  }
+
+  const retryQueries = buildRetryQueries(query, seedHandle);
+  const retryPasses = await Promise.all(
+    retryQueries.map((retryQuery) =>
+      discoveryProvider.discoverCandidates({
+        niche: retryQuery,
+        seedHandle,
+        limit: SEARCH_DISCOVERY_METADATA.retryParseAccountsTarget,
+        minFollowers,
+      }),
+    ),
+  );
+
+  return dedupeCandidates(
+    [...firstPass, ...retryPasses.flat()]
+      .filter((candidate) => candidate.account.followers >= minFollowers),
+  );
+}
+
 function resolveOperationProviders(requestedProvider: XDataProvider): Record<XProviderCapability, XDataProvider> {
   return {
     discovery: requestedProvider,
@@ -133,12 +202,15 @@ export async function searchAndAddLeads(
   try {
     const targetLeadCount = input.targetLeadCount ?? SEARCH_TARGET;
     const { provider: discoveryProvider } = getXDiscoveryProvider(provider);
-    const discoveredCandidates = await discoveryProvider.discoverCandidates({
-      niche: input.query,
-      seedHandle: input.followerUsername?.replace(/^@/, ""),
-      limit: targetLeadCount,
-      minFollowers: input.minFollowers ?? 0,
-    });
+    const seedHandle = input.followerUsername?.replace(/^@/, "");
+    const minFollowers = input.minFollowers ?? 0;
+    const discoveredCandidates = await discoverCandidatesWithRetry(
+      provider,
+      discoveryProvider,
+      input.query,
+      seedHandle,
+      minFollowers,
+    );
 
     if (discoveredCandidates.length === 0) {
       throw new TRPCError({
@@ -152,7 +224,6 @@ export async function searchAndAddLeads(
 
     const screeningPool = buildScreeningPool(
       discoveredCandidates
-        .filter((candidate) => candidate.account.followers >= (input.minFollowers ?? 0))
         .sort(byFollowersDesc),
       targetLeadCount,
     );

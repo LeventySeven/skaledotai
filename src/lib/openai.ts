@@ -45,7 +45,21 @@ const SEARCH_QUERY_STOP_WORDS = new Set([
   "x",
 ]);
 
-const SEARCH_NON_LEAD_TERMS = [
+const SEARCH_HARD_NON_LEAD_TERMS = [
+  "assistant",
+  "bot",
+  "official account",
+  "official x account",
+  "official twitter",
+  "customer support",
+  "newsroom",
+  "parody account",
+  "automated account",
+  "brand account",
+  "product account",
+];
+
+const SEARCH_SOFT_NON_LEAD_TERMS = [
   "official",
   "platform",
   "product",
@@ -59,8 +73,6 @@ const SEARCH_NON_LEAD_TERMS = [
   "magazine",
   "media",
   "news",
-  "assistant",
-  "bot",
   "vc",
   "venture",
   "capital",
@@ -86,7 +98,7 @@ const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
   "ieee",
 ]);
 
-const SEARCH_FALLBACK_SCORE_THRESHOLD = 20;
+const SEARCH_FALLBACK_SCORE_THRESHOLD = 10;
 
 const SEARCH_PERSON_TERMS = [
   "founder",
@@ -163,7 +175,7 @@ function getFallbackInfluencerScore(candidate: XLeadCandidate): InfluencerScore 
       ) * 28,
     ),
   );
-  const authenticityPenalty = SEARCH_NON_LEAD_TERMS.some((term) => haystack.includes(term)) ? 35 : 0;
+  const authenticityPenalty = SEARCH_SOFT_NON_LEAD_TERMS.some((term) => haystack.includes(term)) ? 20 : 0;
   const authenticityBonus = SEARCH_PERSON_TERMS.some((term) => haystack.includes(term)) ? 18 : 0;
   const authenticityScore = Math.max(0, Math.min(100, 65 + authenticityBonus - authenticityPenalty));
   const overallScore = Math.round((nicheMatchScore * 0.45) + (engagementScore * 0.25) + (authenticityScore * 0.3));
@@ -232,7 +244,7 @@ function hasPersonSignal(candidate: SearchScreeningCandidate, haystack: string):
 function hasOrgSignal(candidate: SearchScreeningCandidate, haystack: string): boolean {
   return (
     SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())
-    || SEARCH_NON_LEAD_TERMS.some((term) => haystack.includes(term))
+    || SEARCH_SOFT_NON_LEAD_TERMS.some((term) => haystack.includes(term))
     || SEARCH_ORG_TERMS.some((term) => haystack.includes(term))
   );
 }
@@ -240,11 +252,9 @@ function hasOrgSignal(candidate: SearchScreeningCandidate, haystack: string): bo
 function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidate): boolean {
   const haystack = buildSearchCandidateText(candidate);
   const personSignal = hasPersonSignal(candidate, haystack);
-  const orgSignal = hasOrgSignal(candidate, haystack);
 
   if (SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())) return true;
-  if (orgSignal && !personSignal) return true;
-  if (candidate.followersCount > 100_000 && orgSignal && !personSignal) return true;
+  if (SEARCH_HARD_NON_LEAD_TERMS.some((term) => haystack.includes(term)) && !personSignal) return true;
 
   return false;
 }
@@ -262,9 +272,9 @@ function getFallbackSearchScore(query: string, candidate: SearchScreeningCandida
 
   let score = Math.min(36, matchedTerms * 12) + followerScore + postScore;
   if (personSignal) score += 22;
-  if (!personSignal) score -= 18;
-  if (hasNonLeadSignal && !personSignal) score -= 45;
-  if (matchedTerms === 0 && !personSignal) score -= 22;
+  if (!personSignal) score -= 10;
+  if (hasNonLeadSignal && !personSignal) score -= 18;
+  if (matchedTerms === 0 && !personSignal) score -= 12;
 
   return Math.max(0, Math.min(100, score));
 }
@@ -404,7 +414,7 @@ export async function screenProfilesForLeadSearch(
         })),
       }),
       instructions:
-        "You are screening X/Twitter search results for an outreach CRM. Keep only accounts that are likely real people or clearly personal operator accounts who actively post in the niche. Favor founders, engineers, builders, creators, operators, and domain experts speaking in first person. Exclude AI assistants like @grok, bots, brands, products, org accounts, VC firms, partner accounts, media accounts, newsletters, communities, universities, research labs, meme pages, and generic promotional accounts. Return include=true only when the account should actually be saved as a lead.",
+        "You are screening X/Twitter search results for an outreach CRM. Be permissive and keep borderline candidates when they might still be usable leads. Favor real people and clearly personal operator accounts who post in the niche. Reject only objectively impossible leads such as AI assistants like @grok, bots, official brand or product accounts, pure org accounts, customer support/newsroom accounts, and obviously automated or parody accounts. If uncertain, include the account with a moderate score instead of rejecting it.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({

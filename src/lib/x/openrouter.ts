@@ -42,6 +42,22 @@ const OpenRouterLeadResponseSchema = z.object({
 type OpenRouterLead = z.infer<typeof OpenRouterLeadSchema>;
 const DEFAULT_OPENROUTER_DISCOVERY_MODEL = "x-ai/grok-4.1-fast";
 
+function contentSnippet(value: unknown): string {
+  if (typeof value === "string") return value.trim().slice(0, 240);
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (item && typeof item === "object" && "text" in item ? String((item as { text: unknown }).text ?? "") : ""))
+      .join("")
+      .trim()
+      .slice(0, 240);
+  }
+  try {
+    return JSON.stringify(value).slice(0, 240);
+  } catch {
+    return String(value).slice(0, 240);
+  }
+}
+
 function unsupported(capability: "lookup" | "network" | "tweets"): never {
   throw new XProviderRuntimeError({
     provider: "openrouter",
@@ -154,14 +170,36 @@ export function buildOpenRouterDiscoveryRequest(input: XDiscoveryInput): Record<
   };
 }
 
-function parseOpenRouterContent(value: unknown): unknown {
-  if (typeof value === "string") return JSON.parse(value);
+function extractJsonText(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) return fencedMatch[1].trim();
+
+  const objectStart = trimmed.indexOf("{");
+  const objectEnd = trimmed.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    return trimmed.slice(objectStart, objectEnd + 1);
+  }
+
+  const arrayStart = trimmed.indexOf("[");
+  const arrayEnd = trimmed.lastIndexOf("]");
+  if (arrayStart >= 0 && arrayEnd > arrayStart) {
+    return trimmed.slice(arrayStart, arrayEnd + 1);
+  }
+
+  return trimmed;
+}
+
+export function parseOpenRouterContent(value: unknown): unknown {
+  if (typeof value === "string") return JSON.parse(extractJsonText(value));
   if (Array.isArray(value)) {
     const text = value
       .map((item) => (item && typeof item === "object" && "text" in item ? String((item as { text: unknown }).text ?? "") : ""))
       .join("")
       .trim();
-    return JSON.parse(text);
+    return JSON.parse(extractJsonText(text));
   }
   return value;
 }
@@ -202,7 +240,29 @@ async function discoverWithOpenRouter(input: XDiscoveryInput): Promise<OpenRoute
     choices?: Array<{ message?: { content?: unknown } }>;
   };
   const content = payload.choices?.[0]?.message?.content;
-  const parsed = OpenRouterLeadResponseSchema.parse(parseOpenRouterContent(content));
+  let parsedContent: unknown;
+  try {
+    parsedContent = parseOpenRouterContent(content);
+  } catch (error) {
+    throw new XProviderRuntimeError({
+      provider: "openrouter",
+      capability: "discovery",
+      code: "UPSTREAM_INVALID_RESPONSE",
+      message: `OpenRouter returned non-JSON content. ${error instanceof Error ? error.message : "Unexpected parse failure."} Snippet: ${contentSnippet(content)}`,
+    });
+  }
+
+  let parsed;
+  try {
+    parsed = OpenRouterLeadResponseSchema.parse(parsedContent);
+  } catch (error) {
+    throw new XProviderRuntimeError({
+      provider: "openrouter",
+      capability: "discovery",
+      code: "UPSTREAM_INVALID_RESPONSE",
+      message: `OpenRouter returned JSON that did not match the expected schema. ${error instanceof Error ? error.message : "Schema validation failed."}`,
+    });
+  }
   return parsed.leads;
 }
 

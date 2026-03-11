@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from "bun:test";
 mock.module("server-only", () => ({}));
 
 const { buildApifyAdvancedSearchInput, buildApifyUserScraperInput, buildApifyDiscoveryQueries } = await import("@/lib/x/apify");
-const { buildOpenRouterDiscoveryRequest } = await import("@/lib/x/openrouter");
+const { buildOpenRouterDiscoveryRequest, parseOpenRouterContent } = await import("@/lib/x/openrouter");
 const { buildTavilySearchRequest, buildAgentQlQueryRequest, buildMultiAgentHeuristicQueries } = await import("@/lib/x/multiagent");
 const { buildOxylabsDiscoveryUrls } = await import("@/lib/x/oxylabs");
 
@@ -64,6 +64,14 @@ describe("OpenRouter request builder", () => {
     expect(payload.plugins[0]?.engine).toBe("native");
     expect(payload.response_format.type).toBe("json_schema");
     expect(payload.response_format.json_schema.strict).toBe(true);
+  });
+
+  test("parses fenced json responses", () => {
+    expect(parseOpenRouterContent("```json\n{\"leads\":[]}\n```")).toEqual({ leads: [] });
+  });
+
+  test("parses text-wrapped json responses", () => {
+    expect(parseOpenRouterContent("Here is the result:\n{\"leads\":[]}")).toEqual({ leads: [] });
   });
 });
 
