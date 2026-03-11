@@ -15,6 +15,13 @@
       "when": 1773183422723,
       "tag": "0001_wise_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773225043304,
+      "tag": "0002_lyrical_nextwave",
+      "breakpoints": true
     }
   ]
 }

@@ -160,6 +160,7 @@ const insertMock = mock(() => {
 
       return {
         onConflictDoNothing: async () => [],
+        onConflictDoUpdate: async () => [],
       };
     },
   };

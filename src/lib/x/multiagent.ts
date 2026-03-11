@@ -7,10 +7,8 @@ import type {
   XDiscoveryInput,
   XDiscoveryProvider,
   XLeadCandidate,
-  XPostSearchResult,
   XProfilesPage,
   XResolvedTweet,
-  XUserReference,
 } from "./types";
 import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
@@ -40,7 +38,7 @@ const TavilyResponseSchema = z.object({
 
 const MULTIAGENT_MAX_QUERIES = 3;
 const MULTIAGENT_MAX_URLS = 8;
-const MULTIAGENT_SCRAPE_CONCURRENCY = 3;
+const MULTIAGENT_SCRAPE_CONCURRENCY = 2;
 const MULTIAGENT_FETCH_TIMEOUT_MS = 12_000;
 const MULTIAGENT_PLANNER_TIMEOUT_MS = 8_000;
 
@@ -313,7 +311,22 @@ async function searchTavily(query: string, limit: number): Promise<TavilyResult[
   }
 }
 
-function normalizeDiscoveredUrls(results: TavilyResult[], limit: number): string[] {
+export function normalizeDiscoveredUrls(results: TavilyResult[], limit: number): string[] {
+  const reservedSegments = new Set([
+    "compose",
+    "explore",
+    "hashtag",
+    "home",
+    "i",
+    "intent",
+    "login",
+    "messages",
+    "notifications",
+    "search",
+    "settings",
+    "share",
+    "signup",
+  ]);
   const urls = new Set<string>();
 
   for (const result of results) {
@@ -324,7 +337,14 @@ function normalizeDiscoveredUrls(results: TavilyResult[], limit: number): string
       if (url.hostname !== "x.com" && url.hostname !== "twitter.com" && url.hostname !== "www.twitter.com") {
         continue;
       }
-      urls.add(url.toString());
+
+      const pathSegments = url.pathname.split("/").filter(Boolean);
+      const handle = pathSegments[0]?.replace(/^@/, "").trim();
+      if (!handle || reservedSegments.has(handle.toLowerCase()) || !/^[A-Za-z0-9_]{1,15}$/.test(handle)) {
+        continue;
+      }
+
+      urls.add(`https://x.com/${handle}`);
     } catch {
       continue;
     }
@@ -333,6 +353,24 @@ function normalizeDiscoveredUrls(results: TavilyResult[], limit: number): string
   }
 
   return [...urls];
+}
+
+function isRetryableAgentQlFailure(error: unknown): boolean {
+  return error instanceof XProviderRuntimeError
+    && error.provider === "multiagent"
+    && (
+      error.code === "UPSTREAM_INVALID_RESPONSE"
+      || error.code === "UPSTREAM_RATE_LIMITED"
+      || error.code === "UPSTREAM_REQUEST_FAILED"
+    );
+}
+
+function warnPartialAgentQlFailure(url: string, capability: "discovery" | "lookup" | "tweets", error: unknown): void {
+  console.warn("[x-provider][multiagent][agentql]", JSON.stringify({
+    capability,
+    url,
+    message: describeUpstreamError(error),
+  }));
 }
 
 async function queryAgentQl(
@@ -351,7 +389,10 @@ async function queryAgentQl(
           "Content-Type": "application/json",
           "X-API-Key": requireEnv("AGENTQL_API_KEY"),
         },
-        body: JSON.stringify(buildAgentQlQueryRequest(url)),
+        body: JSON.stringify(buildAgentQlQueryRequest(
+          url,
+          capability === "tweets" ? "tweets" : "profile",
+        )),
         cache: "no-store",
         signal: controller.signal,
       }).finally(() => clearTimeout(timeoutId));
@@ -371,10 +412,56 @@ async function queryAgentQl(
   }
 }
 
-export function buildAgentQlQueryRequest(url: string): Record<string, unknown> {
-  return {
-    url,
-    query: `
+async function queryAgentQlBestEffort(
+  url: string,
+  capability: "discovery" | "lookup",
+): Promise<unknown | null> {
+  try {
+    return await queryAgentQl(url, capability);
+  } catch (error) {
+    if (!isRetryableAgentQlFailure(error)) throw error;
+    warnPartialAgentQlFailure(url, capability, error);
+    return null;
+  }
+}
+
+export function buildAgentQlQueryRequest(
+  url: string,
+  mode: "profile" | "profile_with_tweets" | "tweets" = "profile_with_tweets",
+): Record<string, unknown> {
+  const query =
+    mode === "profile"
+      ? `
+      {
+        profile {
+          id
+          username
+          name
+          bio
+          profile_url
+          avatar_url
+          followers_count(integer)
+          following_count(integer)
+          verified(boolean)
+        }
+      }
+    `
+      : mode === "tweets"
+        ? `
+      {
+        tweets[] {
+          id
+          text
+          created_at
+          likes(integer)
+          replies(integer)
+          reposts(integer)
+          views(integer)
+          author_id
+        }
+      }
+    `
+        : `
       {
         profile {
           id
@@ -398,7 +485,11 @@ export function buildAgentQlQueryRequest(url: string): Record<string, unknown> {
           author_id
         }
       }
-    `,
+    `;
+
+  return {
+    url,
+    query,
     params: {
       wait_for: 0,
       mode: "fast",
@@ -439,11 +530,6 @@ function normalizeTweetsFromPayload(payload: unknown): XResolvedTweet[] {
   return directTweets.length > 0 ? directTweets : collectNestedTweets(extractAgentQlItems(payload));
 }
 
-async function scrapeProfile(reference: XUserReference): Promise<unknown> {
-  const username = requireUsername(reference, "Multi-agent");
-  return queryAgentQl(`https://x.com/${username}`, "lookup");
-}
-
 const graph = new StateGraph(MultiAgentState)
   .addNode("planner", async (state) => ({
     queries: await buildQueries({
@@ -463,11 +549,11 @@ const graph = new StateGraph(MultiAgentState)
     };
   })
   .addNode("profile_scraper", async (state) => ({
-    scraped: await mapWithConcurrency(
+    scraped: (await mapWithConcurrency(
       state.urls.slice(0, Math.min(MULTIAGENT_MAX_URLS, Math.max(4, state.limit))),
       MULTIAGENT_SCRAPE_CONCURRENCY,
-      (url) => queryAgentQl(url, "discovery"),
-    ),
+      (url) => queryAgentQlBestEffort(url, "discovery"),
+    )).filter((payload): payload is NonNullable<typeof payload> => payload !== null),
   }))
   .addNode("aggregator", async (state) => {
     const byHandle = new Map<string, XLeadCandidate>();
@@ -548,9 +634,13 @@ export const multiAgentClient: XDataClient = {
     const payloads = await mapWithConcurrency(
       handles,
       MULTIAGENT_SCRAPE_CONCURRENCY,
-      (handle) => scrapeProfile({ username: handle }),
+      (handle) => queryAgentQlBestEffort(`https://x.com/${handle}`, "lookup"),
     );
-    return dedupeProfiles(payloads.flatMap((payload) => normalizeProfilesFromPayload(payload)));
+    return dedupeProfiles(
+      payloads
+        .filter((payload): payload is NonNullable<typeof payload> => payload !== null)
+        .flatMap((payload) => normalizeProfilesFromPayload(payload)),
+    );
   },
   getFollowersPage(): Promise<XProfilesPage> {
     unsupported("network");

@@ -7,6 +7,26 @@ import { XDataProviderSchema } from "@/lib/validations/x-provider";
 
 export type ProjectRunOperationType = "search" | "network_import" | "analysis";
 
+function normalizeRunKeyPart(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+export function buildProjectRunRequestKey(input: {
+  projectId: string;
+  operationType: ProjectRunOperationType;
+  requestedProvider: XDataProvider;
+  query?: string;
+  seedUsername?: string;
+}): string {
+  return [
+    input.projectId,
+    input.operationType,
+    input.requestedProvider,
+    normalizeRunKeyPart(input.query),
+    normalizeRunKeyPart(input.seedUsername?.replace(/^@/, "")),
+  ].join("::");
+}
+
 export async function recordProjectRun(input: {
   projectId: string;
   operationType: ProjectRunOperationType;
@@ -19,8 +39,10 @@ export async function recordProjectRun(input: {
   seedUsername?: string;
   leadCount: number;
 }): Promise<void> {
-  await db.insert(projectRuns).values({
+  const now = new Date();
+  const values = {
     projectId: input.projectId,
+    requestKey: buildProjectRunRequestKey(input),
     operationType: input.operationType,
     requestedProvider: input.requestedProvider,
     discoveryProvider: input.discoveryProvider,
@@ -30,7 +52,27 @@ export async function recordProjectRun(input: {
     query: input.query,
     seedUsername: input.seedUsername,
     leadCount: input.leadCount,
-  });
+    createdAt: now,
+  };
+
+  await db
+    .insert(projectRuns)
+    .values(values)
+    .onConflictDoUpdate({
+      target: projectRuns.requestKey,
+      set: {
+        operationType: values.operationType,
+        requestedProvider: values.requestedProvider,
+        discoveryProvider: values.discoveryProvider,
+        lookupProvider: values.lookupProvider,
+        networkProvider: values.networkProvider,
+        tweetsProvider: values.tweetsProvider,
+        query: values.query,
+        seedUsername: values.seedUsername,
+        leadCount: values.leadCount,
+        createdAt: now,
+      },
+    });
 }
 
 export async function getProjectSourceProvidersByProjectIds(

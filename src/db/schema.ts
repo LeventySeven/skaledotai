@@ -123,6 +123,7 @@ export const projectLeads = pgTable("project_leads", {
 export const projectRuns = pgTable("project_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  requestKey: text("request_key").notNull(),
   operationType: text("operation_type").notNull(),
   requestedProvider: text("requested_provider").notNull(),
   discoveryProvider: text("discovery_provider").notNull(),
@@ -136,6 +137,7 @@ export const projectRuns = pgTable("project_runs", {
 }, (table) => [
   index("project_runs_project_id_idx").on(table.projectId),
   index("project_runs_requested_provider_idx").on(table.requestedProvider),
+  uniqueIndex("project_runs_request_key_idx").on(table.requestKey),
 ]);
 
 export const postStats = pgTable("post_stats", {

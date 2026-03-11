@@ -35,6 +35,9 @@ pnpm-debug.log*
 .vercel/
 .turbo/
 
+# Drizzle metadata
+src/db/migrations/meta/
+
 # Caches and temp files
 .cache/
 .tmp/
