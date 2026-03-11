@@ -435,71 +435,44 @@ async function queryAgentQlBestEffort(
   }
 }
 
+const AGENTQL_PROFILE_FRAGMENT = `
+  profile {
+    id
+    username
+    name
+    bio
+    profile_url
+    avatar_url
+    followers_count(integer)
+    following_count(integer)
+    verified(boolean)
+  }`;
+
+const AGENTQL_TWEETS_FRAGMENT = `
+  tweets[] {
+    id
+    text
+    created_at
+    likes(integer)
+    replies(integer)
+    reposts(integer)
+    views(integer)
+    author_id
+  }`;
+
+const AGENTQL_QUERIES: Record<"profile" | "profile_with_tweets" | "tweets", string> = {
+  profile: `{${AGENTQL_PROFILE_FRAGMENT}\n}`,
+  tweets: `{${AGENTQL_TWEETS_FRAGMENT}\n}`,
+  profile_with_tweets: `{${AGENTQL_PROFILE_FRAGMENT}${AGENTQL_TWEETS_FRAGMENT}\n}`,
+};
+
 export function buildAgentQlQueryRequest(
   url: string,
   mode: "profile" | "profile_with_tweets" | "tweets" = "profile_with_tweets",
 ): Record<string, unknown> {
-  const query =
-    mode === "profile"
-      ? `
-      {
-        profile {
-          id
-          username
-          name
-          bio
-          profile_url
-          avatar_url
-          followers_count(integer)
-          following_count(integer)
-          verified(boolean)
-        }
-      }
-    `
-      : mode === "tweets"
-        ? `
-      {
-        tweets[] {
-          id
-          text
-          created_at
-          likes(integer)
-          replies(integer)
-          reposts(integer)
-          views(integer)
-          author_id
-        }
-      }
-    `
-        : `
-      {
-        profile {
-          id
-          username
-          name
-          bio
-          profile_url
-          avatar_url
-          followers_count(integer)
-          following_count(integer)
-          verified(boolean)
-        }
-        tweets[] {
-          id
-          text
-          created_at
-          likes(integer)
-          replies(integer)
-          reposts(integer)
-          views(integer)
-          author_id
-        }
-      }
-    `;
-
   return {
     url,
-    query,
+    query: AGENTQL_QUERIES[mode],
     params: {
       wait_for: 0,
       mode: "fast",
