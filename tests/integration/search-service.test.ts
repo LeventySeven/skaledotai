@@ -63,7 +63,9 @@ mock.module("@/lib/x/client", () => ({
 }));
 
 const screenProfilesForLeadSearchMock = mock(async (_query?: unknown, _candidates?: unknown, _maxResults?: unknown): Promise<string[]> => []);
+const expandLeadSearchQueriesMock = mock(async (query?: unknown): Promise<string[]> => [String(query ?? "")]);
 mock.module("@/lib/openai", () => ({
+  expandLeadSearchQueries: expandLeadSearchQueriesMock,
   screenProfilesForLeadSearch: screenProfilesForLeadSearchMock,
   rankProfilesForQuery: mock(async () => []),
   extractTopicsAndPriority: mock(async () => ({ topics: [], priority: "P1" })),
@@ -231,6 +233,7 @@ beforeEach(() => {
   getXDiscoveryProviderMock.mockClear();
   resolveXProviderForCapabilityMock.mockClear();
   screenProfilesForLeadSearchMock.mockReset();
+  expandLeadSearchQueriesMock.mockReset();
 
   discoverCandidatesMock.mockResolvedValue([]);
   lookupUsersByUsernamesMock.mockResolvedValue([]);
@@ -240,6 +243,7 @@ beforeEach(() => {
   searchAllPostsMock.mockResolvedValue({ tweets: [], users: [], nextToken: undefined });
   getUserTweetsMock.mockResolvedValue([]);
   screenProfilesForLeadSearchMock.mockResolvedValue([]);
+  expandLeadSearchQueriesMock.mockImplementation(async (query?: unknown) => [String(query ?? "")]);
 });
 
 describe("searchAndAddLeads", () => {
@@ -376,6 +380,12 @@ describe("searchAndAddLeads", () => {
       ])
       .mockResolvedValueOnce([]);
 
+    expandLeadSearchQueriesMock.mockResolvedValue([
+      "founding engineers",
+      "founding engineers founder builder engineer creator operator",
+      "founding engineers startups companies teams",
+    ]);
+
     screenProfilesForLeadSearchMock.mockResolvedValue(["one-id", "two-id", "three-id"]);
 
     await searchAndAddLeads("user-1", {
@@ -393,7 +403,7 @@ describe("searchAndAddLeads", () => {
     expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, {
       niche: "founding engineers founder builder engineer creator operator",
       seedHandle: undefined,
-      limit: 260,
+      limit: 200,
       minFollowers: 0,
     });
   });

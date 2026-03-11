@@ -1,6 +1,6 @@
 import "server-only";
 import { TRPCError } from "@trpc/server";
-import { screenProfilesForLeadSearch } from "@/lib/openai";
+import { expandLeadSearchQueries, screenProfilesForLeadSearch } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
 import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
@@ -33,17 +33,6 @@ function dedupeProviders(providers: XDataProvider[]): XDataProvider[] {
 
 function byFollowersDesc(a: XLeadCandidate, b: XLeadCandidate): number {
   return b.account.followers - a.account.followers;
-}
-
-function buildRetryQueries(query: string, seedHandle?: string): string[] {
-  const normalizedSeed = seedHandle?.replace(/^@/, "").trim();
-  const variants = [
-    `${query} founder builder engineer creator operator`,
-    `${query} indie hacker builder founder`,
-    normalizedSeed ? `${query} people similar to @${normalizedSeed}` : "",
-  ].filter(Boolean);
-
-  return [...new Set(variants)];
 }
 
 function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
@@ -141,7 +130,6 @@ async function canonicalizeCandidates(
 }
 
 async function discoverCandidatesWithRetry(
-  provider: XDataProvider,
   discoveryProvider: { provider: XDataProvider; discoverCandidates: (input: { niche: string; seedHandle?: string; limit: number; minFollowers?: number }) => Promise<XLeadCandidate[]> },
   query: string,
   seedHandle: string | undefined,
@@ -161,7 +149,8 @@ async function discoverCandidatesWithRetry(
     return dedupeCandidates(firstFiltered);
   }
 
-  const retryQueries = buildRetryQueries(query, seedHandle);
+  const retryQueries = (await expandLeadSearchQueries(query, seedHandle))
+    .filter((item) => item.trim().toLowerCase() !== query.trim().toLowerCase());
   const retryPasses = await Promise.all(
     retryQueries.map((retryQuery) =>
       discoveryProvider.discoverCandidates({
@@ -205,7 +194,6 @@ export async function searchAndAddLeads(
     const seedHandle = input.followerUsername?.replace(/^@/, "");
     const minFollowers = input.minFollowers ?? 0;
     const discoveredCandidates = await discoverCandidatesWithRetry(
-      provider,
       discoveryProvider,
       input.query,
       seedHandle,

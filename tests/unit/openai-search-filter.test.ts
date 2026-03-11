@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 mock.module("server-only", () => ({}));
 
-const { screenProfilesForLeadSearch } = await import("@/lib/openai");
+const { screenProfilesForLeadSearch, expandLeadSearchQueries } = await import("@/lib/openai");
 
 describe("OpenAI search screening fallback", () => {
   beforeEach(() => {
     delete process.env.OPENAI_API_KEY;
   });
 
-  test("drops obvious assistant and org accounts while keeping real people", async () => {
+  test("drops obvious impossible accounts while keeping real people and relevant companies", async () => {
     const result = await screenProfilesForLeadSearch("founding engineers", [
       {
         xUserId: "grok-id",
@@ -30,6 +30,15 @@ describe("OpenAI search screening fallback", () => {
         samplePosts: ["We invest in technical founders."],
       },
       {
+        xUserId: "elon-id",
+        username: "elonmusk",
+        displayName: "Elon Musk",
+        bio: "Technoking of Tesla, CTO of SpaceX",
+        followersCount: 200_000_000,
+        followingCount: 1000,
+        samplePosts: ["Mars is important."],
+      },
+      {
         xUserId: "austin-id",
         username: "austinxwalker",
         displayName: "Austin Walker",
@@ -40,7 +49,7 @@ describe("OpenAI search screening fallback", () => {
       },
     ], 10);
 
-    expect(result).toEqual(["austin-id"]);
+    expect(result).toEqual(["austin-id", "amplify-id"]);
   });
 
   test("keeps plausible people even when niche fit is only borderline", async () => {
@@ -57,5 +66,11 @@ describe("OpenAI search screening fallback", () => {
     ], 10);
 
     expect(result).toEqual(["builder-id"]);
+  });
+
+  test("expands discovery queries with broader role and company variants", async () => {
+    const result = await expandLeadSearchQueries("founding engineers");
+    expect(result[0]).toBe("founding engineers");
+    expect(result.some((item) => /companies|founders|builders/i.test(item))).toBe(true);
   });
 });

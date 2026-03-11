@@ -10,6 +10,7 @@ import {
   DEFAULT_OPENAI_MODEL,
   DEFAULT_OPENAI_REASONING_EFFORT,
   SEARCH_AI_BATCH_SIZE,
+  SEARCH_DISCOVERY_METADATA,
 } from "@/lib/constants";
 
 type StructuredResponse<T> = {
@@ -48,42 +49,19 @@ const SEARCH_QUERY_STOP_WORDS = new Set([
 const SEARCH_HARD_NON_LEAD_TERMS = [
   "assistant",
   "bot",
-  "official account",
-  "official x account",
-  "official twitter",
   "customer support",
   "newsroom",
   "parody account",
   "automated account",
-  "brand account",
-  "product account",
 ];
 
 const SEARCH_SOFT_NON_LEAD_TERMS = [
-  "official",
-  "platform",
-  "product",
-  "brand",
-  "community",
-  "newsletter",
-  "podcast",
-  "conference",
-  "foundation",
-  "institute",
-  "magazine",
-  "media",
-  "news",
-  "vc",
-  "venture",
-  "capital",
-  "partners",
-  "labs",
-  "fund",
-  "studio",
-  "research",
-  "university",
-  "firm",
-  "investor",
+  "support",
+  "newsroom",
+  "breaking news",
+  "parody",
+  "automated",
+  "fan account",
 ];
 
 const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
@@ -96,9 +74,10 @@ const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
   "xai",
   "langchain",
   "ieee",
+  "elonmusk",
 ]);
 
-const SEARCH_FALLBACK_SCORE_THRESHOLD = 10;
+const SEARCH_FALLBACK_SCORE_THRESHOLD = 5;
 
 const SEARCH_PERSON_TERMS = [
   "founder",
@@ -133,16 +112,27 @@ const SEARCH_FIRST_PERSON_TERMS = [
 ];
 
 const SEARCH_ORG_TERMS = [
-  "official account",
-  "venture capital",
-  "investment firm",
-  "research lab",
-  "open source framework",
-  "media company",
-  "technical community",
-  "newsletter",
-  "podcast",
-  "accelerator",
+  "customer support",
+  "newsroom",
+  "parody account",
+  "fan account",
+  "automated account",
+];
+
+const SEARCH_COMPANY_TERMS = [
+  "company",
+  "startup",
+  "software",
+  "product",
+  "platform",
+  "team",
+  "building",
+  "we build",
+  "we're building",
+  "for developers",
+  "for founders",
+  "b2b",
+  "saas",
 ];
 
 function classifyCreatorStage(followers: number): InfluencerScore["stage"] {
@@ -241,7 +231,11 @@ function hasPersonSignal(candidate: SearchScreeningCandidate, haystack: string):
   return looksLikePersonName || firstPersonSignal || SEARCH_PERSON_TERMS.some((term) => haystack.includes(term));
 }
 
-function hasOrgSignal(candidate: SearchScreeningCandidate, haystack: string): boolean {
+function hasCompanySignal(haystack: string): boolean {
+  return SEARCH_COMPANY_TERMS.some((term) => haystack.includes(term));
+}
+
+function hasNonLeadSignal(candidate: SearchScreeningCandidate, haystack: string): boolean {
   return (
     SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())
     || SEARCH_SOFT_NON_LEAD_TERMS.some((term) => haystack.includes(term))
@@ -266,15 +260,17 @@ function getFallbackSearchScore(query: string, candidate: SearchScreeningCandida
   const haystack = buildSearchCandidateText(candidate);
   const matchedTerms = queryTerms.filter((term) => haystack.includes(term)).length;
   const personSignal = hasPersonSignal(candidate, haystack);
-  const hasNonLeadSignal = hasOrgSignal(candidate, haystack);
+  const companySignal = hasCompanySignal(haystack);
+  const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
   const followerScore = Math.min(20, Math.round(Math.log10(candidate.followersCount + 10) * 6));
   const postScore = candidate.samplePosts?.length ? 12 : 0;
 
   let score = Math.min(36, matchedTerms * 12) + followerScore + postScore;
   if (personSignal) score += 22;
-  if (!personSignal) score -= 10;
-  if (hasNonLeadSignal && !personSignal) score -= 18;
-  if (matchedTerms === 0 && !personSignal) score -= 12;
+  if (companySignal) score += 14;
+  if (!personSignal && !companySignal) score -= 4;
+  if (hasWeakNonLeadSignal && !personSignal && !companySignal) score -= 12;
+  if (matchedTerms === 0 && !personSignal && !companySignal) score -= 8;
 
   return Math.max(0, Math.min(100, score));
 }
@@ -414,7 +410,7 @@ export async function screenProfilesForLeadSearch(
         })),
       }),
       instructions:
-        "You are screening X/Twitter search results for an outreach CRM. Be permissive and keep borderline candidates when they might still be usable leads. Favor real people and clearly personal operator accounts who post in the niche. Reject only objectively impossible leads such as AI assistants like @grok, bots, official brand or product accounts, pure org accounts, customer support/newsroom accounts, and obviously automated or parody accounts. If uncertain, include the account with a moderate score instead of rejecting it.",
+        "You are screening X/Twitter search results for an outreach CRM. Use a high-recall filter. Keep plausible leads when they are relevant to the niche, including both people and companies that could realistically be contacted. Reject only clearly unusable accounts such as assistants, bots, support/newsroom accounts, parody or fan accounts, global celebrity/public-figure accounts, and accounts that are plainly unrelated to the query. When uncertain, keep the account and give it a moderate score.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -454,6 +450,49 @@ export async function screenProfilesForLeadSearch(
   return selectedIds.length > 0
     ? selectedIds
     : getFallbackScreenedIds(query, prefilteredCandidates, maxResults);
+}
+
+function buildFallbackSearchQueries(query: string, seedHandle?: string): string[] {
+  const cleanSeed = seedHandle?.replace(/^@/, "").trim();
+  const normalized = query.trim();
+  const variants = [
+    normalized,
+    `"${normalized}"`,
+    `${normalized} founders builders engineers`,
+    `${normalized} startups companies teams`,
+    `${normalized} creators operators builders`,
+    cleanSeed ? `${normalized} people and companies like @${cleanSeed}` : "",
+  ];
+
+  return [...new Set(variants.filter(Boolean))].slice(0, 5);
+}
+
+export async function expandLeadSearchQueries(
+  query: string,
+  seedHandle?: string,
+): Promise<string[]> {
+  const fallback = buildFallbackSearchQueries(query, seedHandle);
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length === 0) return fallback;
+
+  const result = await structuredResponse<{ queries: string[] }>({
+    schemaName: "lead_search_query_expansion",
+    schema: z.object({
+      queries: z.array(z.string().min(1)).max(5),
+    }),
+    instructions:
+      "Generate up to 5 X/Twitter search queries for lead discovery. Maximize recall on the first pass and avoid over-constraining. Keep the original meaning, add adjacent role and company variants when useful, and produce queries that can surface both individual and company leads in the niche. Prefer broad, useful search strings over narrow filters. Return plain query strings only.",
+    input: JSON.stringify({
+      query: normalizedQuery,
+      seedHandle,
+      parseAccountsTarget: SEARCH_DISCOVERY_METADATA.parseAccountsTarget,
+    }),
+    fallback: { queries: fallback },
+    maxOutputTokens: 220,
+  });
+
+  const queries = [...new Set(result.queries.map((item) => item.trim()).filter(Boolean))];
+  return queries.length > 0 ? queries : fallback;
 }
 
 export async function scoreLeadCandidate(candidate: XLeadCandidate): Promise<InfluencerScore> {

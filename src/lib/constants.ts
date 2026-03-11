@@ -8,7 +8,7 @@ export const SEARCH_POST_SEARCH_PAGE_LIMIT = 2;
 export const SEARCH_AI_BATCH_SIZE = 40;
 export const SEARCH_DISCOVERY_METADATA = {
   parseAccountsTarget: 200,
-  retryParseAccountsTarget: 260,
+  retryParseAccountsTarget: 200,
   minimumFinalLeadsBeforeRetry: 20,
 } as const;
 export const NETWORK_TARGET = 1000;
