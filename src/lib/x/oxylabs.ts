@@ -12,6 +12,7 @@ import type {
 import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
 import { parseJsonResponse } from "./json";
+import { asRecord, asArray } from "./records";
 import {
   dedupeProfiles,
   normalizeHandle,
@@ -24,18 +25,6 @@ const OXYLABS_BASE_URL = process.env.OXYLABS_BASE_URL ?? "https://realtime.oxyla
 const OXYLABS_DISCOVERY_URL_LIMIT = 12;
 const OXYLABS_PROFILE_ENRICH_LIMIT = 24;
 const OXYLABS_RESULT_MULTIPLIER = 4;
-
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as JsonRecord
-    : null;
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
 
 function unsupported(capability: "network"): never {
   throw new XProviderRuntimeError({

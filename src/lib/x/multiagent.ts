@@ -13,6 +13,8 @@ import type {
 import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
 import { parseJsonResponse } from "./json";
+import type { JsonRecord } from "./records";
+import { asRecord, asArray } from "./records";
 import {
   dedupeProfiles,
   normalizeHandle,
@@ -69,18 +71,6 @@ const MultiAgentState = Annotation.Root({
 const QueryPlanSchema = z.object({
   queries: z.array(z.string()).min(2).max(6),
 });
-
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as JsonRecord
-    : null;
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
 
 function unsupported(capability: "network"): never {
   throw new XProviderRuntimeError({
