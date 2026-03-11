@@ -36,8 +36,8 @@ export const DEFAULT_PAGE_SIZE = 10;
 
 // AI config
 export const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";
-export const DEFAULT_OPENAI_REASONING_EFFORT =
-  process.env.OPENAI_REASONING_EFFORT ?? "medium";
+export const DEFAULT_OPENAI_REASONING_EFFORT: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" =
+  (process.env.OPENAI_REASONING_EFFORT as "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined) ?? "medium";
 
 // Storage keys
 export const GENERATED_TEMPLATES_STORAGE_KEY =

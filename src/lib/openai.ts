@@ -96,7 +96,6 @@ const SEARCH_PERSON_TERMS = [
   "i am",
   "my work",
   "i write",
-  "i build",
   "working on",
 ];
 
@@ -306,6 +305,52 @@ function getFallbackScreeningDecisions(
   });
 }
 
+const RankingSchema = z.object({
+  profileIds: z.array(z.string()),
+});
+
+const ScreeningSchema = z.object({
+  decisions: z.array(z.object({
+    profileId: z.string(),
+    include: z.boolean(),
+    score: z.number().int().min(0).max(100),
+  })),
+});
+
+const QueryExpansionSchema = z.object({
+  queries: z.array(z.string().min(1)).max(5),
+});
+
+const InfluencerScoreSchema = z.object({
+  is_influencer: z.boolean(),
+  fit_for_niche: z.boolean(),
+  overall_score: z.number().int().min(0).max(100),
+  stage: z.enum(["nano", "micro", "mid", "macro"]),
+  niche_match_score: z.number().int().min(0).max(100),
+  engagement_score: z.number().int().min(0).max(100),
+  authenticity_score: z.number().int().min(0).max(100),
+  topics: z.array(z.string()),
+  notes: z.array(z.string()),
+  red_flags: z.array(z.string()),
+});
+
+const TopicsPrioritySchema = z.object({
+  topics: z.array(z.string()),
+  priority: z.enum(["P0", "P1"]),
+});
+
+const LeadPoolAnalysisSchema = z.object({
+  summary: z.string(),
+  selectedLeadIds: z.array(z.string()).max(12),
+});
+
+const OutreachTemplateSchema = z.object({
+  title: z.string(),
+  subject: z.string(),
+  body: z.string(),
+  replyRate: z.string(),
+});
+
 async function structuredResponse<T>({
   schemaName,
   schema,
@@ -331,13 +376,7 @@ async function structuredResponse<T>({
         },
       ],
       reasoning: {
-        effort: DEFAULT_OPENAI_REASONING_EFFORT as
-          | "none"
-          | "minimal"
-          | "low"
-          | "medium"
-          | "high"
-          | "xhigh",
+        effort: DEFAULT_OPENAI_REASONING_EFFORT,
       },
       text: {
         format: zodTextFormat(schema, schemaName),
@@ -347,7 +386,11 @@ async function structuredResponse<T>({
     });
 
     return response.output_parsed ?? fallback;
-  } catch {
+  } catch (error) {
+    console.warn("[openai][structured-response]", JSON.stringify({
+      schema: schemaName,
+      message: error instanceof Error ? error.message : String(error),
+    }));
     return fallback;
   }
 }
@@ -372,9 +415,7 @@ export async function rankProfilesForQuery(
 
   const result = await structuredResponse<{ profileIds: string[] }>({
     schemaName: "profile_relevance_ranking",
-    schema: z.object({
-      profileIds: z.array(z.string()),
-    }),
+    schema: RankingSchema,
     instructions:
       "Return only X profiles that are relevant to the search query. Be inclusive but remove clearly unrelated accounts. Keep the array ordered from most relevant to least relevant.",
     input,
@@ -402,13 +443,7 @@ export async function screenProfilesForLeadSearch(
       decisions: Array<{ profileId: string; include: boolean; score: number }>;
     }>({
       schemaName: "lead_search_screening",
-      schema: z.object({
-        decisions: z.array(z.object({
-          profileId: z.string(),
-          include: z.boolean(),
-          score: z.number().int().min(0).max(100),
-        })),
-      }),
+      schema: ScreeningSchema,
       instructions:
         "You are screening X/Twitter search results for an outreach CRM. Use a high-recall filter. Keep plausible leads when they are relevant to the niche, including both people and companies that could realistically be contacted. Reject only clearly unusable accounts such as assistants, bots, support/newsroom accounts, parody or fan accounts, global celebrity/public-figure accounts, and accounts that are plainly unrelated to the query. When uncertain, keep the account and give it a moderate score.",
       input: JSON.stringify({
@@ -477,9 +512,7 @@ export async function expandLeadSearchQueries(
 
   const result = await structuredResponse<{ queries: string[] }>({
     schemaName: "lead_search_query_expansion",
-    schema: z.object({
-      queries: z.array(z.string().min(1)).max(5),
-    }),
+    schema: QueryExpansionSchema,
     instructions:
       "Generate up to 5 X/Twitter search queries for lead discovery. Maximize recall on the first pass and avoid over-constraining. Keep the original meaning, add adjacent role and company variants when useful, and produce queries that can surface both individual and company leads in the niche. Prefer broad, useful search strings over narrow filters. Return plain query strings only.",
     input: JSON.stringify({
@@ -500,18 +533,7 @@ export async function scoreLeadCandidate(candidate: XLeadCandidate): Promise<Inf
 
   return structuredResponse<InfluencerScore>({
     schemaName: "influencer_candidate_score",
-    schema: z.object({
-      is_influencer: z.boolean(),
-      fit_for_niche: z.boolean(),
-      overall_score: z.number().int().min(0).max(100),
-      stage: z.enum(["nano", "micro", "mid", "macro"]),
-      niche_match_score: z.number().int().min(0).max(100),
-      engagement_score: z.number().int().min(0).max(100),
-      authenticity_score: z.number().int().min(0).max(100),
-      topics: z.array(z.string()),
-      notes: z.array(z.string()),
-      red_flags: z.array(z.string()),
-    }),
+    schema: InfluencerScoreSchema,
     instructions:
       "Score whether this X/Twitter account is a strong influencer or creator lead for the niche. Prefer real individual creators, founders, operators, engineers, and domain experts. Penalize brands, bots, generic product accounts, and weak niche fit. Return conservative, internally consistent scores.",
     input: JSON.stringify(candidate),
@@ -531,10 +553,7 @@ export async function extractTopicsAndPriority(
 
   const result = await structuredResponse<{ topics: string[]; priority: Priority }>({
     schemaName: "profile_topics_priority",
-    schema: z.object({
-      topics: z.array(z.string()),
-      priority: z.enum(["P0", "P1"]),
-    }),
+    schema: TopicsPrioritySchema,
     instructions: niche
       ? `Analyze the X profile and recent posts for creator outreach. The niche we care about is "${niche}". Return up to 5 short topics and a priority of P0 or P1.`
       : "Analyze the X profile and recent posts. Return up to 5 short topics and a conservative outreach priority of P0 or P1.",
@@ -577,10 +596,7 @@ export async function analyzeLeadPoolForProject(input: {
 
   const result = await structuredResponse<Pick<ProjectAnalysisResult, "summary" | "selectedLeadIds">>({
     schemaName: "project_lead_pool_analysis",
-    schema: z.object({
-      summary: z.string(),
-      selectedLeadIds: z.array(z.string()).max(12),
-    }),
+    schema: LeadPoolAnalysisSchema,
     instructions:
       "You are selecting the best outreach targets from multiple X/Twitter project lists. Favor candidates that combine relevance, stronger audiences, consistent posting activity, meaningful engagement, and higher inferred commercial pricing power. Return a short summary and the ids of the best candidates.",
     input: JSON.stringify(input),
@@ -645,12 +661,7 @@ export async function generateOutreachTemplate(input: {
 
   const result = await structuredResponse<typeof fallback>({
     schemaName: "outreach_template_generation",
-    schema: z.object({
-      title: z.string(),
-      subject: z.string(),
-      body: z.string(),
-      replyRate: z.string(),
-    }),
+    schema: OutreachTemplateSchema,
     instructions:
       "Generate one outreach template for X/Twitter leads. Keep the output close in length and simplicity to the provided examples, but do not copy any example sentence verbatim. Personalize the message using the selected project context, lead bios, lead topics, and posting activity. The result must feel like it was written for this project set specifically, not like a generic cold message. Use only plain text, keep {{name}} intact, avoid hype, and keep the message compact. Reply rate should be a short estimate like 35% or 42%.",
     input: JSON.stringify({
