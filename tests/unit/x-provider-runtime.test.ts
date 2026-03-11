@@ -23,16 +23,12 @@ describe("X provider runtime", () => {
     delete process.env.OXYLABS_USERNAME;
     delete process.env.OXYLABS_PASSWORD;
     delete process.env.OXYLABS_FIXTURE_READY;
-    process.env.X_CAPABILITY_FALLBACK_PROVIDER = "x-api";
   });
 
-  test("falls back from openrouter lookup to x-api", () => {
-    expect(resolveXProviderForCapability("openrouter", "lookup")).toEqual({
-      requestedProvider: "openrouter",
-      effectiveProvider: "x-api",
-      capability: "lookup",
-      usedFallback: true,
-    });
+  test("throws when an unsupported capability is requested", () => {
+    expect(() => resolveXProviderForCapability("openrouter", "lookup")).toThrow(
+      "does not support lookup",
+    );
   });
 
   test("marks oxylabs as not configured until fixture gate and credentials are present", () => {

@@ -9,7 +9,6 @@ export type XProviderCapability = "discovery" | "lookup" | "network" | "tweets";
 export type XProviderCapabilities = Record<XProviderCapability, boolean>;
 
 export const DEFAULT_X_DATA_PROVIDER: XDataProvider = "x-api";
-export const DEFAULT_X_CAPABILITY_FALLBACK_PROVIDER: XDataProvider = "x-api";
 export const X_DATA_PROVIDER_STORAGE_KEY = "skaleai.x-data-provider";
 
 export type XDataProviderDocLink = {

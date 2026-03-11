@@ -11,7 +11,7 @@ import {
   resolveXProviderForCapability,
 } from "@/lib/x/client";
 import type { XDataProvider } from "@/lib/x";
-import { XProviderRuntimeError } from "@/lib/x";
+import { supportsXProviderCapability } from "@/lib/x";
 import type {
   ProjectAnalysisResult,
   ProjectPreviewLead,
@@ -20,6 +20,7 @@ import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/consta
 import { createProject, rowToPreviewLead } from "./projects";
 import { recordProjectRun } from "./project-runs";
 import { upsertPostStats } from "./stats";
+import { toXProviderTrpcError } from "@/lib/x/error-handling";
 
 type NormalizedStats = {
   postCount: number;
@@ -256,9 +257,13 @@ export async function analyzeProjectsIntoNewProject(input: {
       projectId: project.id,
       operationType: "analysis",
       requestedProvider,
-      discoveryProvider: resolveXProviderForCapability(requestedProvider, "discovery").effectiveProvider,
-      lookupProvider: resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider,
-      networkProvider: resolveXProviderForCapability(requestedProvider, "network").effectiveProvider,
+      discoveryProvider: requestedProvider,
+      lookupProvider: supportsXProviderCapability(requestedProvider, "lookup")
+        ? resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider
+        : requestedProvider,
+      networkProvider: supportsXProviderCapability(requestedProvider, "network")
+        ? resolveXProviderForCapability(requestedProvider, "network").effectiveProvider
+        : requestedProvider,
       tweetsProvider: resolution.effectiveProvider,
       query: analysis.summary,
       leadCount: selectedLeadIds.length,
@@ -281,14 +286,6 @@ export async function analyzeProjectsIntoNewProject(input: {
       analyzedProjectIds: uniqueProjectIds,
     };
   } catch (error) {
-    if (error instanceof TRPCError) throw error;
-    if (error instanceof XProviderRuntimeError) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `${error.message}${error.missingEnv.length > 0 ? ` Missing configuration: ${error.missingEnv.join(", ")}.` : ""}`,
-        cause: error,
-      });
-    }
-    throw error;
+    throw toXProviderTrpcError(error);
   }
 }

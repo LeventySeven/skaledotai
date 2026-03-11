@@ -32,9 +32,9 @@ const getXDataClientForCapabilityMock = mock((provider: string, capability: stri
   },
   resolution: {
     requestedProvider: provider,
-    effectiveProvider: capability === "lookup" ? provider : "x-api",
+    effectiveProvider: provider,
     capability,
-    usedFallback: capability !== "lookup",
+    usedFallback: false,
   },
 }));
 const getXDiscoveryProviderMock = mock((provider: string) => ({
@@ -51,9 +51,9 @@ const getXDiscoveryProviderMock = mock((provider: string) => ({
 }));
 const resolveXProviderForCapabilityMock = mock((provider: string, capability: string) => ({
   requestedProvider: provider,
-  effectiveProvider: capability === "lookup" ? provider : "x-api",
+  effectiveProvider: provider,
   capability,
-  usedFallback: capability !== "lookup",
+  usedFallback: false,
 }));
 
 mock.module("@/lib/x/client", () => ({

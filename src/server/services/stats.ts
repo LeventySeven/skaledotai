@@ -7,8 +7,8 @@ import { X_PROVIDER_STATS_TWEET_LIMIT } from "@/lib/constants";
 import { extractTopicsAndPriority } from "@/lib/openai";
 import { getXDataClientForCapability, mapTweetsToMetrics } from "@/lib/x/client";
 import type { XDataProvider } from "@/lib/x";
-import { XProviderRuntimeError } from "@/lib/x";
 import type { PostStats } from "@/lib/validations/stats";
+import { toXProviderTrpcError } from "@/lib/x/error-handling";
 import { getLeadById, updateLead } from "./leads";
 
 function rowToPostStats(row: typeof postStats.$inferSelect): PostStats {
@@ -121,14 +121,6 @@ export async function refreshProfileStats(
 
     return { stats, priority: ai.priority };
   } catch (error) {
-    if (error instanceof TRPCError) throw error;
-    if (error instanceof XProviderRuntimeError) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `${error.message}${error.missingEnv.length > 0 ? ` Missing configuration: ${error.missingEnv.join(", ")}.` : ""}`,
-        cause: error,
-      });
-    }
-    throw error;
+    throw toXProviderTrpcError(error);
   }
 }

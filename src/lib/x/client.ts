@@ -3,11 +3,9 @@ import type { XDataClient, XDiscoveryProvider, XTweetMetrics } from "./types";
 import { XProviderRuntimeError } from "./types";
 import type { XDataProvider, XProviderCapability } from "./provider";
 import {
-  DEFAULT_X_CAPABILITY_FALLBACK_PROVIDER,
   getXDataProviderLabel,
   getXProviderCapabilities,
   getXDataProviderOption,
-  parseXDataProvider,
   supportsXProviderCapability,
 } from "./provider";
 import {
@@ -34,8 +32,6 @@ export type XProviderRuntimeStatus = {
   fullProvider: boolean;
   missingEnv: string[];
   capabilities: ReturnType<typeof getXProviderCapabilities>;
-  fallbackProvider: XDataProvider;
-  fallbackLabel: string;
   capabilityNote: string;
 };
 
@@ -222,7 +218,7 @@ function getMissingProviderEnv(provider: XDataProvider): string[] {
   });
 }
 
-function getCapabilityNote(provider: XDataProvider, fallbackProvider: XDataProvider): string {
+function getCapabilityNote(provider: XDataProvider): string {
   const capabilities = getXProviderCapabilities(provider);
   const supported = Object.entries(capabilities)
     .filter(([, enabled]) => enabled)
@@ -235,15 +231,11 @@ function getCapabilityNote(provider: XDataProvider, fallbackProvider: XDataProvi
     return `${supported.join(", ")} handled directly.`;
   }
 
-  return `${supported.join(", ")} handled directly. ${unsupported.join(", ")} fall back to ${getXDataProviderLabel(fallbackProvider)}.`;
+  return `${supported.join(", ")} handled directly. ${unsupported.join(", ")} are unavailable for this provider.`;
 }
 
 function isConfigured(provider: XDataProvider): boolean {
   return getMissingProviderEnv(provider).length === 0;
-}
-
-function getFallbackProvider(): XDataProvider {
-  return parseXDataProvider(process.env.X_CAPABILITY_FALLBACK_PROVIDER ?? DEFAULT_X_CAPABILITY_FALLBACK_PROVIDER);
 }
 
 function assertConfigured(provider: XDataProvider): void {
@@ -420,8 +412,6 @@ function instrumentDiscoveryProvider(
 }
 
 export function getXProviderRuntimeStatuses(): XProviderRuntimeStatus[] {
-  const fallbackProvider = getFallbackProvider();
-
   return (Object.keys(RAW_X_DATA_CLIENTS) as XDataProvider[]).map((provider) => {
     const capabilities = getXProviderCapabilities(provider);
     const missingEnv = getMissingProviderEnv(provider);
@@ -435,9 +425,7 @@ export function getXProviderRuntimeStatuses(): XProviderRuntimeStatus[] {
       fullProvider: Object.values(capabilities).every(Boolean),
       missingEnv,
       capabilities,
-      fallbackProvider,
-      fallbackLabel: getXDataProviderLabel(fallbackProvider),
-      capabilityNote: getCapabilityNote(provider, fallbackProvider),
+      capabilityNote: getCapabilityNote(provider),
     };
   });
 }
@@ -461,24 +449,12 @@ export function resolveXProviderForCapability(
     };
   }
 
-  const fallbackProvider = getFallbackProvider();
-  assertConfigured(fallbackProvider);
-
-  if (!supportsXProviderCapability(fallbackProvider, capability)) {
-    throw new XProviderRuntimeError({
-      provider: requestedProvider,
-      capability,
-      code: "CAPABILITY_UNSUPPORTED",
-      message: `${getXDataProviderLabel(requestedProvider)} does not support ${capability}, and ${getXDataProviderLabel(fallbackProvider)} cannot cover it.`,
-    });
-  }
-
-  return {
-    requestedProvider,
-    effectiveProvider: fallbackProvider,
+  throw new XProviderRuntimeError({
+    provider: requestedProvider,
     capability,
-    usedFallback: true,
-  };
+    code: "CAPABILITY_UNSUPPORTED",
+    message: `${getXDataProviderLabel(requestedProvider)} does not support ${capability}. This workflow now uses only the exact selected provider.`,
+  });
 }
 
 export function getXDataClientForCapability(

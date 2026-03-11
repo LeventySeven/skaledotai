@@ -101,13 +101,23 @@ export interface XDiscoveryProvider {
 
 export class XProviderRuntimeError extends Error {
   readonly provider: XDataProvider;
-  readonly code: "NOT_CONFIGURED" | "CAPABILITY_UNSUPPORTED" | "UPSTREAM_INVALID_RESPONSE";
+  readonly code:
+    | "NOT_CONFIGURED"
+    | "CAPABILITY_UNSUPPORTED"
+    | "UPSTREAM_INVALID_RESPONSE"
+    | "UPSTREAM_REQUEST_FAILED"
+    | "UPSTREAM_RATE_LIMITED";
   readonly capability?: "discovery" | "lookup" | "network" | "tweets";
   readonly missingEnv: string[];
 
   constructor(input: {
     provider: XDataProvider;
-    code: "NOT_CONFIGURED" | "CAPABILITY_UNSUPPORTED" | "UPSTREAM_INVALID_RESPONSE";
+    code:
+      | "NOT_CONFIGURED"
+      | "CAPABILITY_UNSUPPORTED"
+      | "UPSTREAM_INVALID_RESPONSE"
+      | "UPSTREAM_REQUEST_FAILED"
+      | "UPSTREAM_RATE_LIMITED";
     message: string;
     capability?: "discovery" | "lookup" | "network" | "tweets";
     missingEnv?: string[];

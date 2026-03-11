@@ -29,6 +29,15 @@ type TavilyResult = {
   score?: number;
 };
 
+const TavilyResponseSchema = z.object({
+  results: z.array(z.object({
+    url: z.string().url(),
+    title: z.string().optional(),
+    content: z.string().optional(),
+    score: z.number().optional(),
+  })).default([]),
+});
+
 const MULTIAGENT_MAX_QUERIES = 4;
 const MULTIAGENT_MAX_URLS = 18;
 
@@ -102,20 +111,72 @@ function getPlannerModel(): ChatOpenAI {
   });
 }
 
-async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
-  const planner = getPlannerModel().withStructuredOutput(QueryPlanSchema, { name: "x_query_plan" });
-  const result = await planner.invoke([
-    "Generate a bounded set of X lead discovery queries.",
-    "Keep the list compact, deduplicated, and focused on individual creators in the niche.",
-    "Prefer queries that surface profile pages, relevant tweet threads, and seed-handle adjacency.",
-    JSON.stringify({
-      niche: input.niche,
-      seedHandle: input.seedHandle,
-      limit: input.limit,
-    }),
-  ].join("\n"));
+function describeUpstreamError(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) return error.message.trim();
+  return "Unknown upstream failure.";
+}
 
-  return result.queries;
+function throwNetworkFailure(
+  capability: "discovery" | "lookup" | "tweets",
+  upstream: "OpenAI planner" | "Tavily" | "AgentQL",
+  error: unknown,
+): never {
+  throw new XProviderRuntimeError({
+    provider: "multiagent",
+    capability,
+    code: "UPSTREAM_REQUEST_FAILED",
+    message: `${upstream} request failed. ${describeUpstreamError(error)}`,
+  });
+}
+
+async function throwResponseFailure(
+  capability: "discovery" | "lookup" | "tweets",
+  upstream: "Tavily" | "AgentQL",
+  response: Response,
+): Promise<never> {
+  const details = (await response.text()).trim();
+  throw new XProviderRuntimeError({
+    provider: "multiagent",
+    capability,
+    code: response.status === 429 ? "UPSTREAM_RATE_LIMITED" : "UPSTREAM_REQUEST_FAILED",
+    message: `${upstream} request failed with status ${response.status}.${details ? ` ${details}` : ""}`,
+  });
+}
+
+function throwInvalidResponse(
+  capability: "discovery" | "lookup" | "tweets",
+  upstream: "OpenAI planner" | "Tavily" | "AgentQL",
+  error: unknown,
+): never {
+  throw new XProviderRuntimeError({
+    provider: "multiagent",
+    capability,
+    code: "UPSTREAM_INVALID_RESPONSE",
+    message: `${upstream} returned an invalid response. ${describeUpstreamError(error)}`,
+  });
+}
+
+async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
+  try {
+    const planner = getPlannerModel().withStructuredOutput(QueryPlanSchema, { name: "x_query_plan" });
+    const result = await planner.invoke([
+      "Generate a bounded set of X lead discovery queries.",
+      "Keep the list compact, deduplicated, and focused on individual creators in the niche.",
+      "Prefer queries that surface profile pages, relevant tweet threads, and seed-handle adjacency.",
+      JSON.stringify({
+        niche: input.niche,
+        seedHandle: input.seedHandle,
+        limit: input.limit,
+      }),
+    ].join("\n"));
+
+    return result.queries;
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throwInvalidResponse("discovery", "OpenAI planner", error);
+    }
+    throwNetworkFailure("discovery", "OpenAI planner", error);
+  }
 }
 
 export function buildTavilySearchRequest(query: string, limit: number): Record<string, unknown> {
@@ -129,21 +190,30 @@ export function buildTavilySearchRequest(query: string, limit: number): Record<s
 }
 
 async function searchTavily(query: string, limit: number): Promise<TavilyResult[]> {
-  const response = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(buildTavilySearchRequest(query, limit)),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Tavily request failed (${response.status}): ${await response.text()}`);
+  let response: Response;
+  try {
+    response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildTavilySearchRequest(query, limit)),
+      cache: "no-store",
+    });
+  } catch (error) {
+    throwNetworkFailure("discovery", "Tavily", error);
   }
 
-  const payload = await response.json() as { results?: TavilyResult[] };
-  return payload.results ?? [];
+  if (!response.ok) {
+    await throwResponseFailure("discovery", "Tavily", response);
+  }
+
+  try {
+    const payload = TavilyResponseSchema.parse(await response.json());
+    return payload.results;
+  } catch (error) {
+    throwInvalidResponse("discovery", "Tavily", error);
+  }
 }
 
 function normalizeDiscoveredUrls(results: TavilyResult[], limit: number): string[] {
@@ -168,22 +238,34 @@ function normalizeDiscoveredUrls(results: TavilyResult[], limit: number): string
   return [...urls];
 }
 
-async function queryAgentQl(url: string): Promise<unknown> {
-  const response = await fetch("https://api.agentql.com/v1/query-data", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": requireEnv("AGENTQL_API_KEY"),
-    },
-    body: JSON.stringify(buildAgentQlQueryRequest(url)),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`AgentQL request failed (${response.status}): ${await response.text()}`);
+async function queryAgentQl(
+  url: string,
+  capability: "discovery" | "lookup" | "tweets",
+): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch("https://api.agentql.com/v1/query-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": requireEnv("AGENTQL_API_KEY"),
+      },
+      body: JSON.stringify(buildAgentQlQueryRequest(url)),
+      cache: "no-store",
+    });
+  } catch (error) {
+    throwNetworkFailure(capability, "AgentQL", error);
   }
 
-  return response.json();
+  if (!response.ok) {
+    await throwResponseFailure(capability, "AgentQL", response);
+  }
+
+  try {
+    return await response.json();
+  } catch (error) {
+    throwInvalidResponse(capability, "AgentQL", error);
+  }
 }
 
 export function buildAgentQlQueryRequest(url: string): Record<string, unknown> {
@@ -250,7 +332,7 @@ function normalizeTweetsFromPayload(payload: unknown): XResolvedTweet[] {
 
 async function scrapeProfile(reference: XUserReference): Promise<unknown> {
   const username = requireUsername(reference, "Multi-agent");
-  return queryAgentQl(`https://x.com/${username}`);
+  return queryAgentQl(`https://x.com/${username}`, "lookup");
 }
 
 const graph = new StateGraph(MultiAgentState)
@@ -273,7 +355,7 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("profile_scraper", async (state) => ({
     scraped: await Promise.all(
-      state.urls.slice(0, Math.max(6, Math.min(MULTIAGENT_MAX_URLS, state.limit * 2))).map((url) => queryAgentQl(url)),
+      state.urls.slice(0, Math.max(6, Math.min(MULTIAGENT_MAX_URLS, state.limit * 2))).map((url) => queryAgentQl(url, "discovery")),
     ),
   }))
   .addNode("aggregator", async (state) => {
@@ -381,7 +463,7 @@ export const multiAgentClient: XDataClient = {
     return multiAgentClient.searchRecentPosts(query, maxResults);
   },
   async getUserTweets(input) {
-    const payload = await scrapeProfile(input);
+    const payload = await queryAgentQl(`https://x.com/${requireUsername(input, "Multi-agent")}`, "tweets");
     return normalizeTweetsFromPayload(payload).slice(0, input.maxResults ?? 30);
   },
 };

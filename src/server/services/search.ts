@@ -9,39 +9,18 @@ import {
   getXDiscoveryProvider,
   resolveXProviderForCapability,
 } from "@/lib/x/client";
-import type { XDataProvider, XLeadCandidate, XProviderCapability } from "@/lib/x";
-import { XProviderRuntimeError } from "@/lib/x";
+import { supportsXProviderCapability, type XDataProvider, type XLeadCandidate, type XProviderCapability } from "@/lib/x";
 import { addProfilesToProject } from "./leads";
 import { recordProjectRun } from "./project-runs";
 import { createProject, getProjectById } from "./projects";
 import { getCandidateSampleTexts, toXProfileFromCandidate } from "@/lib/x/discovery";
 import { NETWORK_TARGET, SEARCH_TARGET, X_PROVIDER_NETWORK_PAGE_SIZE } from "@/lib/constants";
+import { toXProviderTrpcError } from "@/lib/x/error-handling";
 
 type CanonicalCandidate = XProfile & {
   samplePosts: string[];
   source: XLeadCandidate["discoverySource"];
 };
-
-function toProviderError(error: unknown): TRPCError {
-  if (error instanceof TRPCError) return error;
-
-  if (error instanceof XProviderRuntimeError) {
-    const suffix = error.missingEnv.length > 0
-      ? ` Missing configuration: ${error.missingEnv.join(", ")}.`
-      : "";
-    return new TRPCError({
-      code: "BAD_REQUEST",
-      message: `${error.message}${suffix}`,
-      cause: error,
-    });
-  }
-
-  return new TRPCError({
-    code: "INTERNAL_SERVER_ERROR",
-    message: error instanceof Error ? error.message : "Unexpected X provider failure.",
-    cause: error instanceof Error ? error : undefined,
-  });
-}
 
 function dedupeProviders(providers: XDataProvider[]): XDataProvider[] {
   return [...new Set(providers)];
@@ -99,6 +78,17 @@ async function canonicalizeCandidates(
   provider: XDataProvider,
   candidates: XLeadCandidate[],
 ): Promise<{ profiles: CanonicalCandidate[]; lookupProvider: XDataProvider }> {
+  if (!supportsXProviderCapability(provider, "lookup")) {
+    return {
+      profiles: candidates.map((candidate) => ({
+        ...toXProfileFromCandidate(candidate),
+        samplePosts: getCandidateSampleTexts(candidate),
+        source: candidate.discoverySource,
+      })),
+      lookupProvider: provider,
+    };
+  }
+
   const { client, resolution } = getXDataClientForCapability(provider, "lookup");
   const handles = [...new Set(candidates.map((candidate) => candidate.account.handle.replace(/^@/, "").trim()).filter(Boolean))];
   const lookedUpProfiles = handles.length > 0 ? await client.lookupUsersByUsernames(handles) : [];
@@ -122,10 +112,16 @@ async function canonicalizeCandidates(
 
 function resolveOperationProviders(requestedProvider: XDataProvider): Record<XProviderCapability, XDataProvider> {
   return {
-    discovery: resolveXProviderForCapability(requestedProvider, "discovery").effectiveProvider,
-    lookup: resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider,
-    network: resolveXProviderForCapability(requestedProvider, "network").effectiveProvider,
-    tweets: resolveXProviderForCapability(requestedProvider, "tweets").effectiveProvider,
+    discovery: requestedProvider,
+    lookup: supportsXProviderCapability(requestedProvider, "lookup")
+      ? resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider
+      : requestedProvider,
+    network: supportsXProviderCapability(requestedProvider, "network")
+      ? resolveXProviderForCapability(requestedProvider, "network").effectiveProvider
+      : requestedProvider,
+    tweets: supportsXProviderCapability(requestedProvider, "tweets")
+      ? resolveXProviderForCapability(requestedProvider, "tweets").effectiveProvider
+      : requestedProvider,
   };
 }
 
@@ -211,7 +207,7 @@ export async function searchAndAddLeads(
       },
     };
   } catch (error) {
-    throw toProviderError(error);
+    throw toXProviderTrpcError(error);
   }
 }
 
@@ -302,6 +298,6 @@ export async function importAccountNetwork(
       },
     };
   } catch (error) {
-    throw toProviderError(error);
+    throw toXProviderTrpcError(error);
   }
 }
