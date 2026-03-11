@@ -38,8 +38,11 @@ const TavilyResponseSchema = z.object({
   })).default([]),
 });
 
-const MULTIAGENT_MAX_QUERIES = 4;
-const MULTIAGENT_MAX_URLS = 18;
+const MULTIAGENT_MAX_QUERIES = 3;
+const MULTIAGENT_MAX_URLS = 8;
+const MULTIAGENT_SCRAPE_CONCURRENCY = 3;
+const MULTIAGENT_FETCH_TIMEOUT_MS = 12_000;
+const MULTIAGENT_PLANNER_TIMEOUT_MS = 20_000;
 
 const MultiAgentState = Annotation.Root({
   niche: Annotation<string>,
@@ -116,6 +119,10 @@ function describeUpstreamError(error: unknown): string {
   return "Unknown upstream failure.";
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 function throwNetworkFailure(
   capability: "discovery" | "lookup" | "tweets",
   upstream: "OpenAI planner" | "Tavily" | "AgentQL",
@@ -125,7 +132,7 @@ function throwNetworkFailure(
     provider: "multiagent",
     capability,
     code: "UPSTREAM_REQUEST_FAILED",
-    message: `${upstream} request failed. ${describeUpstreamError(error)}`,
+    message: `${upstream} request failed.${isAbortError(error) ? ` Timed out after waiting for the upstream response.` : ` ${describeUpstreamError(error)}`}`,
   });
 }
 
@@ -156,10 +163,55 @@ function throwInvalidResponse(
   });
 }
 
+async function withTimeout<T>(
+  upstream: "OpenAI planner" | "Tavily" | "AgentQL",
+  timeoutMs: number,
+  work: () => Promise<T>,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      work(),
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const error = new Error(`${upstream} request timed out after ${timeoutMs}ms.`);
+          error.name = "AbortError";
+          reject(error);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function mapWithConcurrency<TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  worker: (item: TInput, index: number) => Promise<TOutput>,
+): Promise<TOutput[]> {
+  const results: TOutput[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function runWorker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await worker(items[current], current);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(concurrency, items.length)) }, () => runWorker()),
+  );
+
+  return results;
+}
+
 async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
   try {
     const planner = getPlannerModel().withStructuredOutput(QueryPlanSchema, { name: "x_query_plan" });
-    const result = await planner.invoke([
+    const result = await withTimeout("OpenAI planner", MULTIAGENT_PLANNER_TIMEOUT_MS, () => planner.invoke([
       "Generate a bounded set of X lead discovery queries.",
       "Keep the list compact, deduplicated, and focused on individual creators in the niche.",
       "Prefer queries that surface profile pages, relevant tweet threads, and seed-handle adjacency.",
@@ -168,7 +220,7 @@ async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
         seedHandle: input.seedHandle,
         limit: input.limit,
       }),
-    ].join("\n"));
+    ].join("\n")));
 
     return result.queries;
   } catch (error) {
@@ -192,13 +244,19 @@ export function buildTavilySearchRequest(query: string, limit: number): Record<s
 async function searchTavily(query: string, limit: number): Promise<TavilyResult[]> {
   let response: Response;
   try {
-    response = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(buildTavilySearchRequest(query, limit)),
-      cache: "no-store",
+    response = await withTimeout("Tavily", MULTIAGENT_FETCH_TIMEOUT_MS, () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), MULTIAGENT_FETCH_TIMEOUT_MS);
+
+      return fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildTavilySearchRequest(query, limit)),
+        cache: "no-store",
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
     });
   } catch (error) {
     throwNetworkFailure("discovery", "Tavily", error);
@@ -244,14 +302,20 @@ async function queryAgentQl(
 ): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch("https://api.agentql.com/v1/query-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": requireEnv("AGENTQL_API_KEY"),
-      },
-      body: JSON.stringify(buildAgentQlQueryRequest(url)),
-      cache: "no-store",
+    response = await withTimeout("AgentQL", MULTIAGENT_FETCH_TIMEOUT_MS, () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), MULTIAGENT_FETCH_TIMEOUT_MS);
+
+      return fetch("https://api.agentql.com/v1/query-data", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": requireEnv("AGENTQL_API_KEY"),
+        },
+        body: JSON.stringify(buildAgentQlQueryRequest(url)),
+        cache: "no-store",
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
     });
   } catch (error) {
     throwNetworkFailure(capability, "AgentQL", error);
@@ -350,12 +414,14 @@ const graph = new StateGraph(MultiAgentState)
     );
     return {
       // Keep fan-out bounded so the graph stays deterministic and avoids the unbounded-loop anti-pattern.
-      urls: normalizeDiscoveredUrls(results.flat(), Math.max(6, Math.min(MULTIAGENT_MAX_URLS, state.limit * 2))),
+      urls: normalizeDiscoveredUrls(results.flat(), Math.min(MULTIAGENT_MAX_URLS, Math.max(4, state.limit))),
     };
   })
   .addNode("profile_scraper", async (state) => ({
-    scraped: await Promise.all(
-      state.urls.slice(0, Math.max(6, Math.min(MULTIAGENT_MAX_URLS, state.limit * 2))).map((url) => queryAgentQl(url, "discovery")),
+    scraped: await mapWithConcurrency(
+      state.urls.slice(0, Math.min(MULTIAGENT_MAX_URLS, Math.max(4, state.limit))),
+      MULTIAGENT_SCRAPE_CONCURRENCY,
+      (url) => queryAgentQl(url, "discovery"),
     ),
   }))
   .addNode("aggregator", async (state) => {
@@ -395,14 +461,24 @@ const graph = new StateGraph(MultiAgentState)
 export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
   provider: "multiagent",
   async discoverCandidates(input) {
-    const result = await graph.invoke({
-      niche: input.niche,
-      seedHandle: input.seedHandle,
-      limit: input.limit,
-      minFollowers: input.minFollowers,
-    });
+    try {
+      const result = await graph.invoke({
+        niche: input.niche,
+        seedHandle: input.seedHandle,
+        limit: Math.max(4, Math.min(input.limit, MULTIAGENT_MAX_URLS)),
+        minFollowers: input.minFollowers,
+      });
 
-    return result.candidates;
+      return result.candidates;
+    } catch (error) {
+      if (error instanceof XProviderRuntimeError) throw error;
+      throw new XProviderRuntimeError({
+        provider: "multiagent",
+        capability: "discovery",
+        code: "UPSTREAM_REQUEST_FAILED",
+        message: `Multi-agent workflow failed. ${describeUpstreamError(error)}`,
+      });
+    }
   },
 };
 
@@ -424,7 +500,11 @@ export const multiAgentClient: XDataClient = {
   },
   async lookupUsersByUsernames(usernames) {
     const handles = [...new Set(usernames.map((username) => normalizeHandle(username)).filter(Boolean))];
-    const payloads = await Promise.all(handles.map((handle) => scrapeProfile({ username: handle })));
+    const payloads = await mapWithConcurrency(
+      handles,
+      MULTIAGENT_SCRAPE_CONCURRENCY,
+      (handle) => scrapeProfile({ username: handle }),
+    );
     return dedupeProfiles(payloads.flatMap((payload) => normalizeProfilesFromPayload(payload)));
   },
   getFollowersPage(): Promise<XProfilesPage> {
