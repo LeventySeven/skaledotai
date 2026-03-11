@@ -27,6 +27,31 @@ const FOLLOWER_FLOOR_OPTIONS = [
   { label: "100k+", value: 100_000 },
 ] as const;
 
+function mergeTraceSteps(
+  current: ProjectRunTraceStep[],
+  incoming: ProjectRunTraceStep[],
+): ProjectRunTraceStep[] {
+  if (current.length === 0) return incoming;
+  if (incoming.length === 0) return current;
+
+  const merged = new Map<string, ProjectRunTraceStep>();
+
+  for (const step of current) {
+    merged.set(step.id, step);
+  }
+  for (const step of incoming) {
+    merged.set(step.id, step);
+  }
+
+  const ordered = [...current];
+  for (const step of incoming) {
+    if (current.some((existing) => existing.id === step.id)) continue;
+    ordered.push(step);
+  }
+
+  return ordered.map((step) => merged.get(step.id) ?? step);
+}
+
 async function readErrorMessage(response: Response): Promise<string> {
   try {
     const payload = await response.json() as { error?: { message?: string } };
@@ -131,7 +156,7 @@ export function SearchForm() {
 
           if (event.type === "complete") {
             setStreamTrace(event.result.trace);
-            setStreamSteps(event.result.trace.steps);
+            setStreamSteps((current) => mergeTraceSteps(current, event.result.trace.steps));
             await Promise.all([
               utils.projects.list.invalidate(),
               utils.leads.list.invalidate(),
@@ -181,6 +206,8 @@ export function SearchForm() {
         await runLiveMultiAgentSearch(payload);
       } catch (error) {
         setStreamTrace(null);
+        setStreamSteps([]);
+        setStreamSnapshot(null);
         toastManager.add({
           type: "error",
           title: error instanceof Error ? error.message : "Live search failed.",
@@ -303,7 +330,7 @@ export function SearchForm() {
 
       {provider === "multiagent" && (liveSearchPending || streamSteps.length > 0 || streamTrace) ? (
         <SearchRunTracePanel
-          steps={streamTrace?.steps ?? streamSteps}
+          steps={streamSteps.length > 0 ? streamSteps : (streamTrace?.steps ?? [])}
           snapshot={streamSnapshot}
           isPending={liveSearchPending}
           trace={streamTrace}
