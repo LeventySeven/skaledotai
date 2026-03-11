@@ -493,7 +493,6 @@ function extractAgentQlItems(value: unknown): unknown[] {
   return [
     ...(maybeProfile ? [maybeProfile] : []),
     ...maybeTweets,
-    data,
   ];
 }
 
