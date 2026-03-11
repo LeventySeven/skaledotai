@@ -179,14 +179,37 @@ async function throwResponseFailure(
 function throwInvalidResponse(
   capability: "discovery" | "lookup" | "tweets",
   upstream: "OpenAI planner" | "Tavily" | "AgentQL",
-  error: unknown,
+  details?: string,
 ): never {
   throw new XProviderRuntimeError({
     provider: "multiagent",
     capability,
     code: "UPSTREAM_INVALID_RESPONSE",
-    message: `${upstream} returned an invalid response. ${describeUpstreamError(error)}`,
+    message: `${upstream} returned a non-JSON response.${details ? ` ${details}` : ""}`,
   });
+}
+
+function summarizeNonJsonBody(body: string): string {
+  const trimmed = body.trim();
+  if (!trimmed) return "The upstream body was empty.";
+
+  const firstLine = trimmed.split("\n")[0]?.trim() ?? "";
+  const preview = firstLine.slice(0, 120);
+  return `Body preview: ${preview}`;
+}
+
+async function parseUpstreamJson(
+  response: Response,
+  upstream: "Tavily" | "AgentQL",
+  capability: "discovery" | "lookup" | "tweets",
+): Promise<unknown> {
+  const body = await response.text();
+
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    throwInvalidResponse(capability, upstream, summarizeNonJsonBody(body));
+  }
 }
 
 async function withTimeout<T>(
@@ -304,10 +327,11 @@ async function searchTavily(query: string, limit: number): Promise<TavilyResult[
   }
 
   try {
-    const payload = TavilyResponseSchema.parse(await response.json());
+    const payload = TavilyResponseSchema.parse(await parseUpstreamJson(response, "Tavily", "discovery"));
     return payload.results;
   } catch (error) {
-    throwInvalidResponse("discovery", "Tavily", error);
+    if (error instanceof XProviderRuntimeError) throw error;
+    throwInvalidResponse("discovery", "Tavily");
   }
 }
 
@@ -406,9 +430,10 @@ async function queryAgentQl(
   }
 
   try {
-    return await response.json();
+    return await parseUpstreamJson(response, "AgentQL", capability);
   } catch (error) {
-    throwInvalidResponse(capability, "AgentQL", error);
+    if (error instanceof XProviderRuntimeError) throw error;
+    throwInvalidResponse(capability, "AgentQL");
   }
 }
 

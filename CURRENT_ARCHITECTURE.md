@@ -30,7 +30,6 @@ flowchart TD
   Services --> XProvider["X data provider layer"]
   XProvider --> XAPI["X API v2"]
   XProvider --> Apify["Apify actors"]
-  XProvider --> Phantom["PhantomBuster phantoms"]
   Services --> OpenAI["OpenAI chat completions"]
   Browser --> BetterAuthRoute["/api/auth/[...all]"]
   BetterAuthRoute --> BetterAuth["Better Auth"]
@@ -159,7 +158,6 @@ The X integration path is now provider-agnostic:
 - `src/lib/x-data-client.ts` selects the active provider implementation
 - `src/lib/x-api.ts` handles native X API requests
 - `src/lib/apify-api.ts` handles Apify actor execution
-- `src/lib/phantombuster-api.ts` handles PhantomBuster agent execution
 - `src/server/trpc/context.ts` carries the selected provider into services
 
 ## Domain Model
@@ -370,7 +368,6 @@ Files involved:
 - `src/lib/x-data-client.ts`
 - `src/lib/x-api.ts`
 - `src/lib/apify-api.ts`
-- `src/lib/phantombuster-api.ts`
 - `src/lib/openai.ts`
 - `src/server/services/leads.ts`
 - `src/server/services/projects.ts`
@@ -421,7 +418,6 @@ Files involved:
 - `src/lib/x-data-client.ts`
 - `src/lib/x-api.ts`
 - `src/lib/apify-api.ts`
-- `src/lib/phantombuster-api.ts`
 - `src/lib/openai.ts`
 
 Flow:

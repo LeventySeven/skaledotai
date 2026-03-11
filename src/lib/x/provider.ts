@@ -47,12 +47,6 @@ export const X_PROVIDER_CAPABILITIES: Record<XDataProvider, XProviderCapabilitie
     network: true,
     tweets: true,
   },
-  phantombuster: {
-    discovery: true,
-    lookup: true,
-    network: true,
-    tweets: true,
-  },
   oxylabs: {
     discovery: true,
     lookup: true,
@@ -119,28 +113,6 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
       {
         label: "User scraper actor",
         href: "https://apify.com/apidojo/twitter-user-scraper/input-schema",
-      },
-    ],
-  },
-  {
-    value: "phantombuster",
-    label: "PhantomBuster",
-    badge: "Agents",
-    description: "Agent-based scraping for profiles, searches, and follower graphs.",
-    integration: "Agent launches plus container polling, then result ingestion from PhantomBuster storage.",
-    capabilities: X_PROVIDER_CAPABILITIES.phantombuster,
-    docs: [
-      {
-        label: "API overview",
-        href: "https://hub.phantombuster.com/reference/introduction",
-      },
-      {
-        label: "Launch agents",
-        href: "https://hub.phantombuster.com/reference/post_api-v2-agents-launch",
-      },
-      {
-        label: "Fetch containers",
-        href: "https://hub.phantombuster.com/reference/get_api-v2-containers-fetch",
       },
     ],
   },
