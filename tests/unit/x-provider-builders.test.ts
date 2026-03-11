@@ -2,11 +2,29 @@ import { describe, expect, mock, test } from "bun:test";
 
 mock.module("server-only", () => ({}));
 
-const { buildApifyAdvancedSearchInput, buildApifyUserScraperInput } = await import("@/lib/x/apify");
+const { buildApifyAdvancedSearchInput, buildApifyUserScraperInput, buildApifyDiscoveryQueries } = await import("@/lib/x/apify");
 const { buildOpenRouterDiscoveryRequest } = await import("@/lib/x/openrouter");
-const { buildTavilySearchRequest, buildAgentQlQueryRequest } = await import("@/lib/x/multiagent");
+const { buildTavilySearchRequest, buildAgentQlQueryRequest, buildMultiAgentHeuristicQueries } = await import("@/lib/x/multiagent");
+const { buildOxylabsDiscoveryUrls } = await import("@/lib/x/oxylabs");
 
 describe("Apify payload builders", () => {
+  test("expands simple discovery queries for better lead coverage", () => {
+    expect(buildApifyDiscoveryQueries("founding engineers")).toEqual([
+      "founding engineers",
+      "\"founding engineers\"",
+      "founding engineers founder",
+      "founding engineers builder",
+      "founding engineers engineer",
+      "founding engineers creator",
+    ]);
+  });
+
+  test("keeps structured queries intact", () => {
+    expect(buildApifyDiscoveryQueries("to:austinxwalker founding engineers")).toEqual([
+      "to:austinxwalker founding engineers",
+    ]);
+  });
+
   test("uses documented advanced search fields", () => {
     expect(buildApifyAdvancedSearchInput("founding engineers", 80)).toEqual({
       query: "founding engineers",
@@ -36,10 +54,12 @@ describe("OpenRouter request builder", () => {
       limit: 25,
       minFollowers: 5000,
     }) as {
+      model: string;
       plugins: Array<{ id: string; engine: string }>;
       response_format: { type: string; json_schema: { strict: boolean } };
     };
 
+    expect(payload.model).toBe("x-ai/grok-4.1-fast");
     expect(payload.plugins[0]?.id).toBe("web");
     expect(payload.plugins[0]?.engine).toBe("native");
     expect(payload.response_format.type).toBe("json_schema");
@@ -48,6 +68,19 @@ describe("OpenRouter request builder", () => {
 });
 
 describe("Multi-agent request builders", () => {
+  test("builds deterministic heuristic queries for planner fallback", () => {
+    expect(buildMultiAgentHeuristicQueries({
+      niche: "founding engineers",
+      seedHandle: "austinxwalker",
+      limit: 25,
+      minFollowers: 5000,
+    })).toEqual([
+      "founding engineers",
+      "founding engineers founders builders engineers creators on x",
+      "founding engineers real people personal accounts on x",
+    ]);
+  });
+
   test("uses Tavily request body auth and domain filters", () => {
     process.env.TAVILY_API_KEY = "test-tavily";
     expect(buildTavilySearchRequest("founding engineers", 25)).toEqual({
@@ -68,5 +101,29 @@ describe("Multi-agent request builders", () => {
     expect(payload.url).toBe("https://x.com/austinxwalker");
     expect(payload.query).toContain("query XProfileData");
     expect(payload.query).toContain("tweets(limit: 12)");
+  });
+});
+
+describe("Oxylabs request builders", () => {
+  test("expands X search coverage for discovery", () => {
+    expect(buildOxylabsDiscoveryUrls({
+      niche: "founding engineers",
+      seedHandle: "austinxwalker",
+      limit: 25,
+      minFollowers: 1000,
+    })).toEqual([
+      "https://x.com/search?q=founding%20engineers&src=typed_query&f=user",
+      "https://x.com/search?q=founding%20engineers&src=typed_query&f=live",
+      "https://x.com/search?q=founding%20engineers&src=typed_query&f=top",
+      "https://x.com/search?q=%22founding%20engineers%22&src=typed_query&f=user",
+      "https://x.com/search?q=%22founding%20engineers%22&src=typed_query&f=live",
+      "https://x.com/search?q=%22founding%20engineers%22&src=typed_query&f=top",
+      "https://x.com/search?q=founding%20engineers%20founder&src=typed_query&f=user",
+      "https://x.com/search?q=founding%20engineers%20founder&src=typed_query&f=live",
+      "https://x.com/search?q=founding%20engineers%20founder&src=typed_query&f=top",
+      "https://x.com/search?q=founding%20engineers%20builder&src=typed_query&f=user",
+      "https://x.com/search?q=founding%20engineers%20builder&src=typed_query&f=live",
+      "https://x.com/search?q=founding%20engineers%20builder&src=typed_query&f=top",
+    ]);
   });
 });

@@ -20,6 +20,9 @@ import {
 import { collectNestedTweets, requireUsername } from "./scraper-utils";
 
 const OXYLABS_BASE_URL = process.env.OXYLABS_BASE_URL ?? "https://realtime.oxylabs.io/v1/queries";
+const OXYLABS_DISCOVERY_URL_LIMIT = 12;
+const OXYLABS_PROFILE_ENRICH_LIMIT = 24;
+const OXYLABS_RESULT_MULTIPLIER = 4;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -147,19 +150,46 @@ async function scrapeProfile(reference: XUserReference): Promise<unknown> {
   return queryOxylabs(`https://x.com/${username}`);
 }
 
+function buildOxylabsSearchUrl(query: string, filter: "user" | "live" | "top"): string {
+  return `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=${filter}`;
+}
+
+export function buildOxylabsDiscoveryUrls(input: XDiscoveryInput): string[] {
+  const niche = input.niche.trim();
+  const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
+  const queryVariants = [
+    niche,
+    `"${niche}"`,
+    `${niche} founder`,
+    `${niche} builder`,
+    `${niche} engineer`,
+    `${niche} creator`,
+    `${niche} operator`,
+    seedHandle ? `${niche} from:${seedHandle}` : "",
+    seedHandle ? `to:${seedHandle} ${niche}` : "",
+    seedHandle ? `${niche} people similar to @${seedHandle}` : "",
+  ].filter(Boolean);
+
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  for (const query of queryVariants) {
+    for (const filter of ["user", "live", "top"] as const) {
+      const url = buildOxylabsSearchUrl(query, filter);
+      if (seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
+      if (urls.length >= OXYLABS_DISCOVERY_URL_LIMIT) return urls;
+    }
+  }
+
+  return urls;
+}
+
 export const oxylabsDiscoveryProvider: XDiscoveryProvider = {
   provider: "oxylabs",
   async discoverCandidates(input: XDiscoveryInput): Promise<XLeadCandidate[]> {
-    const queries = [
-      `https://x.com/search?q=${encodeURIComponent(input.niche)}&src=typed_query&f=user`,
-      `https://x.com/search?q=${encodeURIComponent(input.niche)}&src=typed_query&f=live`,
-    ];
-
-    if (input.seedHandle) {
-      queries.push(`https://x.com/search?q=${encodeURIComponent(`to:${input.seedHandle} ${input.niche}`)}&src=typed_query&f=live`);
-    }
-
-    const results = await Promise.all(queries.map((url) => queryOxylabs(url)));
+    const results = await Promise.all(buildOxylabsDiscoveryUrls(input).map((url) => queryOxylabs(url)));
     const byHandle = new Map<string, XLeadCandidate>();
 
     for (const result of results) {
@@ -180,9 +210,39 @@ export const oxylabsDiscoveryProvider: XDiscoveryProvider = {
       }
     }
 
+    const enrichHandles = [...byHandle.values()]
+      .sort((a, b) => b.account.followers - a.account.followers)
+      .slice(0, Math.max(OXYLABS_PROFILE_ENRICH_LIMIT, input.limit))
+      .map((candidate) => candidate.account.handle);
+
+    const enrichedPayloads = await Promise.all(
+      [...new Set(enrichHandles)].map(async (handle) => ({
+        handle,
+        payload: await scrapeProfile({ username: handle }),
+      })),
+    );
+
+    for (const { handle, payload } of enrichedPayloads) {
+      const profiles = normalizeProfiles(payload);
+      const profile = profiles.find((item) => item.username.toLowerCase() === handle.toLowerCase()) ?? profiles[0];
+      if (!profile) continue;
+
+      const tweets = collectNestedTweets(extractOxylabsItems(payload)).slice(0, 12);
+      const candidate = buildLeadCandidate(
+        "oxylabs",
+        input.niche,
+        profile,
+        tweets.length > 0 ? "post_search" : "profile_search",
+        tweets,
+      );
+
+      if (candidate.account.followers < (input.minFollowers ?? 0)) continue;
+      byHandle.set(candidate.account.handle.toLowerCase(), candidate);
+    }
+
     return [...byHandle.values()]
       .sort((a, b) => b.account.followers - a.account.followers)
-      .slice(0, input.limit * 2);
+      .slice(0, Math.max(20, input.limit * OXYLABS_RESULT_MULTIPLIER));
   },
 };
 

@@ -42,7 +42,7 @@ const MULTIAGENT_MAX_QUERIES = 3;
 const MULTIAGENT_MAX_URLS = 8;
 const MULTIAGENT_SCRAPE_CONCURRENCY = 3;
 const MULTIAGENT_FETCH_TIMEOUT_MS = 12_000;
-const MULTIAGENT_PLANNER_TIMEOUT_MS = 20_000;
+const MULTIAGENT_PLANNER_TIMEOUT_MS = 8_000;
 
 const MultiAgentState = Annotation.Root({
   niche: Annotation<string>,
@@ -112,6 +112,34 @@ function getPlannerModel(): ChatOpenAI {
     apiKey: process.env.OPENAI_API_KEY,
     model: process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5",
   });
+}
+
+function dedupeQueries(queries: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const query of queries.map((value) => value.trim()).filter(Boolean)) {
+    const key = query.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(query);
+  }
+
+  return result;
+}
+
+export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[] {
+  const niche = input.niche.trim();
+  const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
+  const queries = [
+    niche,
+    `${niche} founders builders engineers creators on x`,
+    `${niche} real people personal accounts on x`,
+    seedHandle ? `${niche} accounts similar to @${seedHandle} on x` : "",
+    seedHandle ? `people replying to @${seedHandle} about ${niche} on x` : "",
+  ];
+
+  return dedupeQueries(queries).slice(0, MULTIAGENT_MAX_QUERIES);
 }
 
 function describeUpstreamError(error: unknown): string {
@@ -209,6 +237,8 @@ async function mapWithConcurrency<TInput, TOutput>(
 }
 
 async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
+  const heuristicQueries = buildMultiAgentHeuristicQueries(input);
+
   try {
     const planner = getPlannerModel().withStructuredOutput(QueryPlanSchema, { name: "x_query_plan" });
     const result = await withTimeout("OpenAI planner", MULTIAGENT_PLANNER_TIMEOUT_MS, () => planner.invoke([
@@ -222,12 +252,18 @@ async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
       }),
     ].join("\n")));
 
-    return result.queries;
+    return dedupeQueries([...result.queries, ...heuristicQueries]).slice(0, MULTIAGENT_MAX_QUERIES);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throwInvalidResponse("discovery", "OpenAI planner", error);
+    if (error instanceof XProviderRuntimeError && error.code === "NOT_CONFIGURED") {
+      throw error;
     }
-    throwNetworkFailure("discovery", "OpenAI planner", error);
+
+    console.warn("[x-provider][multiagent][planner]", JSON.stringify({
+      message: describeUpstreamError(error),
+      usingHeuristicQueries: true,
+    }));
+
+    return heuristicQueries;
   }
 }
 

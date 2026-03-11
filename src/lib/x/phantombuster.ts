@@ -14,6 +14,7 @@ import type {
   XResolvedTweet,
   XUserReference,
 } from "./types";
+import { XProviderRuntimeError } from "./types";
 import {
   dedupeProfiles,
   normalizeHandle,
@@ -33,7 +34,12 @@ const PHANTOM_BASE = "https://api.phantombuster.com/api/v2";
 function requirePhantomToken(): string {
   const token = process.env.PHANTOM_TOKEN;
   if (!token) {
-    throw new Error("PHANTOM_TOKEN is not set");
+    throw new XProviderRuntimeError({
+      provider: "phantombuster",
+      code: "NOT_CONFIGURED",
+      message: "PHANTOM_TOKEN is not set.",
+      missingEnv: ["PHANTOM_TOKEN"],
+    });
   }
   return token;
 }
@@ -41,9 +47,52 @@ function requirePhantomToken(): string {
 function requireAgentId(name: string): string {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`${name} is not set`);
+    throw new XProviderRuntimeError({
+      provider: "phantombuster",
+      code: "NOT_CONFIGURED",
+      message: `${name} is not set.`,
+      missingEnv: [name],
+    });
   }
   return value;
+}
+
+function getAgentIdHint(envName: string, agentId: string): string {
+  return [
+    `PhantomBuster could not find agent "${agentId}" for ${envName}.`,
+    "This env var must be the workspace agent ID from your Phantom console URL (`/phantoms/{id}`), not the public automation/store URL (`/automations/...`).",
+  ].join(" ");
+}
+
+export function toPhantomBusterRuntimeError(errorText: string, envName?: string, agentId?: string): XProviderRuntimeError {
+  const normalized = errorText.trim();
+
+  if (/agent not found/i.test(normalized)) {
+    return new XProviderRuntimeError({
+      provider: "phantombuster",
+      capability: "discovery",
+      code: "UPSTREAM_REQUEST_FAILED",
+      message: envName && agentId
+        ? `${getAgentIdHint(envName, agentId)} PhantomBuster response: ${normalized}`
+        : `PhantomBuster agent was not found. ${normalized}`,
+    });
+  }
+
+  if (/timed out/i.test(normalized)) {
+    return new XProviderRuntimeError({
+      provider: "phantombuster",
+      capability: "discovery",
+      code: "UPSTREAM_REQUEST_FAILED",
+      message: `PhantomBuster request timed out. ${normalized}`,
+    });
+  }
+
+  return new XProviderRuntimeError({
+    provider: "phantombuster",
+    capability: "discovery",
+    code: "UPSTREAM_REQUEST_FAILED",
+    message: `PhantomBuster request failed. ${normalized}`,
+  });
 }
 
 async function requestPhantom<T>(path: string, init?: RequestInit): Promise<T> {
@@ -52,6 +101,7 @@ async function requestPhantom<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: {
         "Content-Type": "application/json",
+        "X-Phantombuster-Key": requirePhantomToken(),
         "X-Phantombuster-Key-1": requirePhantomToken(),
         ...(init?.headers ?? {}),
       },
@@ -66,7 +116,10 @@ async function requestPhantom<T>(path: string, init?: RequestInit): Promise<T> {
   }, X_PROVIDER_RETRY_COUNT);
 
   if (!response.ok) {
-    throw new Error(`PhantomBuster request failed (${response.status}): ${await response.text()}`);
+    const details = await response.text();
+    throw toPhantomBusterRuntimeError(
+      `(${response.status}): ${details}`,
+    );
   }
 
   return response.json() as Promise<T>;
@@ -117,13 +170,20 @@ async function waitForContainer(containerId: string): Promise<void> {
   }
 }
 
-async function launchPhantom(agentId: string, input: Record<string, unknown>): Promise<unknown[]> {
+async function launchPhantom(agentEnvName: string, input: Record<string, unknown>): Promise<unknown[]> {
+  const agentId = requireAgentId(agentEnvName);
+
   const launch = await requestPhantom<Record<string, unknown>>("/agents/launch", {
     method: "POST",
     body: JSON.stringify({
       id: agentId,
       bonusArgument: input,
     }),
+  }).catch((error) => {
+    if (error instanceof XProviderRuntimeError && /agent was not found|agent not found/i.test(error.message)) {
+      throw toPhantomBusterRuntimeError(error.message, agentEnvName, agentId);
+    }
+    throw error;
   });
 
   const containerId = typeof launch.containerId === "string"
@@ -133,7 +193,7 @@ async function launchPhantom(agentId: string, input: Record<string, unknown>): P
       : undefined;
 
   if (!containerId) {
-    throw new Error("PhantomBuster launch did not return a container ID.");
+      throw new Error("PhantomBuster launch did not return a container ID.");
   }
 
   await waitForContainer(containerId);
@@ -168,7 +228,7 @@ export const phantomBusterClient: XDataClient = {
 
   async searchUsers(query, maxResults = 25) {
     const result = await launchPhantom(
-      requireAgentId("PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID"),
+      "PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID",
       { search: query, limit: Math.min(100, maxResults * X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR) },
     );
 
@@ -182,7 +242,7 @@ export const phantomBusterClient: XDataClient = {
     if (handles.length === 0) return [];
 
     const result = await launchPhantom(
-      requireAgentId("PHANTOMBUSTER_TWITTER_PROFILE_SCRAPER_ID"),
+      "PHANTOMBUSTER_TWITTER_PROFILE_SCRAPER_ID",
       {
         profileUrls: handles.map((handle) => toProfileUrl(handle)),
         numberOfTweets: 0,
@@ -195,7 +255,7 @@ export const phantomBusterClient: XDataClient = {
   async getFollowersPage(input): Promise<XProfilesPage> {
     const username = requireUsername(input);
     const result = await launchPhantom(
-      requireAgentId("PHANTOMBUSTER_TWITTER_FOLLOWER_COLLECTOR_ID"),
+      "PHANTOMBUSTER_TWITTER_FOLLOWER_COLLECTOR_ID",
       {
         profileUrls: [toProfileUrl(username)],
         maxFollowers: input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
@@ -211,7 +271,7 @@ export const phantomBusterClient: XDataClient = {
   async getFollowingPage(input): Promise<XProfilesPage> {
     const username = requireUsername(input);
     const result = await launchPhantom(
-      requireAgentId("PHANTOMBUSTER_TWITTER_FOLLOWING_COLLECTOR_ID"),
+      "PHANTOMBUSTER_TWITTER_FOLLOWING_COLLECTOR_ID",
       {
         profileUrls: [toProfileUrl(username)],
         maxFollowing: input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
@@ -226,7 +286,7 @@ export const phantomBusterClient: XDataClient = {
 
   async searchRecentPosts(query, maxResults = 50) {
     const result = await launchPhantom(
-      requireAgentId("PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID"),
+      "PHANTOMBUSTER_TWITTER_SEARCH_EXPORT_ID",
       { search: query, limit: maxResults },
     );
 
@@ -241,7 +301,7 @@ export const phantomBusterClient: XDataClient = {
   async getUserTweets(input): Promise<XResolvedTweet[]> {
     const username = requireUsername(input);
     const result = await launchPhantom(
-      requireAgentId("PHANTOMBUSTER_TWITTER_PROFILE_SCRAPER_ID"),
+      "PHANTOMBUSTER_TWITTER_PROFILE_SCRAPER_ID",
       {
         profileUrls: [toProfileUrl(username)],
         numberOfTweets: input.maxResults ?? 30,

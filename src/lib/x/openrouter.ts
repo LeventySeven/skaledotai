@@ -40,6 +40,7 @@ const OpenRouterLeadResponseSchema = z.object({
 });
 
 type OpenRouterLead = z.infer<typeof OpenRouterLeadSchema>;
+const DEFAULT_OPENROUTER_DISCOVERY_MODEL = "x-ai/grok-4.1-fast";
 
 function unsupported(capability: "lookup" | "network" | "tweets"): never {
   throw new XProviderRuntimeError({
@@ -113,7 +114,7 @@ function buildJsonSchema(): Record<string, unknown> {
 
 export function buildOpenRouterDiscoveryRequest(input: XDiscoveryInput): Record<string, unknown> {
   return {
-    model: process.env.OPENROUTER_X_DISCOVERY_MODEL ?? "x-ai/grok-4.1",
+    model: process.env.OPENROUTER_X_DISCOVERY_MODEL ?? DEFAULT_OPENROUTER_DISCOVERY_MODEL,
     plugins: [
       {
         id: "web",
@@ -179,7 +180,22 @@ async function discoverWithOpenRouter(input: XDiscoveryInput): Promise<OpenRoute
   });
 
   if (!response.ok) {
-    throw new Error(`OpenRouter request failed (${response.status}): ${await response.text()}`);
+    const details = (await response.text()).trim();
+    if (/not a valid model id/i.test(details)) {
+      throw new XProviderRuntimeError({
+        provider: "openrouter",
+        capability: "discovery",
+        code: "UPSTREAM_REQUEST_FAILED",
+        message: `OpenRouter rejected the configured model ID. Set OPENROUTER_X_DISCOVERY_MODEL to a valid OpenRouter model slug or remove it to use the default (${DEFAULT_OPENROUTER_DISCOVERY_MODEL}). ${details}`,
+      });
+    }
+
+    throw new XProviderRuntimeError({
+      provider: "openrouter",
+      capability: "discovery",
+      code: response.status === 429 ? "UPSTREAM_RATE_LIMITED" : "UPSTREAM_REQUEST_FAILED",
+      message: `OpenRouter request failed with status ${response.status}.${details ? ` ${details}` : ""}`,
+    });
   }
 
   const payload = await response.json() as {

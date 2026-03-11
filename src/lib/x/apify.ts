@@ -30,6 +30,9 @@ import {
 const APIFY_BASE = "https://api.apify.com/v2";
 const APIFY_ADVANCED_SEARCH_ACTOR = "api-ninja/x-twitter-advanced-search";
 const APIFY_USER_SCRAPER_ACTOR = "apidojo/twitter-user-scraper";
+const APIFY_DISCOVERY_QUERY_LIMIT = 6;
+const APIFY_PROFILE_ENRICH_LIMIT = 30;
+const APIFY_RESULT_MULTIPLIER = 4;
 
 function requireApifyToken(): string {
   const token = process.env.APIFY_TOKEN;
@@ -115,6 +118,37 @@ export function buildApifyAdvancedSearchInput(query: string, maxResults = 50): R
   };
 }
 
+export function buildApifyDiscoveryQueries(query: string): string[] {
+  const trimmed = query.trim();
+  const looksStructured = /(^|[\s])(from:|to:|since:|until:|min_|lang:|filter:|\(|\)|"|@)/i.test(trimmed);
+  if (looksStructured) {
+    return [trimmed];
+  }
+
+  const queries = [
+    trimmed,
+    `"${trimmed}"`,
+    `${trimmed} founder`,
+    `${trimmed} builder`,
+    `${trimmed} engineer`,
+    `${trimmed} creator`,
+    `${trimmed} operator`,
+  ];
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of queries) {
+    const normalized = item.trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    result.push(normalized);
+    if (result.length >= APIFY_DISCOVERY_QUERY_LIMIT) break;
+  }
+
+  return result;
+}
+
 export function buildApifyUserScraperInput(
   usernames: string[],
   options: {
@@ -152,15 +186,58 @@ async function runAdvancedSearch(
   };
 }
 
+async function runExpandedAdvancedSearch(
+  query: string,
+  maxResults: number,
+): Promise<XPostSearchResult> {
+  const resultSets = await Promise.all(
+    buildApifyDiscoveryQueries(query).map((variant) =>
+      runAdvancedSearch(
+        variant,
+        Math.min(100, Math.max(20, Math.ceil(maxResults / buildApifyDiscoveryQueries(query).length))),
+      ),
+    ),
+  );
+
+  return {
+    tweets: resultSets.flatMap((result) => result.tweets),
+    users: dedupeProfiles(resultSets.flatMap((result) => result.users)),
+  };
+}
+
+async function enrichProfilesFromHandles(
+  handles: string[],
+  maxItems: number,
+): Promise<XProfile[]> {
+  const normalized = [...new Set(handles.map((handle) => normalizeHandle(handle)).filter(isString))];
+  if (normalized.length === 0) return [];
+
+  const items = await runActor<unknown>(
+    APIFY_USER_SCRAPER_ACTOR,
+    buildApifyUserScraperInput(
+      normalized.slice(0, APIFY_PROFILE_ENRICH_LIMIT),
+      { maxItems },
+    ),
+  );
+
+  return collectProfiles(items);
+}
+
 export const apifyClient: XDataClient = {
   provider: "apify",
 
   async searchUsers(query, maxResults = 25) {
-    const result = await runAdvancedSearch(
-      query,
-      Math.min(100, maxResults * X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR),
+    const expandedLimit = Math.min(120, Math.max(40, maxResults * X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR));
+    const result = await runExpandedAdvancedSearch(query, expandedLimit);
+    const enrichedProfiles = await enrichProfilesFromHandles(
+      result.users.map((profile) => profile.username),
+      X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
     );
-    return result.users
+    const profilesByHandle = new Map(
+      [...result.users, ...enrichedProfiles].map((profile) => [profile.username.toLowerCase(), profile]),
+    );
+
+    return [...profilesByHandle.values()]
       .sort((a, b) => b.followersCount - a.followersCount)
       .slice(0, maxResults);
   },
@@ -218,12 +295,18 @@ export const apifyClient: XDataClient = {
   },
 
   searchRecentPosts(query, maxResults = 50) {
-    return runAdvancedSearch(query, maxResults);
+    return runExpandedAdvancedSearch(
+      query,
+      Math.min(120, Math.max(40, maxResults * X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR)),
+    );
   },
 
   searchAllPosts(query, maxResults = 50) {
     // Apify has no recent/archive distinction — delegates to the same search
-    return runAdvancedSearch(query, maxResults);
+    return runExpandedAdvancedSearch(
+      query,
+      Math.min(120, Math.max(40, maxResults * X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR)),
+    );
   },
 
   async getUserTweets(input): Promise<XResolvedTweet[]> {
