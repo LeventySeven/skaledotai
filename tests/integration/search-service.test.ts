@@ -56,7 +56,7 @@ const resolveXProviderForCapabilityMock = mock((provider: string, capability: st
   usedFallback: false,
 }));
 
-mock.module("@/lib/x/client", () => ({
+mock.module("@/lib/x/registry", () => ({
   getXDataClientForCapability: getXDataClientForCapabilityMock,
   getXDiscoveryProvider: getXDiscoveryProviderMock,
   resolveXProviderForCapability: resolveXProviderForCapabilityMock,
@@ -352,7 +352,8 @@ describe("searchAndAddLeads", () => {
       message: "No relevant X leads passed AI filtering for this query.",
     });
 
-    expect(insertCallIndex).toBe(0);
+    // Only the project insert should have happened — no lead insert.
+    expect(insertCallIndex).toBe(1);
   });
 
   test("re-runs discovery with alternate queries when the first pass is too small", async () => {
