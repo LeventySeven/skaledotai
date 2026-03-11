@@ -1,4 +1,5 @@
 import type { XProfile } from "@/lib/validations/search";
+import { ensureStrictXProfile, ensureStrictXResolvedTweet } from "./contracts";
 import type { XResolvedTweet } from "./types";
 
 type JsonRecord = Record<string, unknown>;
@@ -155,7 +156,7 @@ export function normalizeScrapedProfile(
     "twitterUrl",
   ], readString) ?? (username ? `https://x.com/${username}` : undefined);
 
-  return {
+  return ensureStrictXProfile({
     xUserId: xUserId ?? username ?? "",
     username: username ?? xUserId ?? "",
     displayName: readFromRecords(records, [
@@ -205,7 +206,7 @@ export function normalizeScrapedProfile(
     ], readString),
     location: readFromRecords(records, ["location"], readString),
     url: readFromRecords(records, ["website", "expandedUrl", "externalUrl"], readString),
-  };
+  });
 }
 
 function isReplyOrRetweet(
@@ -290,7 +291,7 @@ export function normalizeScrapedTweet(
     ], readString)
     ?? authorProfile?.xUserId;
 
-  return {
+  return ensureStrictXResolvedTweet({
     id: id ?? [authorId ?? "tweet", createdAt, text].filter(Boolean).join(":"),
     authorId,
     conversationId,
@@ -329,7 +330,7 @@ export function normalizeScrapedTweet(
       ], readNumber)
       ?? readPublicMetric(records, ["retweet_count", "repost_count", "retweetCount"])
       ?? 0,
-  };
+  });
 }
 
 export function extractNestedItems(value: unknown, key: string): unknown[] {

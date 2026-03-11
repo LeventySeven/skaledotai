@@ -3,6 +3,11 @@ import type { XDataClient, XDiscoveryProvider, XTweetMetrics } from "./types";
 import { XProviderRuntimeError } from "./types";
 import type { XDataProvider, XProviderCapability } from "./provider";
 import {
+  ensureStrictXLeadCandidates,
+  ensureStrictXProfiles,
+  ensureStrictXResolvedTweets,
+} from "./contracts";
+import {
   getXDataProviderLabel,
   getXProviderCapabilities,
   getXDataProviderOption,
@@ -251,6 +256,27 @@ function estimateExternalCost(provider: XDataProvider, capability: XProviderCapa
   return Number((unit * Math.max(resultCount, 1)).toFixed(4));
 }
 
+function sanitizeProfilesPage(
+  page: Awaited<ReturnType<XDataClient["getFollowersPage"]>>,
+  scope: string,
+): Awaited<ReturnType<XDataClient["getFollowersPage"]>> {
+  return {
+    ...page,
+    profiles: ensureStrictXProfiles(page.profiles, `${scope}.profiles`),
+  };
+}
+
+function sanitizePostSearchResult(
+  result: Awaited<ReturnType<XDataClient["searchRecentPosts"]>>,
+  scope: string,
+): Awaited<ReturnType<XDataClient["searchRecentPosts"]>> {
+  return {
+    ...result,
+    tweets: ensureStrictXResolvedTweets(result.tweets, `${scope}.tweets`),
+    users: ensureStrictXProfiles(result.users, `${scope}.users`),
+  };
+}
+
 function getErrorCode(error: unknown): string {
   if (error instanceof XProviderRuntimeError) return error.code;
   if (error instanceof Error && error.name) return error.name;
@@ -325,7 +351,11 @@ function instrumentClient(
       resolution.effectiveProvider,
       resolution.capability,
       resolution.usedFallback,
-      client.searchUsers.bind(client),
+      async (...args) =>
+        ensureStrictXProfiles(
+          await client.searchUsers(...args),
+          `${client.provider}.searchUsers`,
+        ),
     ),
     lookupUsersByUsernames: instrumentMethod(
       "lookupUsersByUsernames",
@@ -333,7 +363,11 @@ function instrumentClient(
       resolution.effectiveProvider,
       resolution.capability,
       resolution.usedFallback,
-      client.lookupUsersByUsernames.bind(client),
+      async (...args) =>
+        ensureStrictXProfiles(
+          await client.lookupUsersByUsernames(...args),
+          `${client.provider}.lookupUsersByUsernames`,
+        ),
     ),
     getFollowersPage: instrumentMethod(
       "getFollowersPage",
@@ -341,7 +375,11 @@ function instrumentClient(
       resolution.effectiveProvider,
       resolution.capability,
       resolution.usedFallback,
-      client.getFollowersPage.bind(client),
+      async (...args) =>
+        sanitizeProfilesPage(
+          await client.getFollowersPage(...args),
+          `${client.provider}.getFollowersPage`,
+        ),
     ),
     getFollowingPage: instrumentMethod(
       "getFollowingPage",
@@ -349,7 +387,11 @@ function instrumentClient(
       resolution.effectiveProvider,
       resolution.capability,
       resolution.usedFallback,
-      client.getFollowingPage.bind(client),
+      async (...args) =>
+        sanitizeProfilesPage(
+          await client.getFollowingPage(...args),
+          `${client.provider}.getFollowingPage`,
+        ),
     ),
     searchRecentPosts: instrumentMethod(
       "searchRecentPosts",
@@ -357,7 +399,11 @@ function instrumentClient(
       resolution.effectiveProvider,
       resolution.capability,
       resolution.usedFallback,
-      client.searchRecentPosts.bind(client),
+      async (...args) =>
+        sanitizePostSearchResult(
+          await client.searchRecentPosts(...args),
+          `${client.provider}.searchRecentPosts`,
+        ),
     ),
     searchAllPosts: instrumentMethod(
       "searchAllPosts",
@@ -365,7 +411,11 @@ function instrumentClient(
       resolution.effectiveProvider,
       resolution.capability,
       resolution.usedFallback,
-      client.searchAllPosts.bind(client),
+      async (...args) =>
+        sanitizePostSearchResult(
+          await client.searchAllPosts(...args),
+          `${client.provider}.searchAllPosts`,
+        ),
     ),
     getUserTweets: instrumentMethod(
       "getUserTweets",
@@ -373,7 +423,11 @@ function instrumentClient(
       resolution.effectiveProvider,
       resolution.capability,
       resolution.usedFallback,
-      client.getUserTweets.bind(client),
+      async (...args) =>
+        ensureStrictXResolvedTweets(
+          await client.getUserTweets(...args),
+          `${client.provider}.getUserTweets`,
+        ),
     ),
   };
 }
@@ -390,7 +444,11 @@ function instrumentDiscoveryProvider(
       provider.provider,
       "discovery",
       provider.provider !== requestedProvider,
-      provider.discoverCandidates.bind(provider),
+      async (...args) =>
+        ensureStrictXLeadCandidates(
+          await provider.discoverCandidates(...args),
+          `${provider.provider}.discoverCandidates`,
+        ),
     ),
   };
 }

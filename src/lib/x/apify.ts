@@ -20,6 +20,7 @@ import {
   normalizeScrapedProfile,
   normalizeScrapedTweet,
 } from "./normalizers";
+import { parseJsonResponse } from "./json";
 import {
   withRetry,
   requireUsername as requireUsernameBase,
@@ -78,7 +79,10 @@ async function runActor<T>(actorId: string, input: Record<string, unknown>): Pro
     throw new Error(`Apify request failed (${response.status}): ${await response.text()}`);
   }
 
-  const data: unknown = await response.json();
+  const data = await parseJsonResponse<unknown>(
+    response,
+    (details) => new Error(`Apify returned a non-JSON response. ${details}`),
+  );
   if (!Array.isArray(data)) {
     throw new Error(`Apify returned unexpected response shape (expected array, got ${typeof data})`);
   }

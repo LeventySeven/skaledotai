@@ -14,6 +14,7 @@ import {
   buildReplySearchQuery,
   isUnsupportedAuthenticationError,
 } from "./api";
+import { ensureStrictXLeadCandidate, ensureStrictXProfile } from "./contracts";
 import type {
   XDataClient,
   XDiscoveryInput,
@@ -79,7 +80,7 @@ export function buildLeadCandidate(
 ): XLeadCandidate {
   const posts = normalizePosts(tweets.map(toCandidatePost));
 
-  return {
+  return ensureStrictXLeadCandidate({
     source: provider,
     niche,
     discoverySource,
@@ -102,7 +103,7 @@ export function buildLeadCandidate(
       postsSampleSize: posts.length,
     },
     posts,
-  };
+  });
 }
 
 function addCandidate(
@@ -282,7 +283,7 @@ export function getCandidateSampleTexts(candidate: XLeadCandidate): string[] {
 }
 
 export function toXProfileFromCandidate(candidate: XLeadCandidate): XProfile {
-  return {
+  return ensureStrictXProfile({
     xUserId: candidate.account.xUserId ?? candidate.account.handle,
     username: candidate.account.handle.replace(/^@/, ""),
     displayName: candidate.account.name,
@@ -292,5 +293,5 @@ export function toXProfileFromCandidate(candidate: XLeadCandidate): XProfile {
     followersCount: candidate.account.followers,
     followingCount: candidate.account.following,
     verified: candidate.account.isVerified,
-  };
+  });
 }

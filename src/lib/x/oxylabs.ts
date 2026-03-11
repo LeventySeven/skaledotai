@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
+import { parseJsonResponse } from "./json";
 import {
   dedupeProfiles,
   normalizeHandle,
@@ -72,7 +73,10 @@ function getAuthHeader(): string {
   return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
 }
 
-async function queryOxylabs(url: string): Promise<unknown> {
+async function queryOxylabs(
+  url: string,
+  capability: "discovery" | "lookup" | "tweets",
+): Promise<unknown> {
   const response = await fetch(OXYLABS_BASE_URL, {
     method: "POST",
     headers: {
@@ -89,10 +93,23 @@ async function queryOxylabs(url: string): Promise<unknown> {
   });
 
   if (!response.ok) {
-    throw new Error(`Oxylabs request failed (${response.status}): ${await response.text()}`);
+    throw new XProviderRuntimeError({
+      provider: "oxylabs",
+      capability,
+      code: response.status === 429 ? "UPSTREAM_RATE_LIMITED" : "UPSTREAM_REQUEST_FAILED",
+      message: `Oxylabs request failed (${response.status}): ${await response.text()}`,
+    });
   }
 
-  return response.json();
+  return parseJsonResponse<unknown>(
+    response,
+    (details) => new XProviderRuntimeError({
+      provider: "oxylabs",
+      capability,
+      code: "UPSTREAM_INVALID_RESPONSE",
+      message: `Oxylabs returned a non-JSON response. ${details}`,
+    }),
+  );
 }
 
 function extractOxylabsItems(value: unknown): unknown[] {
@@ -145,9 +162,12 @@ function normalizeSearchResult(payload: unknown): XPostSearchResult {
   return { tweets, users };
 }
 
-async function scrapeProfile(reference: XUserReference): Promise<unknown> {
+async function scrapeProfile(
+  reference: XUserReference,
+  capability: "discovery" | "lookup" | "tweets" = "lookup",
+): Promise<unknown> {
   const username = requireUsername(reference, "Oxylabs");
-  return queryOxylabs(`https://x.com/${username}`);
+  return queryOxylabs(`https://x.com/${username}`, capability);
 }
 
 function buildOxylabsSearchUrl(query: string, filter: "user" | "live" | "top"): string {
@@ -189,7 +209,7 @@ export function buildOxylabsDiscoveryUrls(input: XDiscoveryInput): string[] {
 export const oxylabsDiscoveryProvider: XDiscoveryProvider = {
   provider: "oxylabs",
   async discoverCandidates(input: XDiscoveryInput): Promise<XLeadCandidate[]> {
-    const results = await Promise.all(buildOxylabsDiscoveryUrls(input).map((url) => queryOxylabs(url)));
+    const results = await Promise.all(buildOxylabsDiscoveryUrls(input).map((url) => queryOxylabs(url, "discovery")));
     const byHandle = new Map<string, XLeadCandidate>();
 
     for (const result of results) {
@@ -218,7 +238,7 @@ export const oxylabsDiscoveryProvider: XDiscoveryProvider = {
     const enrichedPayloads = await Promise.all(
       [...new Set(enrichHandles)].map(async (handle) => ({
         handle,
-        payload: await scrapeProfile({ username: handle }),
+        payload: await scrapeProfile({ username: handle }, "discovery"),
       })),
     );
 
@@ -264,7 +284,7 @@ export const oxylabsClient: XDataClient = {
   },
   async lookupUsersByUsernames(usernames) {
     const handles = [...new Set(usernames.map((username) => normalizeHandle(username)).filter(Boolean))];
-    const payloads = await Promise.all(handles.map((handle) => scrapeProfile({ username: handle })));
+    const payloads = await Promise.all(handles.map((handle) => scrapeProfile({ username: handle }, "lookup")));
     return dedupeProfiles(payloads.flatMap((payload) => normalizeProfiles(payload)));
   },
   getFollowersPage(): Promise<XProfilesPage> {
@@ -274,7 +294,10 @@ export const oxylabsClient: XDataClient = {
     unsupported("network");
   },
   async searchRecentPosts(query, maxResults = 50) {
-    const payload = await queryOxylabs(`https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`);
+    const payload = await queryOxylabs(
+      `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`,
+      "tweets",
+    );
     const result = normalizeSearchResult(payload);
     return {
       tweets: result.tweets.slice(0, maxResults),
@@ -285,7 +308,7 @@ export const oxylabsClient: XDataClient = {
     return oxylabsClient.searchRecentPosts(query, maxResults);
   },
   async getUserTweets(input) {
-    const payload = await scrapeProfile(input);
+    const payload = await scrapeProfile(input, "tweets");
     return collectNestedTweets(extractOxylabsItems(payload)).slice(0, input.maxResults ?? 30);
   },
 };

@@ -7,6 +7,7 @@ import type { Lead, LeadPatch, ListLeadsInput } from "@/lib/validations/leads";
 import { DiscoverySourceSchema, LeadStageSchema, PlatformSchema, PrioritySchema } from "@/lib/validations/shared";
 import type { DiscoverySource } from "@/lib/validations/shared";
 import type { XProfile } from "@/lib/validations/search";
+import { ensureStrictLeadImportProfiles } from "@/lib/x/contracts";
 
 export function rowToLead(
   row: typeof leads.$inferSelect,
@@ -171,7 +172,13 @@ export async function addProfilesToProject(input: {
 }): Promise<Lead[]> {
   if (input.profiles.length === 0) return [];
 
-  const values = input.profiles.map((profile) => ({
+  const strictProfiles = ensureStrictLeadImportProfiles(
+    input.profiles,
+    "leads.addProfilesToProject",
+  );
+  if (strictProfiles.length === 0) return [];
+
+  const values = strictProfiles.map((profile) => ({
     userId: input.userId,
     xUserId: profile.xUserId,
     name: profile.displayName,

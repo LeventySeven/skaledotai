@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
+import { parseJsonResponse, parseJsonText } from "./json";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -22,7 +23,7 @@ const OpenRouterPostSchema = z.object({
   replies: z.number().int().nonnegative().default(0),
   reposts: z.number().int().nonnegative().default(0),
   views: z.number().int().nonnegative().optional(),
-});
+}).strict();
 
 const OpenRouterLeadSchema = z.object({
   handle: z.string().min(1),
@@ -33,11 +34,11 @@ const OpenRouterLeadSchema = z.object({
   isVerified: z.boolean().optional(),
   profileUrl: z.string().url().optional(),
   posts: z.array(OpenRouterPostSchema).default([]),
-});
+}).strict();
 
 const OpenRouterLeadResponseSchema = z.object({
   leads: z.array(OpenRouterLeadSchema),
-});
+}).strict();
 
 type OpenRouterLead = z.infer<typeof OpenRouterLeadSchema>;
 const DEFAULT_OPENROUTER_DISCOVERY_MODEL = "x-ai/grok-4.1-fast";
@@ -193,13 +194,21 @@ function extractJsonText(text: string): string {
 }
 
 export function parseOpenRouterContent(value: unknown): unknown {
-  if (typeof value === "string") return JSON.parse(extractJsonText(value));
+  if (typeof value === "string") {
+    return parseJsonText(
+      extractJsonText(value),
+      (details) => new Error(`OpenRouter content was not valid JSON. ${details}`),
+    );
+  }
   if (Array.isArray(value)) {
     const text = value
       .map((item) => (item && typeof item === "object" && "text" in item ? String((item as { text: unknown }).text ?? "") : ""))
       .join("")
       .trim();
-    return JSON.parse(extractJsonText(text));
+    return parseJsonText(
+      extractJsonText(text),
+      (details) => new Error(`OpenRouter content was not valid JSON. ${details}`),
+    );
   }
   return value;
 }
@@ -236,9 +245,17 @@ async function discoverWithOpenRouter(input: XDiscoveryInput): Promise<OpenRoute
     });
   }
 
-  const payload = await response.json() as {
+  const payload = await parseJsonResponse<{
     choices?: Array<{ message?: { content?: unknown } }>;
-  };
+  }>(
+    response,
+    (details) => new XProviderRuntimeError({
+      provider: "openrouter",
+      capability: "discovery",
+      code: "UPSTREAM_INVALID_RESPONSE",
+      message: `OpenRouter returned a non-JSON response. ${details}`,
+    }),
+  );
   const content = payload.choices?.[0]?.message?.content;
   let parsedContent: unknown;
   try {

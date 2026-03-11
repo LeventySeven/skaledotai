@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
+import { parseJsonResponse } from "./json";
 import {
   dedupeProfiles,
   normalizeHandle,
@@ -189,26 +190,24 @@ function throwInvalidResponse(
   });
 }
 
-function summarizeNonJsonBody(body: string): string {
-  const trimmed = body.trim();
-  if (!trimmed) return "The upstream body was empty.";
-
-  const firstLine = trimmed.split("\n")[0]?.trim() ?? "";
-  const preview = firstLine.slice(0, 120);
-  return `Body preview: ${preview}`;
-}
-
 async function parseUpstreamJson(
   response: Response,
   upstream: "Tavily" | "AgentQL",
   capability: "discovery" | "lookup" | "tweets",
 ): Promise<unknown> {
-  const body = await response.text();
-
   try {
-    return JSON.parse(body) as unknown;
-  } catch {
-    throwInvalidResponse(capability, upstream, summarizeNonJsonBody(body));
+    return await parseJsonResponse(
+      response,
+      (details) => new XProviderRuntimeError({
+        provider: "multiagent",
+        capability,
+        code: "UPSTREAM_INVALID_RESPONSE",
+        message: `${upstream} returned a non-JSON response. ${details}`,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof XProviderRuntimeError) throw error;
+    throwInvalidResponse(capability, upstream);
   }
 }
 

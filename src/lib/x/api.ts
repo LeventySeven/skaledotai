@@ -1,4 +1,6 @@
 import type { XProfile } from "@/lib/validations/search";
+import { ensureStrictXProfile } from "./contracts";
+import { parseJsonResponse, tryParseJsonText } from "./json";
 
 const X_API_BASE = "https://api.x.com/2";
 const USER_FIELDS = [
@@ -154,13 +156,8 @@ async function xRequest<T>(
 
   if (!response.ok) {
     const text = await response.text();
-    let problem: XProblemResponse | undefined;
-
-    try {
-      problem = JSON.parse(text) as XProblemResponse;
-    } catch {
-      problem = undefined;
-    }
+    const parsedProblem = tryParseJsonText<XProblemResponse>(text);
+    const problem = parsedProblem.success ? parsedProblem.data : undefined;
 
     throw new XApiError(
       response.status,
@@ -169,7 +166,10 @@ async function xRequest<T>(
     );
   }
 
-  return response.json() as Promise<T>;
+  return parseJsonResponse<T>(
+    response,
+    (details) => new XApiError(response.status, undefined, `X API returned a non-JSON response. ${details}`),
+  );
 }
 
 export function buildPostSearchQuery(query: string): string {
@@ -182,7 +182,7 @@ export function buildReplySearchQuery(query: string, handle: string): string {
 }
 
 export function mapXUserToProfile(user: XUser): XProfile {
-  return {
+  return ensureStrictXProfile({
     xUserId: user.id,
     username: user.username,
     displayName: user.name,
@@ -197,7 +197,7 @@ export function mapXUserToProfile(user: XUser): XProfile {
     verifiedType: user.verified_type,
     location: user.location,
     url: user.url,
-  };
+  });
 }
 
 export function isUnsupportedAuthenticationError(error: unknown): boolean {
