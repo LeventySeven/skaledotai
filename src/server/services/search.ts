@@ -189,6 +189,7 @@ export async function searchAndAddLeads(
   provider: XDataProvider = "x-api",
 ): Promise<{ leads: Lead[]; project: Project }> {
   try {
+    const project = await resolveProject(userId, input);
     const targetLeadCount = input.targetLeadCount ?? SEARCH_TARGET;
     const { provider: discoveryProvider } = getXDiscoveryProvider(provider);
     const seedHandle = input.followerUsername?.replace(/^@/, "");
@@ -235,7 +236,6 @@ export async function searchAndAddLeads(
     }
 
     const { profiles, lookupProvider } = await canonicalizeCandidates(provider, screenedCandidates);
-    const project = await resolveProject(userId, input);
     const leadsList = await addProfilesToProject({
       userId,
       projectId: project.id,
