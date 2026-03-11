@@ -139,8 +139,6 @@ function addCandidate(
 
 async function collectPostSearchCandidates(input: {
   map: Map<string, CandidateAccumulator>;
-  provider: XDataProvider;
-  niche: string;
   discoverySource: XLeadCandidate["discoverySource"];
   targetCount: number;
   search: (nextToken?: string) => Promise<XPostSearchResult>;
@@ -183,27 +181,24 @@ export async function discoverSearchBackedCandidates(
 
   await collectPostSearchCandidates({
     map,
-    provider,
-    niche: input.niche,
     discoverySource: "post_search",
     targetCount,
     search: (nextToken) =>
       client.searchRecentPosts(buildPostSearchQuery(input.niche), X_PROVIDER_POST_SEARCH_LIMIT, nextToken),
   });
 
-  if (input.seedHandle) {
-    const [seed] = await client.lookupUsersByUsernames([input.seedHandle]);
+  const seedHandle = input.seedHandle;
+  if (seedHandle) {
+    const [seed] = await client.lookupUsersByUsernames([seedHandle]);
 
     if (seed) {
       await collectPostSearchCandidates({
         map,
-        provider,
-        niche: input.niche,
         discoverySource: "reply_search",
         targetCount,
         search: (nextToken) =>
           client.searchRecentPosts(
-            buildReplySearchQuery(input.niche, input.seedHandle as string),
+            buildReplySearchQuery(input.niche, seedHandle),
             X_PROVIDER_POST_SEARCH_LIMIT,
             nextToken,
           ),
@@ -234,8 +229,6 @@ export async function discoverSearchBackedCandidates(
   if (map.size < targetCount && process.env.X_ENABLE_FULL_ARCHIVE === "true") {
     await collectPostSearchCandidates({
       map,
-      provider,
-      niche: input.niche,
       discoverySource: "post_search",
       targetCount,
       search: (nextToken) =>
