@@ -14,6 +14,7 @@ import { buildLeadCandidate } from "./discovery";
 import { parseJsonResponse, parseJsonText } from "./json";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_TIMEOUT_MS = 60_000;
 
 const OpenRouterPostSchema = z.object({
   id: z.string().optional(),
@@ -81,53 +82,51 @@ function requireOpenRouterKey(): string {
   return apiKey;
 }
 
-function buildJsonSchema(): Record<string, unknown> {
-  return {
-    name: "x_lead_candidates",
-    strict: true,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        leads: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              handle: { type: "string" },
-              name: { type: "string" },
-              bio: { type: "string" },
-              followers: { type: "integer", minimum: 0 },
-              following: { type: "integer", minimum: 0 },
-              isVerified: { type: "boolean" },
-              profileUrl: { type: "string" },
-              posts: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    id: { type: "string" },
-                    text: { type: "string" },
-                    createdAt: { type: "string" },
-                    likes: { type: "integer", minimum: 0 },
-                    replies: { type: "integer", minimum: 0 },
-                    reposts: { type: "integer", minimum: 0 },
-                    views: { type: "integer", minimum: 0 },
-                  },
-                  required: ["text", "createdAt", "likes", "replies", "reposts"],
+const LEAD_JSON_SCHEMA: Record<string, unknown> = {
+  name: "x_lead_candidates",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      leads: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            handle: { type: "string" },
+            name: { type: "string" },
+            bio: { type: "string" },
+            followers: { type: "integer", minimum: 0 },
+            following: { type: "integer", minimum: 0 },
+            isVerified: { type: "boolean" },
+            profileUrl: { type: "string" },
+            posts: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  id: { type: "string" },
+                  text: { type: "string" },
+                  createdAt: { type: "string" },
+                  likes: { type: "integer", minimum: 0 },
+                  replies: { type: "integer", minimum: 0 },
+                  reposts: { type: "integer", minimum: 0 },
+                  views: { type: "integer", minimum: 0 },
                 },
+                required: ["text", "createdAt", "likes", "replies", "reposts"],
               },
             },
-            required: ["handle", "name", "bio", "followers", "following", "posts"],
           },
+          required: ["handle", "name", "bio", "followers", "following", "posts"],
         },
       },
-      required: ["leads"],
     },
-  };
-}
+    required: ["leads"],
+  },
+};
 
 export function buildOpenRouterDiscoveryRequest(input: XDiscoveryInput): Record<string, unknown> {
   return {
@@ -166,7 +165,7 @@ export function buildOpenRouterDiscoveryRequest(input: XDiscoveryInput): Record<
     ],
     response_format: {
       type: "json_schema",
-      json_schema: buildJsonSchema(),
+      json_schema: LEAD_JSON_SCHEMA,
     },
   };
 }
@@ -214,17 +213,33 @@ export function parseOpenRouterContent(value: unknown): unknown {
 }
 
 async function discoverWithOpenRouter(input: XDiscoveryInput): Promise<OpenRouterLead[]> {
-  const response = await fetch(OPENROUTER_BASE_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${requireOpenRouterKey()}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.OPENROUTER_SITE_URL ?? "https://skale.ai",
-      "X-Title": process.env.OPENROUTER_APP_NAME ?? "Skale",
-    },
-    body: JSON.stringify(buildOpenRouterDiscoveryRequest(input)),
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(OPENROUTER_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${requireOpenRouterKey()}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.OPENROUTER_SITE_URL ?? "https://skale.ai",
+        "X-Title": process.env.OPENROUTER_APP_NAME ?? "Skale",
+      },
+      body: JSON.stringify(buildOpenRouterDiscoveryRequest(input)),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    throw new XProviderRuntimeError({
+      provider: "openrouter",
+      capability: "discovery",
+      code: "UPSTREAM_REQUEST_FAILED",
+      message: `OpenRouter request failed.${error instanceof Error && error.name === "AbortError" ? ` Timed out after ${OPENROUTER_TIMEOUT_MS}ms.` : error instanceof Error ? ` ${error.message}` : ""}`,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const details = (await response.text()).trim();
