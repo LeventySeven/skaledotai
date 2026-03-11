@@ -10,17 +10,20 @@ import {
   mapTweetsToMetrics,
   resolveXProviderForCapability,
 } from "@/lib/x/registry";
-import type { XDataProvider } from "@/lib/x";
+import type { XDataClient, XDataProvider } from "@/lib/x";
 import { supportsXProviderCapability } from "@/lib/x";
 import type {
   ProjectAnalysisResult,
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
 import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/constants";
+import { mapWithConcurrency } from "@/lib/x/scraper-utils";
 import { createProject, rowToPreviewLead } from "./projects";
 import { recordProjectRun } from "./project-runs";
 import { upsertPostStats } from "./stats";
 import { toXProviderTrpcError } from "@/lib/x/error-handling";
+
+const ANALYSIS_ENRICHMENT_CONCURRENCY = 4;
 
 type NormalizedStats = {
   postCount: number;
@@ -31,7 +34,14 @@ type NormalizedStats = {
   topTopics: string[];
 };
 
-function normalizeStats(row: typeof postStats.$inferSelect): NormalizedStats {
+function normalizeStats(row: {
+  postCount: number;
+  avgViews?: number | string | null;
+  avgLikes?: number | string | null;
+  avgReplies?: number | string | null;
+  avgReposts?: number | string | null;
+  topTopics?: string[] | null;
+}): NormalizedStats {
   return {
     postCount: row.postCount,
     avgViews: row.avgViews ? Number(row.avgViews) : 0,
@@ -81,6 +91,89 @@ function heuristicScore(input: {
     + scale(input.avgReposts) * 8
     + Math.min(input.postCount, 30)
   );
+}
+
+type EnrichedCandidate = {
+  id: string;
+  name: string;
+  handle: string;
+  bio: string;
+  followers: number;
+  postCount: number;
+  avgViews: number;
+  avgLikes: number;
+  avgReplies: number;
+  avgReposts: number;
+  topics: string[];
+  samplePosts: string[];
+  pricingSignal: string;
+};
+
+type ShortlistedCandidate = {
+  lead: typeof leads.$inferSelect;
+  stats: NormalizedStats | null;
+  score: number;
+};
+
+async function enrichCandidate(
+  candidate: ShortlistedCandidate,
+  client: XDataClient,
+): Promise<EnrichedCandidate> {
+  let stats: NormalizedStats | null = candidate.stats;
+  let samplePosts: string[] = [];
+
+  if (!stats && (candidate.lead.xUserId || candidate.lead.handle)) {
+    try {
+      const tweets = await client.getUserTweets({
+        userId: candidate.lead.xUserId ?? undefined,
+        username: candidate.lead.handle,
+        maxResults: X_PROVIDER_ANALYSIS_TWEET_LIMIT,
+      });
+      const metrics = mapTweetsToMetrics(tweets);
+      samplePosts = metrics.map((tweet) => tweet.text).filter(Boolean).slice(0, 3);
+
+      if (metrics.length > 0) {
+        const fresh = await upsertPostStats({
+          leadId: candidate.lead.id,
+          postCount: metrics.length,
+          avgViews: Math.round(metrics.reduce((sum, tweet) => sum + tweet.viewCount, 0) / metrics.length),
+          avgLikes: Math.round(metrics.reduce((sum, tweet) => sum + tweet.likeCount, 0) / metrics.length),
+          avgReplies: Math.round(metrics.reduce((sum, tweet) => sum + tweet.replyCount, 0) / metrics.length),
+          avgReposts: Math.round(metrics.reduce((sum, tweet) => sum + tweet.repostCount, 0) / metrics.length),
+          topTopics: [],
+        });
+        stats = normalizeStats(fresh);
+      }
+    } catch (error) {
+      console.warn("[analysis] tweet enrichment failed for", candidate.lead.handle, error);
+    }
+  }
+
+  const postCount = stats?.postCount ?? 0;
+  const avgLikes = stats?.avgLikes ?? 0;
+  const avgReplies = stats?.avgReplies ?? 0;
+
+  return {
+    id: candidate.lead.id,
+    name: candidate.lead.name,
+    handle: candidate.lead.handle,
+    bio: candidate.lead.bio,
+    followers: candidate.lead.followers,
+    postCount,
+    avgViews: stats?.avgViews ?? 0,
+    avgLikes,
+    avgReplies,
+    avgReposts: stats?.avgReposts ?? 0,
+    topics: stats?.topTopics ?? [],
+    samplePosts,
+    pricingSignal: estimatePricingSignal({
+      bio: candidate.lead.bio,
+      followers: candidate.lead.followers,
+      avgLikes,
+      avgReplies,
+      postCount,
+    }),
+  };
 }
 
 export async function analyzeProjectsIntoNewProject(input: {
@@ -147,89 +240,11 @@ export async function analyzeProjectsIntoNewProject(input: {
       throw new TRPCError({ code: "NOT_FOUND", message: "No leads available in the selected projects." });
     }
 
-    const enrichedCandidates: Array<{
-      id: string;
-      name: string;
-      handle: string;
-      bio: string;
-      followers: number;
-      postCount: number;
-      avgViews: number;
-      avgLikes: number;
-      avgReplies: number;
-      avgReposts: number;
-      topics: string[];
-      samplePosts: string[];
-      pricingSignal: string;
-    }> = [];
-
-    for (const candidate of shortlisted) {
-      let stats: NormalizedStats | null = candidate.stats;
-      let samplePosts: string[] = [];
-
-      if (!stats && (candidate.lead.xUserId || candidate.lead.handle)) {
-        try {
-          const tweets = await client.getUserTweets({
-            userId: candidate.lead.xUserId ?? undefined,
-            username: candidate.lead.handle,
-            maxResults: X_PROVIDER_ANALYSIS_TWEET_LIMIT,
-          });
-          const metrics = mapTweetsToMetrics(tweets);
-          samplePosts = metrics.map((tweet) => tweet.text).filter(Boolean).slice(0, 3);
-
-          if (metrics.length > 0) {
-            const fresh = await upsertPostStats({
-              leadId: candidate.lead.id,
-              postCount: metrics.length,
-              avgViews: Math.round(metrics.reduce((sum, tweet) => sum + tweet.viewCount, 0) / metrics.length),
-              avgLikes: Math.round(metrics.reduce((sum, tweet) => sum + tweet.likeCount, 0) / metrics.length),
-              avgReplies: Math.round(metrics.reduce((sum, tweet) => sum + tweet.replyCount, 0) / metrics.length),
-              avgReposts: Math.round(metrics.reduce((sum, tweet) => sum + tweet.repostCount, 0) / metrics.length),
-              topTopics: [],
-            });
-            stats = {
-              postCount: fresh.postCount,
-              avgViews: fresh.avgViews ?? 0,
-              avgLikes: fresh.avgLikes ?? 0,
-              avgReplies: fresh.avgReplies ?? 0,
-              avgReposts: fresh.avgReposts ?? 0,
-              topTopics: fresh.topTopics ?? [],
-            };
-          }
-        } catch {
-          samplePosts = [];
-        }
-      }
-
-      const postCount = stats?.postCount ?? 0;
-      const avgViews = stats?.avgViews ?? 0;
-      const avgLikes = stats?.avgLikes ?? 0;
-      const avgReplies = stats?.avgReplies ?? 0;
-      const avgReposts = stats?.avgReposts ?? 0;
-      const topics = stats?.topTopics ?? [];
-
-      enrichedCandidates.push({
-        id: candidate.lead.id,
-        name: candidate.lead.name,
-        handle: candidate.lead.handle,
-        bio: candidate.lead.bio,
-        followers: candidate.lead.followers,
-        postCount,
-        avgViews,
-        avgLikes,
-        avgReplies,
-        avgReposts,
-        topics,
-        samplePosts,
-        pricingSignal: estimatePricingSignal({
-          bio: candidate.lead.bio,
-          followers: candidate.lead.followers,
-          avgLikes,
-          avgReplies,
-          postCount,
-        }),
-      });
-    }
+    const enrichedCandidates = await mapWithConcurrency(
+      shortlisted,
+      ANALYSIS_ENRICHMENT_CONCURRENCY,
+      (candidate) => enrichCandidate(candidate, client),
+    );
 
     const analysis = await analyzeLeadPoolForProject({
       projectNames: ownedProjects.map((project) => project.name),
