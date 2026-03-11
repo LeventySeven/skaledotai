@@ -1,5 +1,6 @@
 import type { XProfile } from "@/lib/validations/search";
 import type { XDataProvider } from "./provider";
+import type { ProjectRunTraceStep } from "@/lib/validations/project-runs";
 
 export type XUserReference = {
   userId?: string;
@@ -92,6 +93,7 @@ export type XDiscoveryInput = {
   seedHandle?: string;
   limit: number;
   minFollowers?: number;
+  traceRecorder?: (step: ProjectRunTraceStep) => void;
 };
 
 export interface XDiscoveryProvider {

@@ -63,16 +63,27 @@ mock.module("@/lib/x/registry", () => ({
 }));
 
 const screenProfilesForLeadSearchMock = mock(async (_query?: unknown, _candidates?: unknown, _maxResults?: unknown): Promise<string[]> => []);
+const screenProfilesForLeadSearchDetailedMock = mock(async (query?: unknown, candidates?: unknown, maxResults?: unknown) => ({
+  selectedIds: await screenProfilesForLeadSearchMock(query, candidates, maxResults),
+  batchSummaries: [],
+}));
 const expandLeadSearchQueriesMock = mock(async (query?: unknown): Promise<string[]> => [String(query ?? "")]);
+const analyzeLeadPoolForProjectDetailedMock = mock(async () => ({
+  summary: "Selected the strongest leads.",
+  selectedLeadIds: [],
+  usedFallback: false,
+}));
 mock.module("@/lib/openai", () => ({
   expandLeadSearchQueries: expandLeadSearchQueriesMock,
   screenProfilesForLeadSearch: screenProfilesForLeadSearchMock,
+  screenProfilesForLeadSearchDetailed: screenProfilesForLeadSearchDetailedMock,
   rankProfilesForQuery: mock(async () => []),
   extractTopicsAndPriority: mock(async () => ({ topics: [], priority: "P1" })),
   analyzeLeadPoolForProject: mock(async () => ({
     summary: "Selected the strongest leads.",
     selectedLeadIds: [],
   })),
+  analyzeLeadPoolForProjectDetailed: analyzeLeadPoolForProjectDetailedMock,
   generateOutreachTemplate: mock(async () => ({
     title: "Template",
     subject: "Quick note",
@@ -234,7 +245,9 @@ beforeEach(() => {
   getXDiscoveryProviderMock.mockClear();
   resolveXProviderForCapabilityMock.mockClear();
   screenProfilesForLeadSearchMock.mockReset();
+  screenProfilesForLeadSearchDetailedMock.mockReset();
   expandLeadSearchQueriesMock.mockReset();
+  analyzeLeadPoolForProjectDetailedMock.mockReset();
 
   discoverCandidatesMock.mockResolvedValue([]);
   lookupUsersByUsernamesMock.mockResolvedValue([]);
@@ -244,7 +257,16 @@ beforeEach(() => {
   searchAllPostsMock.mockResolvedValue({ tweets: [], users: [], nextToken: undefined });
   getUserTweetsMock.mockResolvedValue([]);
   screenProfilesForLeadSearchMock.mockResolvedValue([]);
+  screenProfilesForLeadSearchDetailedMock.mockImplementation(async (query?: unknown, candidates?: unknown, maxResults?: unknown) => ({
+    selectedIds: await screenProfilesForLeadSearchMock(query, candidates, maxResults),
+    batchSummaries: [],
+  }));
   expandLeadSearchQueriesMock.mockImplementation(async (query?: unknown) => [String(query ?? "")]);
+  analyzeLeadPoolForProjectDetailedMock.mockResolvedValue({
+    summary: "Selected the strongest leads.",
+    selectedLeadIds: [],
+    usedFallback: false,
+  });
 });
 
 describe("searchAndAddLeads", () => {
@@ -399,13 +421,13 @@ describe("searchAndAddLeads", () => {
     expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, {
       niche: "founding engineers",
       seedHandle: undefined,
-      limit: 200,
+      limit: 120,
       minFollowers: 0,
     });
     expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, {
       niche: "founding engineers founder builder engineer creator operator",
       seedHandle: undefined,
-      limit: 200,
+      limit: 120,
       minFollowers: 0,
     });
   });

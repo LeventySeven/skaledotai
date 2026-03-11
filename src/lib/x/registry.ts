@@ -46,6 +46,12 @@ const X_PROVIDER_ENV_REQUIREMENTS: Record<XDataProvider, string[]> = {
   openrouter: ["OPENROUTER_API_KEY"],
 };
 
+const X_PROVIDER_CAPABILITY_FALLBACKS: Partial<Record<XProviderCapability, XDataProvider[]>> = {
+  lookup: ["x-api"],
+  network: ["x-api"],
+  tweets: ["x-api"],
+};
+
 const PROVIDER_COST_ESTIMATES: Record<XDataProvider, Partial<Record<XProviderCapability, number>>> = {
   "x-api": {
     discovery: 0,
@@ -106,12 +112,27 @@ function getCapabilityNote(provider: XDataProvider): string {
   const unsupported = Object.entries(capabilities)
     .filter(([, enabled]) => !enabled)
     .map(([capability]) => capability);
+  const fallbackable = unsupported.filter((capability) => {
+    const fallbackProviders = X_PROVIDER_CAPABILITY_FALLBACKS[capability as XProviderCapability] ?? [];
+    return fallbackProviders.some((fallbackProvider) =>
+      fallbackProvider !== provider
+      && supportsXProviderCapability(fallbackProvider, capability as XProviderCapability)
+      && isConfigured(fallbackProvider),
+    );
+  });
+  const unavailable = unsupported.filter((capability) => !fallbackable.includes(capability));
 
   if (unsupported.length === 0) {
     return `${supported.join(", ")} handled directly.`;
   }
 
-  return `${supported.join(", ")} handled directly. ${unsupported.join(", ")} are unavailable for this provider.`;
+  const parts = [
+    supported.length > 0 ? `${supported.join(", ")} handled directly.` : "",
+    fallbackable.length > 0 ? `${fallbackable.join(", ")} fall back to X API.` : "",
+    unavailable.length > 0 ? `${unavailable.join(", ")} are unavailable for this provider.` : "",
+  ].filter(Boolean);
+
+  return parts.join(" ");
 }
 
 function isConfigured(provider: XDataProvider): boolean {
@@ -382,11 +403,27 @@ export function resolveXProviderForCapability(
     };
   }
 
+  const fallbackProviders = X_PROVIDER_CAPABILITY_FALLBACKS[capability] ?? [];
+  for (const fallbackProvider of fallbackProviders) {
+    if (
+      fallbackProvider !== requestedProvider
+      && supportsXProviderCapability(fallbackProvider, capability)
+      && isConfigured(fallbackProvider)
+    ) {
+      return {
+        requestedProvider,
+        effectiveProvider: fallbackProvider,
+        capability,
+        usedFallback: true,
+      };
+    }
+  }
+
   throw new XProviderRuntimeError({
     provider: requestedProvider,
     capability,
     code: "CAPABILITY_UNSUPPORTED",
-    message: `${getXDataProviderLabel(requestedProvider)} does not support ${capability}. This workflow now uses only the exact selected provider.`,
+    message: `${getXDataProviderLabel(requestedProvider)} does not support ${capability}, and no configured fallback provider is available.`,
   });
 }
 

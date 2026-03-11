@@ -6,6 +6,7 @@ import { httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import { trpc } from "./client";
 import { readStoredXDataProvider } from "@/components/providers/XDataProviderPreference";
+import { safeTrpcFetch } from "./safe-fetch";
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -15,6 +16,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: "/api/trpc",
           transformer: superjson,
+          fetch: safeTrpcFetch,
           headers() {
             return {
               "x-data-provider": readStoredXDataProvider(),

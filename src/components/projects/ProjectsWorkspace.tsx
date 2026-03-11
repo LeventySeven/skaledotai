@@ -7,11 +7,35 @@ import { ArrowRightIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ReasoningSheet, type LiveReasoningStep } from "@/components/runs/ReasoningSheet";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { ProjectAnalysisResult } from "@/lib/validations/projects";
 import { ProjectCard } from "./ProjectCard";
+
+const ANALYSIS_REASONING_STEPS: LiveReasoningStep[] = [
+  {
+    id: "pool",
+    title: "Candidate pool",
+    summary: "Merging selected projects, deduplicating leads, and ranking the strongest candidates.",
+  },
+  {
+    id: "enrichment",
+    title: "Signal enrichment",
+    summary: "Refreshing tweet activity and engagement signals for the shortlist.",
+  },
+  {
+    id: "shortlist",
+    title: "AI shortlist",
+    summary: "The model compares commercial signals, audience quality, and activity before picking the final list.",
+  },
+  {
+    id: "insert",
+    title: "Spreadsheet insert",
+    summary: "Creating the new shortlist sheet and attaching the chosen leads.",
+  },
+] as const;
 
 export function ProjectsWorkspace() {
   const router = useRouter();
@@ -22,10 +46,12 @@ export function ProjectsWorkspace() {
   const [newProjectName, setNewProjectName] = useState("AI shortlist");
   const [uiError, setUiError] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<ProjectAnalysisResult | null>(null);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
 
   const analyzeMutation = trpc.projects.analyze.useMutation({
     onSuccess: async (result) => {
       setAnalysisResult(result);
+      setReasoningOpen(true);
       setUiError(null);
       await Promise.all([
         utils.projects.list.invalidate(),
@@ -38,6 +64,7 @@ export function ProjectsWorkspace() {
       });
     },
     onError: (error) => {
+      setReasoningOpen(false);
       setUiError(error.message);
       toastManager.add({ type: "error", title: error.message });
     },
@@ -74,6 +101,8 @@ export function ProjectsWorkspace() {
     }
 
     setUiError(null);
+    setAnalysisResult(null);
+    setReasoningOpen(true);
     await analyzeMutation.mutateAsync({
       projectIds: selectedProjectIds,
       name: newProjectName.trim() || "AI shortlist",
@@ -156,13 +185,22 @@ export function ProjectsWorkspace() {
               </div>
               <p className="text-[1rem] text-foreground">{analysisResult.summary}</p>
             </div>
-            <Button
-              render={<Link href={`/leads?project=${analysisResult.project.id}`} />}
-              className="h-10 rounded-xl px-4 text-[0.95rem]"
-            >
-              Open created sheet
-              <ArrowRightIcon className="size-4" />
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                className="h-10 rounded-xl px-4 text-[0.95rem]"
+                onClick={() => setReasoningOpen(true)}
+              >
+                View reasoning
+              </Button>
+              <Button
+                render={<Link href={`/leads?project=${analysisResult.project.id}`} />}
+                className="h-10 rounded-xl px-4 text-[0.95rem]"
+              >
+                Open created sheet
+                <ArrowRightIcon className="size-4" />
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -189,6 +227,16 @@ export function ProjectsWorkspace() {
           ))}
         </div>
       )}
+
+      <ReasoningSheet
+        open={reasoningOpen}
+        onOpenChange={setReasoningOpen}
+        title="AI Analysis Reasoning"
+        description="Watching shortlist assembly, signal enrichment, model selection, and final spreadsheet insert."
+        isPending={analyzeMutation.isPending}
+        liveSteps={ANALYSIS_REASONING_STEPS}
+        trace={analysisResult?.trace}
+      />
     </div>
   );
 }

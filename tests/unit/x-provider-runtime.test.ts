@@ -21,9 +21,12 @@ describe("X provider runtime", () => {
   });
 
   test("throws when an unsupported capability is requested", () => {
-    expect(() => resolveXProviderForCapability("openrouter", "lookup")).toThrow(
-      "does not support lookup",
-    );
+    expect(resolveXProviderForCapability("openrouter", "lookup")).toMatchObject({
+      requestedProvider: "openrouter",
+      effectiveProvider: "x-api",
+      capability: "lookup",
+      usedFallback: true,
+    });
   });
 
   test("marks oxylabs as not configured until fixture gate and credentials are present", () => {

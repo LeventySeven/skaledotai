@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummaryCard";
+import { ReasoningSheet, type LiveReasoningStep } from "@/components/runs/ReasoningSheet";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
+import type { ProjectRunTrace } from "@/lib/validations/project-runs";
 
 const FOLLOWER_FLOOR_OPTIONS = [
   { label: "Any size", value: 0 },
@@ -18,6 +20,29 @@ const FOLLOWER_FLOOR_OPTIONS = [
   { label: "10k+", value: 10_000 },
   { label: "50k+", value: 50_000 },
   { label: "100k+", value: 100_000 },
+] as const;
+
+const SEARCH_REASONING_STEPS: LiveReasoningStep[] = [
+  {
+    id: "discovery",
+    title: "Discovery sweep",
+    summary: "Collecting candidate accounts from the selected source and trimming obvious duplicates.",
+  },
+  {
+    id: "screening",
+    title: "Model screening",
+    summary: "Scoring the candidate pool and keeping the strongest niche matches.",
+  },
+  {
+    id: "canonicalization",
+    title: "Profile shaping",
+    summary: "Normalizing rows so every source lands in the same spreadsheet shape.",
+  },
+  {
+    id: "insert",
+    title: "Spreadsheet insert",
+    summary: "Writing the final rows into the project sheet and preparing the leads view.",
+  },
 ] as const;
 
 export function SearchForm() {
@@ -31,9 +56,12 @@ export function SearchForm() {
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
   const [minFollowers, setMinFollowers] = useState(1_000);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
+  const [reasoningTrace, setReasoningTrace] = useState<ProjectRunTrace | null>(null);
 
   const searchMutation = trpc.search.run.useMutation({
     onSuccess: async (result) => {
+      setReasoningTrace(result.trace);
       await Promise.all([
         utils.projects.list.invalidate(),
         utils.leads.list.invalidate(),
@@ -42,9 +70,13 @@ export function SearchForm() {
         type: "success",
         title: `Added ${result.leads.length} leads to ${result.project.name}.`,
       });
-      router.push(`/leads?project=${result.project.id}`);
+      window.setTimeout(() => {
+        router.push(`/leads?project=${result.project.id}`);
+      }, 350);
     },
     onError: (error) => {
+      setReasoningTrace(null);
+      setReasoningOpen(false);
       toastManager.add({ type: "error", title: error.message });
     },
   });
@@ -58,6 +90,8 @@ export function SearchForm() {
       return;
     }
 
+    setReasoningTrace(null);
+    setReasoningOpen(true);
     await searchMutation.mutateAsync({
       query: query.trim(),
       projectId: projectMode === "existing" ? projectId || undefined : undefined,
@@ -71,43 +105,47 @@ export function SearchForm() {
   }
 
   return (
-    <form className="mt-8 space-y-7" onSubmit={handleSubmit}>
-      <div className="space-y-2">
-        <label className="block text-[1.05rem] font-semibold">What are you looking for?</label>
-        <Input
-          className="h-[42px] rounded-2xl text-[1rem]"
-          placeholder="e.g. best product designers"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          required
-        />
-      </div>
+    <>
+      <form className="mt-8 space-y-7" onSubmit={handleSubmit}>
+        <div className="space-y-2">
+          <label className="block text-[1.05rem] font-semibold">What are you looking for?</label>
+          <Input
+            className="h-[42px] rounded-2xl text-[1rem]"
+            placeholder="e.g. best product designers"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            required
+          />
+        </div>
 
-      <div className="space-y-2">
-        <label className="block text-[1.05rem] font-semibold">
-          Project <span className="ml-2 font-normal text-muted-foreground">(optional)</span>
-        </label>
-        <select
-          className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
-          value={projectMode}
-          onChange={(event) => setProjectMode(event.target.value as "new" | "existing")}
-        >
-          <option value="new">Create new project</option>
-          <option value="existing">Use existing project</option>
-        </select>
-        {projectMode === "new" ? (
-          <>
-            <Input
-              className="h-[42px] rounded-2xl text-[1rem]"
-              placeholder="e.g. Designers campaign"
-              value={projectName}
-              onChange={(event) => setProjectName(event.target.value)}
-            />
-            <p className="text-[0.95rem] text-muted-foreground">
-              A new project will be created. Defaults to the search query.
-            </p>
-          </>
-        ) : (
+        <div className="space-y-2">
+          <label className="block text-[1.05rem] font-semibold">
+            Project <span className="ml-2 font-normal text-muted-foreground">(optional)</span>
+          </label>
+          <select
+            className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+            value={projectMode}
+            onChange={(event) => setProjectMode(event.target.value as "new" | "existing")}
+          >
+            <option value="new">Create new project</option>
+            <option value="existing">Use existing project</option>
+          </select>
+          {projectMode === "new" ? (
+            <>
+              <Input
+                className="h-[42px] rounded-2xl text-[1rem]"
+                placeholder="e.g. Designers campaign"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+              />
+              <p className="text-[0.95rem] text-muted-foreground">
+                A new project will be created. Defaults to the search query.
+              </p>
+            </>
+          ) : null}
+        </div>
+
+        {projectMode === "existing" ? (
           <select
             className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
             value={projectId}
@@ -121,59 +159,69 @@ export function SearchForm() {
               </option>
             ))}
           </select>
-        )}
-      </div>
+        ) : null}
 
-      <div className="grid gap-5 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-        <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">X data source</label>
-          <XDataSourceSummaryCard />
+        <div className="grid gap-5 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+          <div className="space-y-2">
+            <label className="block text-[1.05rem] font-semibold">X data source</label>
+            <XDataSourceSummaryCard />
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[1.05rem] font-semibold">Minimum followers</label>
+            <select
+              className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              value={minFollowers}
+              onChange={(event) => setMinFollowers(Number(event.target.value))}
+            >
+              {FOLLOWER_FLOOR_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[0.95rem] text-muted-foreground">
+              X returns `public_metrics.followers_count`; results are filtered and biased toward larger accounts.
+            </p>
+          </div>
         </div>
+
         <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">Minimum followers</label>
-          <select
-            className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
-            value={minFollowers}
-            onChange={(event) => setMinFollowers(Number(event.target.value))}
-          >
-            {FOLLOWER_FLOOR_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-[0.95rem] text-muted-foreground">
-            X returns `public_metrics.followers_count`; results are filtered and biased toward larger accounts.
-          </p>
+          <label className="flex items-center gap-3 text-[1rem]">
+            <Checkbox
+              checked={searchFollowersOnly}
+              onCheckedChange={(value) => setSearchFollowersOnly(Boolean(value))}
+            />
+            Search within a user&apos;s followers
+          </label>
+          {searchFollowersOnly && (
+            <Input
+              className="h-[42px] rounded-2xl text-[1rem]"
+              placeholder="@markknd"
+              value={followerUsername}
+              onChange={(event) => setFollowerUsername(event.target.value)}
+            />
+          )}
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <label className="flex items-center gap-3 text-[1rem]">
-          <Checkbox
-            checked={searchFollowersOnly}
-            onCheckedChange={(value) => setSearchFollowersOnly(Boolean(value))}
-          />
-          Search within a user&apos;s followers
-        </label>
-        {searchFollowersOnly && (
-          <Input
-            className="h-[42px] rounded-2xl text-[1rem]"
-            placeholder="@markknd"
-            value={followerUsername}
-            onChange={(event) => setFollowerUsername(event.target.value)}
-          />
-        )}
-      </div>
+        <Button
+          type="submit"
+          className="h-[42px] w-full rounded-2xl text-[1rem] font-medium"
+          disabled={searchMutation.isPending}
+        >
+          {searchMutation.isPending ? <Spinner className="size-4" /> : null}
+          {searchMutation.isPending ? "Running Search" : "Run Search"}
+        </Button>
+      </form>
 
-      <Button
-        type="submit"
-        className="h-[42px] w-full rounded-2xl text-[1rem] font-medium"
-        disabled={searchMutation.isPending}
-      >
-        {searchMutation.isPending ? <Spinner className="size-4" /> : null}
-        {searchMutation.isPending ? "Running Search" : "Run Search"}
-      </Button>
-    </form>
+      <ReasoningSheet
+        open={reasoningOpen}
+        onOpenChange={setReasoningOpen}
+        title="Search Reasoning"
+        description="Watching discovery, model filtering, normalization, and final spreadsheet insert."
+        isPending={searchMutation.isPending}
+        liveSteps={SEARCH_REASONING_STEPS}
+        trace={reasoningTrace}
+      />
+    </>
   );
 }

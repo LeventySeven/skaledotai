@@ -32,6 +32,11 @@ type StructuredResponse<T> = {
   maxOutputTokens?: number;
 };
 
+type StructuredResponseResult<T> = {
+  data: T;
+  usedFallback: boolean;
+};
+
 // ── Client ────────────────────────────────────────────────────────────────────
 
 let client: OpenAI | null | undefined;
@@ -111,8 +116,28 @@ async function structuredResponse<T>({
   fallback,
   maxOutputTokens,
 }: StructuredResponse<T>): Promise<T> {
+  const result = await structuredResponseWithMeta({
+    schemaName,
+    schema,
+    instructions,
+    input,
+    fallback,
+    maxOutputTokens,
+  });
+
+  return result.data;
+}
+
+async function structuredResponseWithMeta<T>({
+  schemaName,
+  schema,
+  instructions,
+  input,
+  fallback,
+  maxOutputTokens,
+}: StructuredResponse<T>): Promise<StructuredResponseResult<T>> {
   const openai = getClient();
-  if (!openai) return fallback;
+  if (!openai) return { data: fallback, usedFallback: true };
 
   try {
     const response = await openai.responses.parse({
@@ -137,13 +162,26 @@ async function structuredResponse<T>({
       max_output_tokens: maxOutputTokens,
     });
 
-    return response.output_parsed ?? fallback;
+    if (response.output_parsed) {
+      return {
+        data: response.output_parsed,
+        usedFallback: false,
+      };
+    }
+
+    return {
+      data: fallback,
+      usedFallback: true,
+    };
   } catch (error) {
     console.warn("[openai][structured-response]", JSON.stringify({
       schema: schemaName,
       message: error instanceof Error ? error.message : String(error),
     }));
-    return fallback;
+    return {
+      data: fallback,
+      usedFallback: true,
+    };
   }
 }
 
@@ -183,15 +221,46 @@ export async function screenProfilesForLeadSearch(
   candidates: SearchScreeningCandidate[],
   maxResults: number,
 ): Promise<string[]> {
-  if (candidates.length === 0) return [];
+  const result = await screenProfilesForLeadSearchDetailed(query, candidates, maxResults);
+  return result.selectedIds;
+}
+
+export async function screenProfilesForLeadSearchDetailed(
+  query: string,
+  candidates: SearchScreeningCandidate[],
+  maxResults: number,
+): Promise<{
+  selectedIds: string[];
+  batchSummaries: Array<{
+    candidateCount: number;
+    includedCount: number;
+    usedFallback: boolean;
+  }>;
+}> {
+  if (candidates.length === 0) {
+    return {
+      selectedIds: [],
+      batchSummaries: [],
+    };
+  }
   const prefilteredCandidates = candidates.filter((candidate) => !isHardRejectedSearchCandidate(candidate));
-  if (prefilteredCandidates.length === 0) return [];
+  if (prefilteredCandidates.length === 0) {
+    return {
+      selectedIds: [],
+      batchSummaries: [],
+    };
+  }
 
   const selectedScores = new Map<string, number>();
+  const batchSummaries: Array<{
+    candidateCount: number;
+    includedCount: number;
+    usedFallback: boolean;
+  }> = [];
 
   for (const batch of chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE)) {
     const validIds = new Set(batch.map((candidate) => candidate.xUserId));
-    const result = await structuredResponse<{
+    const result = await structuredResponseWithMeta<{
       decisions: Array<{ profileId: string; include: boolean; score: number }>;
     }>({
       schemaName: "lead_search_screening",
@@ -216,13 +285,22 @@ export async function screenProfilesForLeadSearch(
       maxOutputTokens: 3_000,
     });
 
-    for (const decision of result.decisions) {
+    let includedCount = 0;
+
+    for (const decision of result.data.decisions) {
       if (!validIds.has(decision.profileId) || !decision.include) continue;
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);
       }
+      includedCount += 1;
     }
+
+    batchSummaries.push({
+      candidateCount: batch.length,
+      includedCount,
+      usedFallback: result.usedFallback,
+    });
   }
 
   const selectedIds = prefilteredCandidates
@@ -234,9 +312,12 @@ export async function screenProfilesForLeadSearch(
     .slice(0, maxResults)
     .map((candidate) => candidate.xUserId);
 
-  return selectedIds.length > 0
-    ? selectedIds
-    : getFallbackScreenedIds(query, prefilteredCandidates, maxResults);
+  return {
+    selectedIds: selectedIds.length > 0
+      ? selectedIds
+      : getFallbackScreenedIds(query, prefilteredCandidates, maxResults),
+    batchSummaries,
+  };
 }
 
 export async function expandLeadSearchQueries(
@@ -319,15 +400,45 @@ export async function analyzeLeadPoolForProject(input: {
     pricingSignal: string;
   }>;
 }): Promise<Pick<ProjectAnalysisResult, "summary" | "selectedLeadIds">> {
+  const result = await analyzeLeadPoolForProjectDetailed(input);
+  return {
+    summary: result.summary,
+    selectedLeadIds: result.selectedLeadIds,
+  };
+}
+
+export async function analyzeLeadPoolForProjectDetailed(input: {
+  projectNames: string[];
+  candidates: Array<{
+    id: string;
+    name: string;
+    handle: string;
+    bio: string;
+    followers: number;
+    postCount: number;
+    avgViews: number;
+    avgLikes: number;
+    avgReplies: number;
+    avgReposts: number;
+    topics: string[];
+    samplePosts: string[];
+    pricingSignal: string;
+  }>;
+}): Promise<Pick<ProjectAnalysisResult, "summary" | "selectedLeadIds"> & { usedFallback: boolean }> {
   const fallback = {
     summary:
       "Selected the strongest leads by audience size, posting activity, engagement, and commercial signals.",
     selectedLeadIds: input.candidates.slice(0, 8).map((candidate) => candidate.id),
   };
 
-  if (input.candidates.length === 0) return fallback;
+  if (input.candidates.length === 0) {
+    return {
+      ...fallback,
+      usedFallback: true,
+    };
+  }
 
-  const result = await structuredResponse<Pick<ProjectAnalysisResult, "summary" | "selectedLeadIds">>({
+  const result = await structuredResponseWithMeta<Pick<ProjectAnalysisResult, "summary" | "selectedLeadIds">>({
     schemaName: "project_lead_pool_analysis",
     schema: LeadPoolAnalysisSchema,
     instructions:
@@ -338,10 +449,11 @@ export async function analyzeLeadPoolForProject(input: {
   });
 
   return {
-    summary: result.summary,
-    selectedLeadIds: result.selectedLeadIds.filter((id) =>
+    summary: result.data.summary,
+    selectedLeadIds: result.data.selectedLeadIds.filter((id) =>
       input.candidates.some((candidate) => candidate.id === id),
     ),
+    usedFallback: result.usedFallback,
   };
 }
 

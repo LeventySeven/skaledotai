@@ -4,8 +4,7 @@ import { db } from "@/db";
 import { projectRuns, projects } from "@/db/schema";
 import type { XDataProvider } from "@/lib/x";
 import { XDataProviderSchema } from "@/lib/validations/x-provider";
-
-export type ProjectRunOperationType = "search" | "network_import" | "analysis";
+import { type ProjectRunOperationType } from "@/lib/validations/project-runs";
 
 function normalizeRunKeyPart(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? "";

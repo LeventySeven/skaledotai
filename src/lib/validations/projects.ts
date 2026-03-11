@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PrioritySchema } from "./shared";
 import { XDataProviderSchema } from "./x-provider";
+import { ProjectRunTraceSchema } from "./project-runs";
 
 export const ProjectSchema = z.object({
   id: z.string(),
@@ -39,6 +40,7 @@ export const ProjectAnalysisResultSchema = z.object({
   project: ProjectSchema,
   previewLeads: z.array(ProjectPreviewLeadSchema),
   analyzedProjectIds: z.array(z.string()),
+  trace: ProjectRunTraceSchema.optional(),
 });
 export type ProjectAnalysisResult = z.infer<typeof ProjectAnalysisResultSchema>;
 

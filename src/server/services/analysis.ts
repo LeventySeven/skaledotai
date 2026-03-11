@@ -4,20 +4,20 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, postStats, projectLeads, projects } from "@/db/schema";
 import { X_PROVIDER_ANALYSIS_TWEET_LIMIT } from "@/lib/constants";
-import { analyzeLeadPoolForProject } from "@/lib/openai";
+import { analyzeLeadPoolForProjectDetailed } from "@/lib/openai";
 import {
   getXDataClientForCapability,
   mapTweetsToMetrics,
   resolveXProviderForCapability,
 } from "@/lib/x/registry";
 import type { XDataClient, XDataProvider } from "@/lib/x";
-import { supportsXProviderCapability } from "@/lib/x";
 import type {
   ProjectAnalysisResult,
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
 import { ANALYSIS_AI_FALLBACK_SIZE, ANALYSIS_SHORTLIST_SIZE } from "@/lib/constants";
 import { mapWithConcurrency } from "@/lib/x/scraper-utils";
+import { createProjectRunTraceBuilder } from "./project-run-trace";
 import { createProject, rowToPreviewLead } from "./projects";
 import { recordProjectRun } from "./project-runs";
 import { upsertPostStats } from "./stats";
@@ -184,6 +184,11 @@ export async function analyzeProjectsIntoNewProject(input: {
 }): Promise<ProjectAnalysisResult> {
   try {
     const requestedProvider = input.provider ?? "x-api";
+    const trace = createProjectRunTraceBuilder({
+      title: "AI Shortlist Analysis",
+      operationType: "analysis",
+      requestedProvider,
+    });
     const { client, resolution } = getXDataClientForCapability(requestedProvider, "tweets");
     const uniqueProjectIds = [...new Set(input.projectIds)];
     if (uniqueProjectIds.length === 0) {
@@ -236,6 +241,18 @@ export async function analyzeProjectsIntoNewProject(input: {
       .sort((a, b) => b.score - a.score)
       .slice(0, ANALYSIS_SHORTLIST_SIZE);
 
+    trace.addStep({
+      title: "Candidate Pool",
+      summary: `Merged ${candidateRows.length} rows into ${shortlisted.length} shortlisted candidates.`,
+      status: "success",
+      provider: requestedProvider,
+      metrics: [
+        { label: "Projects", value: uniqueProjectIds.length },
+        { label: "Rows scanned", value: candidateRows.length },
+        { label: "Shortlisted", value: shortlisted.length },
+      ],
+    });
+
     if (shortlisted.length === 0) {
       throw new TRPCError({ code: "NOT_FOUND", message: "No leads available in the selected projects." });
     }
@@ -246,7 +263,22 @@ export async function analyzeProjectsIntoNewProject(input: {
       (candidate) => enrichCandidate(candidate, client),
     );
 
-    const analysis = await analyzeLeadPoolForProject({
+    trace.addStep({
+      title: "Tweet Enrichment",
+      summary: `Prepared live posting signals for ${enrichedCandidates.length} candidates.`,
+      status: resolution.usedFallback ? "warning" : "success",
+      provider: resolution.effectiveProvider,
+      bullets: [
+        resolution.usedFallback
+          ? `Tweet reads fell back from ${requestedProvider} to ${resolution.effectiveProvider}.`
+          : `Tweet reads stayed on ${resolution.effectiveProvider}.`,
+      ],
+      metrics: [
+        { label: "Candidates", value: enrichedCandidates.length },
+      ],
+    });
+
+    const analysis = await analyzeLeadPoolForProjectDetailed({
       projectNames: ownedProjects.map((project) => project.name),
       candidates: enrichedCandidates,
     });
@@ -254,6 +286,21 @@ export async function analyzeProjectsIntoNewProject(input: {
     const selectedLeadIds = analysis.selectedLeadIds.length > 0
       ? analysis.selectedLeadIds
       : enrichedCandidates.slice(0, ANALYSIS_AI_FALLBACK_SIZE).map((candidate) => candidate.id);
+
+    trace.addStep({
+      title: "AI Shortlist",
+      summary: `The model selected ${selectedLeadIds.length} final leads.`,
+      status: analysis.usedFallback ? "warning" : "success",
+      model: process.env.OPENAI_MODEL ?? "gpt-5",
+      bullets: [
+        analysis.usedFallback
+          ? "The shortlist used fallback scoring because the model output was unavailable."
+          : "The shortlist used the model-generated summary and selections.",
+      ],
+      metrics: [
+        { label: "Selected", value: selectedLeadIds.length },
+      ],
+    });
 
     const project = await createProject(input.userId, {
       name: input.name?.trim() || `AI analysis • ${ownedProjects.length} projects`,
@@ -264,21 +311,27 @@ export async function analyzeProjectsIntoNewProject(input: {
       .insert(projectLeads)
       .values(selectedLeadIds.map((leadId) => ({
         projectId: project.id,
-        leadId,
+      leadId,
       })))
       .onConflictDoNothing();
+
+    trace.addStep({
+      title: "Spreadsheet Insert",
+      summary: `Created ${project.name} with ${selectedLeadIds.length} shortlisted leads.`,
+      status: "success",
+      provider: requestedProvider,
+      metrics: [
+        { label: "Inserted", value: selectedLeadIds.length },
+      ],
+    });
 
     await recordProjectRun({
       projectId: project.id,
       operationType: "analysis",
       requestedProvider,
       discoveryProvider: requestedProvider,
-      lookupProvider: supportsXProviderCapability(requestedProvider, "lookup")
-        ? resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider
-        : requestedProvider,
-      networkProvider: supportsXProviderCapability(requestedProvider, "network")
-        ? resolveXProviderForCapability(requestedProvider, "network").effectiveProvider
-        : requestedProvider,
+      lookupProvider: resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider,
+      networkProvider: resolveXProviderForCapability(requestedProvider, "network").effectiveProvider,
       tweetsProvider: resolution.effectiveProvider,
       query: analysis.summary,
       leadCount: selectedLeadIds.length,
@@ -299,6 +352,7 @@ export async function analyzeProjectsIntoNewProject(input: {
         .map((leadId) => previewLeadMap.get(leadId))
         .filter((lead): lead is ProjectPreviewLead => Boolean(lead)),
       analyzedProjectIds: uniqueProjectIds,
+      trace: trace.build(`Created ${project.name} from ${uniqueProjectIds.length} projects.`),
     };
   } catch (error) {
     throw toXProviderTrpcError(error);
