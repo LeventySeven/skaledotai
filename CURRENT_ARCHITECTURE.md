@@ -1,187 +1,194 @@
 # Current Architecture
 
-## Overview
+## 1. What this project is
 
-`skaleai` is a Next.js 16 App Router application for discovering, organizing, and prioritizing X/Twitter leads for outreach.
+`skaleai` is an authenticated Next.js application for X/Twitter lead discovery and outreach preparation.
 
-The repository currently contains:
+The current codebase is centered around a single operational loop:
 
-- A working authentication system.
-- A working backend domain model for projects, leads, stats, outreach queueing, and API keys.
-- A tRPC API layer that exposes those backend capabilities to the app.
-- Integrations with the X API and OpenAI.
-- A reusable UI/component system and authenticated dashboard shell.
-- Placeholder feature pages for Search, Leads, Outreach, and Settings, which means the backend is materially ahead of the frontend.
+1. Discover relevant X accounts from a niche query or a seed account.
+2. Save those accounts as leads inside projects.
+3. Score and enrich the leads with tweet metrics and AI signals.
+4. Move selected leads into an outreach queue.
+5. Generate and manage outreach templates.
+6. Use AI to create new shortlist projects from existing projects.
 
-In practical terms, the project is architected as a single Next.js app with server-side business logic, Postgres persistence, and a thin client layer.
+The product is not a general CRM and not a generic social analytics tool. It is a focused workflow app for sourcing and managing X/Twitter outreach targets.
 
-## High-Level System Shape
+## 2. System shape
 
 ```mermaid
 flowchart TD
-  Browser["Browser / React client"] --> AppRouter["Next.js App Router"]
-  AppRouter --> AuthPages["Auth pages + server actions"]
-  AppRouter --> MainShell["Authenticated dashboard shell"]
-  Browser --> TRPC["/api/trpc"]
-  TRPC --> Context["tRPC context from Better Auth session"]
-  Context --> Routers["tRPC routers"]
-  Routers --> Services["Server service layer"]
-  Services --> DB["Postgres via Drizzle ORM"]
-  Services --> XProvider["X data provider layer"]
-  XProvider --> XAPI["X API v2"]
-  XProvider --> Apify["Apify actors"]
-  Services --> OpenAI["OpenAI chat completions"]
-  Browser --> BetterAuthRoute["/api/auth/[...all]"]
-  BetterAuthRoute --> BetterAuth["Better Auth"]
-  BetterAuth --> DB
+  Browser["React client"] --> NextApp["Next.js App Router"]
+  NextApp --> AuthRoute["/api/auth/[...all]"]
+  NextApp --> TRPCRoute["/api/trpc/[trpc]"]
+  NextApp --> MainLayout["Authenticated dashboard shell"]
+
+  AuthRoute --> BetterAuth["Better Auth"]
+  BetterAuth --> DB["Postgres via Drizzle ORM"]
+
+  TRPCRoute --> TRPC["tRPC fetch adapter"]
+  TRPC --> Context["Request context"]
+  Context --> Routers["Routers"]
+  Routers --> Services["Service layer"]
+  Services --> DB
+  Services --> OpenAI["OpenAI Responses API"]
+  Services --> XProviders["X provider abstraction"]
+
+  XProviders --> XAPI["X API"]
+  XProviders --> Apify["Apify"]
+  XProviders --> Oxylabs["Oxylabs"]
+  XProviders --> MultiAgent["LangGraph + Tavily + AgentQL"]
+  XProviders --> OpenRouter["OpenRouter"]
 ```
 
-## Application Layers
+## 3. Stack
 
-### 1. Next.js application layer
+### Runtime and framework
 
-The app uses:
+- Next.js 16 App Router
+- React 19
+- TypeScript in strict mode
+- Bun scripts for tests and DB commands
 
-- `next@16.1.6`
-- React `19.2.3`
-- App Router under `src/app`
-- Server Components by default
-- Client Components where browser state or interaction is needed
+### API and validation
 
-Route groups are split into:
+- tRPC v11
+- Zod
+- SuperJSON
 
-- `src/app/(auth)`: sign-in and sign-up flows
-- `src/app/(main)`: authenticated dashboard area
-- `src/app/api`: HTTP entry points for auth and tRPC
+### Database and auth
 
-The root entry points are:
+- Postgres
+- Drizzle ORM
+- Better Auth
 
-- `src/app/layout.tsx`: global HTML shell, Geist fonts, toast provider
-- `src/app/page.tsx`: landing page that redirects signed-in users to `/leads`
-- `src/app/(auth)/layout.tsx`: redirects authenticated users away from auth pages
-- `src/app/(main)/layout.tsx`: protects the dashboard and mounts the sidebar plus tRPC provider
+### UI
 
-### 2. Authentication layer
+- Tailwind CSS 4
+- `@base-ui/react`
+- local UI components under `src/components/ui`
 
-Authentication is implemented with `better-auth`.
+### AI and external providers
 
-Core files:
+- OpenAI Responses API
+- X API
+- Apify
+- Oxylabs
+- Tavily
+- AgentQL
+- LangGraph
+- OpenRouter
 
-- `src/lib/auth.ts`
-- `src/lib/auth-client.ts`
-- `src/app/api/auth/[...all]/route.ts`
-- `src/app/(auth)/actions.ts`
+## 4. Repository structure
 
-How it works:
+### `src/app`
 
-1. `betterAuth(...)` is configured in `src/lib/auth.ts`.
-2. It uses the Drizzle adapter against the local Postgres schema.
-3. Email/password auth is enabled.
-4. Google OAuth is enabled as a social provider.
-5. The `nextCookies()` plugin integrates auth cookies with Next.js.
-6. The API handler is exposed through `toNextJsHandler(auth)` in `src/app/api/auth/[...all]/route.ts`.
-7. Server-side session checks use `auth.api.getSession({ headers })`.
-8. Client-side social login uses `createAuthClient(...)` from `src/lib/auth-client.ts`.
+Purpose: route tree, layouts, landing/auth pages, and route handlers.
 
-The auth flow is a mix of:
+- `(auth)` contains sign-in / sign-up pages and server actions.
+- `(main)` contains protected product pages.
+- `api/auth/[...all]` exposes Better Auth.
+- `api/trpc/[trpc]` exposes the tRPC adapter.
 
-- Server Actions for email/password sign-in and sign-up
-- Client-triggered Better Auth social login for Google
-- Server-side session checks inside layouts and tRPC context creation
+### `src/components`
 
-Current auth behavior:
+Purpose: page workspaces, stateful page hooks, provider-selection UI, sidebar shell, and shared UI primitives.
 
-- Auth pages redirect logged-in users to `/leads`.
-- The main app layout redirects anonymous users to `/sign-in`.
-- Email verification is not required.
-- Google account linking is enabled and permissive.
+Notable folders:
 
-### 3. API and RPC layer
-
-The application uses `tRPC v11` as its typed API contract.
-
-Core files:
-
-- `src/server/trpc/trpc.ts`
-- `src/server/trpc/context.ts`
-- `src/server/trpc/root.ts`
-- `src/server/trpc/routers/*.ts`
-- `src/app/api/trpc/[trpc]/route.ts`
-- `src/lib/trpc/client.tsx`
-- `src/lib/trpc/react.tsx`
-- `src/lib/trpc/server.ts`
-
-How it works:
-
-1. `src/app/api/trpc/[trpc]/route.ts` exposes a fetch-based tRPC endpoint at `/api/trpc`.
-2. Each request builds context via `createContext`, which reads the Better Auth session from request headers.
-3. The same context also reads the selected X provider from the `x-data-provider` request header.
-4. `protectedProcedure` rejects unauthenticated access by requiring `ctx.userId`.
-5. Routers delegate to a service layer instead of placing most business logic inline.
-5. On the client, `TRPCProvider` creates:
-   - a TanStack Query `QueryClient`
-   - a tRPC client using `httpBatchLink`
-   - `superjson` serialization
-6. Server-side callers can use `serverTrpc()` to invoke the app router directly without HTTP.
-
-Registered routers:
-
-- `projects`
-- `leads`
 - `search`
-- `stats`
+- `leads`
 - `outreach`
+- `projects`
 - `settings`
+- `providers`
+- `sidebar`
+- `ui`
 
-### 4. Service layer
+### `src/server/trpc`
 
-Most business logic lives in `src/server/services`. This is the main backend boundary between transport and persistence/integrations.
+Purpose: API composition.
 
-Implemented services:
+- `context.ts` builds request-scoped auth + provider context.
+- `trpc.ts` defines `router`, `publicProcedure`, and `protectedProcedure`.
+- `root.ts` composes all routers.
+- `routers/*.ts` bind procedure inputs to service calls.
 
-- `projects.ts`
-- `leads.ts`
-- `search.ts`
-- `stats.ts`
-- `outreach.ts`
-- `api-keys.ts`
+### `src/server/services`
 
-This is a good separation point in the current architecture:
+Purpose: business logic and DB workflows.
 
-- tRPC routers handle input validation and auth gating
-- services implement workflows
-- Drizzle handles persistence
-- integration helpers live in `src/lib`
+- projects
+- search
+- leads
+- stats
+- analysis
+- outreach
+- outreach-templates
+- api-keys
+- project-runs
+- provider-comparison
 
-The X integration path is now provider-agnostic:
+### `src/lib`
 
-- `src/lib/x-data-client.ts` selects the active provider implementation
-- `src/lib/x-api.ts` handles native X API requests
-- `src/lib/apify-api.ts` handles Apify actor execution
-- `src/server/trpc/context.ts` carries the selected provider into services
+Purpose: shared helpers, auth config, provider integrations, AI helpers, validation, and client infrastructure.
 
-## Domain Model
+Key folders/files:
 
-The database schema lives in `src/db/schema.ts` and is managed through Drizzle migrations.
+- `auth.ts`
+- `openai.ts`
+- `x/*`
+- `trpc/*`
+- `validations/*`
+- `constants.ts`
+
+### `src/db`
+
+Purpose: schema, migrations, and DB connection bootstrap.
+
+## 5. Request lifecycle
+
+### Client to server
+
+1. Client code uses the React Query + tRPC client from `src/lib/trpc/react.tsx`.
+2. `httpBatchLink` sends requests to `/api/trpc`.
+3. The selected X provider is forwarded in the `x-data-provider` header.
+4. `src/app/api/trpc/[trpc]/route.ts` passes the request into `fetchRequestHandler`.
+5. `createContext()` resolves:
+   - Better Auth session
+   - `userId`
+   - current `xDataProvider`
+6. The tRPC router dispatches to a protected procedure.
+7. The router validates input and calls a service.
+8. The service talks to Drizzle, OpenAI, and/or the X provider layer.
+9. Results are serialized with SuperJSON and returned to the client.
+
+### Auth flow
+
+1. Auth forms submit to server actions in `src/app/(auth)/actions.ts`.
+2. Actions validate input with Zod via `validatedAction`.
+3. Better Auth handles session issuance and cookie management.
+4. Protected layouts re-check the session through `auth.api.getSession`.
+
+## 6. Database model
 
 ### Auth tables
-
-Better Auth persists to:
 
 - `user`
 - `session`
 - `account`
 - `verification`
 
-These are standard identity/session tables plus provider linkage.
+These are managed through Better Auth + Drizzle.
 
-### Application tables
+### App tables
 
 #### `projects`
 
-Represents a saved lead discovery context for a user.
+Stores user-owned project containers.
 
-Fields include:
+Fields:
 
 - `id`
 - `userId`
@@ -190,42 +197,48 @@ Fields include:
 - `seedUsername`
 - `createdAt`
 
-Purpose:
-
-- groups leads
-- remembers what search or network import created the project
-
 #### `leads`
 
-This is the core CRM table.
+Stores CRM-like lead records for X profiles.
 
-Each lead belongs to a user and stores:
+Key properties:
 
-- X identity: `xUserId`, `handle`, `profileUrl`, avatar, bio
-- audience metrics: followers/following
-- CRM fields: `stage`, `priority`, `dmComfort`, `theAsk`, `inOutreach`
-- enrichment placeholders: `email`, `budget`
-- provenance: `discoverySource`, `discoveryQuery`
-- timestamps
+- X identity: `xUserId`, `handle`, `profileUrl`, `avatarUrl`
+- profile data: `name`, `bio`, `followers`, `following`
+- CRM state: `stage`, `priority`, `dmComfort`, `theAsk`, `inOutreach`
+- enrichment: `email`, `budget`
+- discovery metadata: `discoverySource`, `discoveryQuery`
 
-Important constraint:
+Uniqueness:
 
-- `(userId, handle, platform)` is unique, so the same X account is deduplicated per user
+- unique on `userId + handle + platform`
 
 #### `project_leads`
 
 Join table between projects and leads.
 
-This allows:
+#### `project_runs`
 
-- a many-to-many relationship
-- adding an existing lead to a project without duplicating records
+Stores provider-run metadata per project workflow.
+
+Fields include:
+
+- `requestKey`
+- `operationType`
+- `requestedProvider`
+- `discoveryProvider`
+- `lookupProvider`
+- `networkProvider`
+- `tweetsProvider`
+- `query`
+- `seedUsername`
+- `leadCount`
 
 #### `post_stats`
 
-Stores derived engagement metrics for a lead.
+Cached tweet metrics per lead.
 
-Fields include:
+Metrics:
 
 - `postCount`
 - `avgViews`
@@ -233,433 +246,585 @@ Fields include:
 - `avgReplies`
 - `avgReposts`
 - `topTopics`
-- `fetchedAt`
 
-There is one row per lead due to a unique constraint on `leadId`.
+#### `outreach_templates`
+
+Saved outreach templates for a user.
 
 #### `api_keys`
 
-Stores user-generated API keys for future platform or external access.
+Stores hashed API keys, prefixes, and usage timestamps.
+
+## 7. tRPC router surface
+
+### `projectsRouter`
+
+- `list`
+  Returns lightweight project rows plus source provider information.
+- `overviews`
+  Returns project cards with aggregated metrics and preview leads.
+- `create`
+  Inserts a new project.
+- `delete`
+  Deletes a project owned by the user.
+- `queueAllLeads`
+  Sets all leads in a project to `inOutreach = true`.
+- `analyze`
+  Runs AI analysis across selected projects and creates a new shortlist project.
+
+### `leadsRouter`
+
+- `list`
+  Returns paginated leads with filters.
+- `update`
+  Updates one lead.
+- `bulkUpdate`
+  Applies one patch to many leads.
+- `remove`
+  Deletes one lead.
+- `enrichEmails`
+  Stubbed placeholder, currently returns `0`.
+- `scanEmails`
+  Stubbed placeholder, currently returns `0`.
+
+### `searchRouter`
+
+- `run`
+  Executes the niche lead discovery flow.
+- `importNetwork`
+  Imports followers/following from a seed X account.
+
+### `statsRouter`
+
+- `get`
+  Loads cached `post_stats` for a lead.
+- `refresh`
+  Fetches tweets, computes averages, stores `post_stats`, and updates priority.
+
+### `outreachRouter`
+
+- `list`
+  Returns outreach queue leads.
+- `templates`
+  Returns built-in example templates.
+- `savedTemplates`
+  Returns saved user templates.
+- `generateTemplate`
+  Uses AI to create a new template, then persists it.
+- `createTemplate`
+  Saves a manual template.
+- `updateTemplate`
+  Updates a saved template.
+- `deleteTemplate`
+  Deletes a saved template.
+
+### `settingsRouter`
+
+- `apiKeys.list`
+- `apiKeys.create`
+- `apiKeys.delete`
+- `xProviders.list`
+
+## 8. Service layer responsibilities
+
+### `src/server/services/projects.ts`
+
+Exported functions:
+
+- `rowToPreviewLead`
+  Maps DB lead rows into the project-preview shape.
+- `getProjects`
+  Loads projects and attaches aggregated lead counts plus source providers.
+- `getProjectOverviews`
+  Builds richer project cards with follower metrics and preview leads.
+- `getProjectById`
+  Loads one owned project.
+- `assertProject`
+  Throws `NOT_FOUND` if the project is not owned by the current user.
+- `createProject`
+  Inserts a new project.
+- `deleteProject`
+  Deletes a user-owned project.
+- `queueProjectInfluencers`
+  Marks all project leads as in-outreach.
+
+### `src/server/services/leads.ts`
+
+Exported functions:
+
+- `rowToLead`
+  Maps DB rows into the public lead type.
+- `listLeads`
+  Paginates leads with project, search, stage, outreach, and sort filters.
+- `getLeadById`
+  Loads one owned lead.
+- `updateLead`
+  Applies a patch to one lead.
+- `updateLeads`
+  Applies a patch to multiple leads.
+- `deleteLead`
+  Deletes one lead.
+- `addProfilesToProject`
+  Upserts X profiles into `leads`, then inserts project links into `project_leads`.
+- `listOutreachQueue`
+  Returns all leads with `inOutreach = true`.
+- `enrichLeadEmails`
+  Stub.
+- `scanProjectEmails`
+  Stub.
+
+### `src/server/services/search.ts`
+
+Internal helpers:
+
+- `dedupeCandidates`
+- `buildScreeningPool`
+- `toScreeningCandidate`
+- `resolveProject`
+- `canonicalizeCandidates`
+- `discoverCandidatesWithRetry`
+- `resolveOperationProviders`
 
-Only the hash is stored permanently:
+Exported functions:
 
-- raw keys are generated once
-- `sha256` hash is persisted
-- `prefix` is stored for display/identification
+- `searchAndAddLeads`
+  Main niche-discovery flow:
+  - discover
+  - retry with expanded queries when needed
+  - AI-screen
+  - canonicalize profiles
+  - upsert leads
+  - record provider run
+- `importAccountNetwork`
+  Main network-import flow:
+  - resolve seed account
+  - fetch followers/following pages
+  - dedupe profiles
+  - insert leads
+  - record provider run
 
-## Data Access Layer
+### `src/server/services/stats.ts`
 
-Database access uses:
+Exported functions:
 
-- `drizzle-orm`
-- `postgres` (`postgres-js`)
-- Drizzle schema-first definitions
-- Drizzle Kit migrations
+- `getPostStats`
+  Loads cached stats scoped to the current user.
+- `upsertPostStats`
+  Inserts or updates a lead's stats row.
+- `refreshProfileStats`
+  Fetches tweets, computes metrics, asks OpenAI for topics/priority, persists the result.
 
-Core files:
+### `src/server/services/analysis.ts`
 
-- `src/db/index.ts`
-- `src/db/schema.ts`
-- `drizzle.config.ts`
-- `drizzle.config.production.ts`
-- `src/db/migrations/*`
+Internal helpers:
 
-How it works:
+- `normalizeStats`
+- `estimatePricingSignal`
+- `heuristicScore`
 
-1. `src/db/index.ts` reads `DATABASE_URL`.
-2. A shared `postgres(...)` client is created.
-3. In development, the client is cached on `globalThis` to avoid extra connections during HMR.
-4. Drizzle wraps the client and exports `db`.
-5. Services import `db` and query against typed schema objects.
+Exported function:
 
-Migration strategy:
+- `analyzeProjectsIntoNewProject`
+  Loads leads from selected projects, deduplicates them, refreshes missing stats when needed, asks OpenAI to pick a strong subset, creates a new project, links the chosen leads, and records the run.
 
-- local Drizzle config reads `.env.local`
-- production Drizzle config reads `.env.production`
-- migrations are committed under `src/db/migrations`
+### `src/server/services/outreach.ts`
 
-## External Integrations
+Exported functions:
 
-### X API integration
+- `getOutreachQueue`
+  Returns the outreach queue.
+- `buildAiOutreachTemplate`
+  Gathers projects/leads/stats context and sends it to OpenAI to create one template.
+- `getStandardOutreachTemplates`
+  Returns four built-in example templates.
 
-The X integration lives in `src/lib/x-api.ts`.
+### `src/server/services/outreach-templates.ts`
 
-It wraps X API v2 endpoints and provides:
+Exported functions:
 
-- user search
-- username lookup
-- ID lookup
-- followers pagination
-- following pagination
-- recent tweet search
-- full-archive tweet search
-- user tweet fetch
-- tweet metric mapping
+- `listOutreachTemplates`
+- `saveOutreachTemplate`
+- `updateOutreachTemplate`
+- `deleteOutreachTemplate`
 
-Important architectural details:
+All are thin DB wrappers around `outreach_templates`.
 
-- all requests go through `xRequest(...)`
-- Bearer auth is required through `X_API_BEARER_TOKEN`
-- basic retry behavior exists for `429` and `5xx`
-- retry delay is derived from `retry-after` or `x-rate-limit-reset`
-- requests use `cache: "no-store"`
+### `src/server/services/api-keys.ts`
 
-The app is X-only right now even though some types still call the platform `"twitter"`.
+Exported functions:
 
-### OpenAI integration
+- `listApiKeys`
+- `createApiKey`
+- `deleteApiKey`
 
-The OpenAI integration lives in `src/lib/openai.ts`.
+Implementation details:
+
+- generated keys look like `sk_<hex>`
+- only the SHA-256 hash is stored
+- the raw key is returned once
 
-It is used for two things:
+### `src/server/services/project-runs.ts`
 
-1. Ranking candidate X profiles for relevance to a search query
-2. Extracting post topics and assigning a conservative lead priority (`P0` or `P1`)
+Exported functions:
 
-Architectural behavior:
+- `buildProjectRunRequestKey`
+  Produces the stable upsert key for a run.
+- `recordProjectRun`
+  Upserts `project_runs` by `requestKey`.
+- `getProjectSourceProvidersByProjectIds`
+  Reconstructs project source-provider lists from recorded runs.
 
-- Uses the `openai` SDK
-- Defaults to model `gpt-4o` unless `OPENAI_MODEL` is set
-- Uses structured JSON-schema responses
-- Falls back safely if no API key is present or if the request fails
+### `src/server/services/provider-comparison.ts`
 
-This means search/stat workflows still function without OpenAI, but with simpler fallback behavior.
+Purpose:
 
-### Better Auth + Google OAuth
+- internal utility for comparing discovery providers against the same niche.
+- not currently wired into the user-facing router surface.
 
-Google OAuth is configured inside Better Auth and is part of the auth subsystem rather than a separate custom integration.
+## 9. X provider subsystem
 
-## Business Workflows
+### Shared contract
 
-### 1. Sign-up and sign-in
+The provider interface is defined in `src/lib/x/types.ts`.
 
-Files involved:
+Two important abstractions:
 
-- `src/app/(auth)/actions.ts`
-- `src/components/auth/login-form.tsx`
-- `src/components/auth/signup-form.tsx`
-- `src/lib/validations/auth.ts`
+- `XDataClient`
+  Lookup, search, network pages, and tweets.
+- `XDiscoveryProvider`
+  Higher-level candidate discovery returning `XLeadCandidate[]`.
 
-Flow:
+### Provider selection and metadata
 
-1. User submits form.
-2. A Server Action validates the `FormData` with Zod.
-3. The action calls Better Auth email APIs.
-4. On success, the user is redirected to the internal callback path.
-5. Social sign-in uses the Better Auth client directly from the browser.
-
-### 2. Request authentication for app APIs
-
-Flow:
+`src/lib/x/provider.ts` defines:
 
-1. Browser calls `/api/trpc`.
-2. tRPC creates request context.
-3. Context reads the Better Auth session from headers.
-4. Protected procedures require `userId`.
-5. Services run using the authenticated user ID for row scoping.
-
-The architecture consistently scopes data by `userId` in queries and mutations.
-
-### 3. Search and add leads
-
-Files involved:
+- the provider enum
+- capability matrix
+- default provider
+- storage key
+- provider option metadata used by settings/search UI
 
-- `src/server/trpc/routers/search.ts`
-- `src/server/services/search.ts`
-- `src/lib/x-data-client.ts`
-- `src/lib/x-api.ts`
-- `src/lib/apify-api.ts`
-- `src/lib/openai.ts`
-- `src/server/services/leads.ts`
-- `src/server/services/projects.ts`
+Current providers:
 
-Flow:
+- `x-api`
+- `apify`
+- `oxylabs`
+- `multiagent`
+- `openrouter`
 
-1. A caller invokes `search.run`.
-2. The service resolves a project:
-   - use an existing project if `projectId` is supplied
-   - otherwise create a new project
-3. The active X provider is resolved from request context.
-4. Candidate profiles are collected from multiple X sources through the provider abstraction:
-   - profile search
-   - recent post search
-   - reply search if a seed username is provided
-   - follower network crawl if a seed username is provided
-   - optional full-archive post search when enabled
-5. Candidates are deduplicated by X user ID.
-6. OpenAI ranks relevance when available.
-7. Top candidates are upserted into `leads`.
-8. The leads are linked to the project through `project_leads`.
+### Runtime registry
 
-Notable constants:
+`src/lib/x/client.ts` is the entry point for provider runtime behavior.
 
-- `SEARCH_TARGET = 40`
-- `NETWORK_TARGET = 1000`
+Key exports:
 
-### 4. Import a full account network
+- `getXProviderRuntimeStatuses`
+  Returns provider status cards for settings.
+- `getXDataClient`
+  Returns the raw provider client.
+- `resolveXProviderForCapability`
+  Validates that the selected provider supports the requested capability.
+- `getXDataClientForCapability`
+  Returns an instrumented capability-specific client.
+- `getXDiscoveryProvider`
+  Returns the instrumented discovery provider.
+- `mapTweetsToMetrics`
+  Normalizes tweets into stats-ready metric objects.
+- `isXProviderConfigured`
+  Checks env readiness.
 
-Flow:
+This file also handles:
 
-1. A caller invokes `search.importNetwork`.
-2. The seed X account is resolved by username.
-3. The active X provider is resolved from request context.
-4. A project is found or created.
-5. Followers and following are paged in parallel.
-6. Profiles are deduplicated.
-7. Profiles are added to the project as leads.
+- provider call instrumentation
+- latency logging
+- estimated external cost logging
+- missing-env detection
 
-This workflow is heavier than query-based search and is built around network expansion rather than keyword relevance.
+### Native X API adapter
 
-### 5. Refresh profile stats and AI priority
+`src/lib/x/api.ts`
 
-Files involved:
+Key exports:
 
-- `src/server/services/search.ts`
-- `src/server/services/stats.ts`
-- `src/lib/x-data-client.ts`
-- `src/lib/x-api.ts`
-- `src/lib/apify-api.ts`
-- `src/lib/openai.ts`
+- `buildPostSearchQuery`
+- `buildReplySearchQuery`
+- `mapXUserToProfile`
+- `isUnsupportedAuthenticationError`
+- `searchUsers`
+- `lookupUsersByUsernames`
+- `lookupUsersByIds`
+- `getFollowersPage`
+- `getFollowingPage`
+- `searchRecentPosts`
+- `searchAllPosts`
+- `getUserTweets`
+- `mapTweetsToMetrics`
 
-Flow:
+Implementation pattern:
 
-1. A caller invokes `stats.refresh`.
-2. The service loads the lead.
-3. The active X provider is resolved from request context.
-4. It fetches recent user tweets through the provider abstraction.
-5. Raw tweet metrics are transformed into averages.
-6. OpenAI extracts topics and recommends `P0` or `P1`.
-7. `post_stats` is upserted.
-8. If `crmId` was provided, the lead priority is updated in `leads`.
+- Bearer token auth
+- small built-in retry loop for 429/5xx
+- direct mapping from X response data into local profile/tweet shapes
 
-### 6. Lead management
+### Search-backed discovery builder
 
-Files involved:
+`src/lib/x/discovery.ts`
 
-- `src/server/trpc/routers/leads.ts`
-- `src/server/services/leads.ts`
+Key exports:
 
-Supported operations:
+- `buildLeadCandidate`
+  Builds the canonical `XLeadCandidate`.
+- `discoverSearchBackedCandidates`
+  Shared discovery strategy for providers that support user search + tweet search + optional network expansion.
 
-- paginated lead listing
-- full-text-ish search over name/handle using `ILIKE`
-- project filter
-- outreach filter
-- stage filter
-- lead patch/update
-- delete
+This is what lets the app treat multiple providers as interchangeable discovery sources.
 
-Lead updates currently allow:
+### Apify adapter
 
-- stage
-- priority
-- DM comfort
-- ask text
-- outreach flag
-- email
-- budget
+`src/lib/x/apify.ts`
 
-### 7. Outreach queueing
+Key exports:
 
-Outreach is currently simple:
+- `buildApifyAdvancedSearchInput`
+- `buildApifyDiscoveryQueries`
+- `buildApifyUserScraperInput`
+- `apifyClient`
 
-- `projects.queueAllLeads` bulk-sets `inOutreach = true` for all leads in a project
-- `outreach.list` returns all leads with `inOutreach = true`
+Implementation pattern:
 
-There is no campaign orchestration, scheduling, or message delivery system yet.
+- synchronous actor runs
+- advanced-search actor for tweet/user discovery
+- user-scraper actor for enrichment and network snapshots
+- normalized results mapped into the shared contract
 
-### 8. API key management
+### Oxylabs adapter
 
-Files involved:
+`src/lib/x/oxylabs.ts`
 
-- `src/server/services/api-keys.ts`
-- `src/server/trpc/routers/settings.ts`
+Key exports:
 
-Flow:
+- `buildOxylabsDiscoveryUrls`
+- `oxylabsDiscoveryProvider`
+- `oxylabsClient`
 
-1. User requests a new API key.
-2. A random key of the form `sk_<hex>` is generated.
-3. The key is hashed with SHA-256.
-4. Only the hash and a display prefix are stored.
-5. The raw key is returned once to the caller.
+Implementation pattern:
 
-## Frontend Architecture
+- sends rendered-page scrape requests to Oxylabs
+- discovers profiles from X search URLs
+- enriches high-value handles by scraping their profile pages
+- does not support network operations
 
-### Shell and navigation
+### Multi-Agent adapter
 
-The main dashboard shell is already present:
+`src/lib/x/multiagent.ts`
 
-- desktop sidebar
-- mobile drawer header
-- nav entries for Search, Leads, Outreach, Settings
-- sign-out form in the sidebar
-- global X data source selector in the sidebar, persisted in browser storage and forwarded to tRPC
+Key exports:
 
-Projects navigation is partially planned:
+- `buildMultiAgentHeuristicQueries`
+- `buildTavilySearchRequest`
+- `normalizeDiscoveredUrls`
+- `buildAgentQlQueryRequest`
+- `multiAgentDiscoveryProvider`
+- `multiAgentClient`
 
-- `ProjectsList` exists in the sidebar
-- it now fetches project data through tRPC and links directly into filtered lead views
+Implementation pattern:
 
-### Feature pages
+- OpenAI planner generates bounded query plans
+- Tavily finds candidate X URLs
+- URLs are normalized to canonical profile pages
+- AgentQL scrapes those pages
+- scraped data is normalized into candidates
+- lookup calls and discovery scraping tolerate partial AgentQL failures
+- network operations are unsupported
 
-The main feature pages are now wired to the backend:
+### OpenRouter adapter
 
-- `src/app/(main)/search/page.tsx`
-- `src/app/(main)/leads/page.tsx`
-- `src/app/(main)/outreach/page.tsx`
-- `src/app/(main)/settings/page.tsx`
+`src/lib/x/openrouter.ts`
 
-They expose:
+Key exports:
 
-- X lead discovery and network import
-- lead CRM listing, filtering, editing, and outreach queueing
+- `buildOpenRouterDiscoveryRequest`
+- `parseOpenRouterContent`
+- `openRouterDiscoveryProvider`
+- `openRouterClient`
+
+Implementation pattern:
+
+- asks OpenRouter/Grok to do web-assisted discovery
+- constrains output with a strict JSON schema
+- parses the returned JSON into lead candidates
+- supports discovery only, not lookup/network/tweets
+
+### Error handling
+
+`src/lib/x/error-handling.ts`
+
+Main job:
+
+- converts provider runtime failures into user-facing `TRPCError`s with cleaner messages and correct error codes.
+
+## 10. AI subsystem
+
+`src/lib/openai.ts` contains all current AI helpers.
+
+### Shared infrastructure
+
+- `structuredResponse`
+  Generic wrapper around the OpenAI Responses API with fallback behavior.
+- Fallback heuristics exist for every high-value AI feature so the app can continue operating when OpenAI is unavailable.
+
+### Search AI functions
+
+- `rankProfilesForQuery`
+  Ranks profile IDs by relevance.
+- `screenProfilesForLeadSearch`
+  High-recall filter that rejects obvious junk while keeping plausible leads.
+- `expandLeadSearchQueries`
+  Produces broader query variants to improve recall.
+
+### Lead scoring / enrichment AI functions
+
+- `scoreLeadCandidate`
+  Scores whether a candidate is a good influencer/creator lead.
+- `extractTopicsAndPriority`
+  Extracts topics and returns `P0` or `P1`.
+
+### Project analysis AI functions
+
+- `analyzeLeadPoolForProject`
+  Selects a shortlist from a candidate pool and returns a summary.
+
+### Outreach AI functions
+
+- `generateOutreachTemplate`
+  Generates one reusable outreach template from project + lead context.
+
+## 11. Frontend structure
+
+### Layouts
+
+- `src/app/layout.tsx`
+  Global HTML shell + `ToastProvider`.
+- `src/app/(main)/layout.tsx`
+  Session gate + dashboard shell + `TRPCProvider` + X-provider preference provider.
+
+### Sidebar and provider selection
+
+- `Sidebar.tsx`
+  Main navigation and inline project list.
+- `XDataProviderPreference.tsx`
+  Stores the selected provider in browser storage and broadcasts updates.
+- `XDataSourceSummaryCard.tsx`
+  Shows the active provider and runtime state.
+- `XDataProviderSelector.tsx`
+  Renders provider choice buttons from provider metadata + runtime status.
+
+### Search UI
+
+- `SearchWorkspace.tsx`
+  Page composition.
+- `SearchForm.tsx`
+  Search query form, project target selection, seed-follower option, and min-follower filter.
+- `ImportNetworkForm.tsx`
+  Full network import form.
+
+### Leads UI
+
+- `useLeadsWorkspace.ts`
+  Page state, filters, selection model, mutations, and bulk actions.
+- `LeadsWorkspace.tsx`
+  Page assembly.
+- `LeadsTable.tsx`
+  Lead table UI.
+- `LeadDetailSheet.tsx`
+  Editable lead detail panel.
+
+### Projects UI
+
+- `ProjectsWorkspace.tsx`
+  Project cards plus AI analysis mode.
+- `ProjectCard.tsx`
+  Individual project summary card.
+
+### Outreach UI
+
+- `useOutreachWorkspace.ts`
+  Selection state, template generation, queue mutations, and template application.
+- `OutreachWorkspace.tsx`
+  Page shell.
+- `AiPanel.tsx`
+  AI template generation controls.
+- `TemplateCard.tsx`
+  Template display UI.
+
+### Settings UI
+
+- `SettingsWorkspace.tsx`
+  API key management and provider summary.
+- `XDataSourceWorkspace.tsx`
+  Provider selection and provider docs page.
+
+## 12. Current implementation details that matter
+
+### Provider selection is global
+
+The current provider is not chosen per request form. It is stored in browser storage and sent with every tRPC request.
+
+### Provider fallbacks are intentionally strict
+
+The app no longer auto-switches to a different provider when the selected one lacks a capability. Unsupported capabilities raise explicit errors.
+
+### AI is used as augmentation, not the only path
+
+- Search has heuristic fallbacks.
+- Query expansion has fallback variants.
+- Analysis has heuristic shortlist fallbacks.
+- Outreach template generation has a deterministic fallback template.
+
+### API keys are only partially surfaced
+
+The app can create, list, and delete API keys, but the repository does not currently contain a matching API-key-protected REST surface.
+
+### Email enrichment is stubbed
+
+- `enrichLeadEmails` returns `0`
+- `scanProjectEmails` returns `0`
+
+UI hooks still call them, but real enrichment is not implemented.
+
+## 13. Build and migration workflow
+
+### Useful commands
+
+```bash
+bun dev
+bun test
+bun test:unit
+bun test:integration
+bun run build
+```
+
+### Database workflow
+
+```bash
+bun run db:generate
+bun run db:migrate
+bun run db:push
+```
+
+The repository also carries [`memory/migrations.md`](./memory/migrations.md), which documents that exact migration sequence and is treated as the expected project workflow.
+
+## 14. Summary
+
+The current codebase is already a functioning X/Twitter sourcing product with:
+
+- authenticated dashboard access
+- provider-selectable lead discovery
+- project-based storage
+- CRM editing
+- cached post stats
+- AI-assisted scoring and shortlist creation
 - outreach queue management
-- API key management
+- saved/generated templates
 
-The frontend now matches the existing service and tRPC architecture rather than lagging behind it.
-
-### UI system
-
-The UI stack uses:
-
-- Tailwind CSS 4
-- `shadcn` registry/config
-- `@base-ui/react` primitives
-- `lucide-react` icons
-- local wrappers in `src/components/ui`
-- custom toast system
-
-Notes:
-
-- `components.json` is configured with the `new-york` shadcn style.
-- CSS variables are defined in `src/app/globals.css`.
-- The root layout now uses local/system font stacks instead of fetching Google-hosted fonts during build.
-
-There is a sizable local component library under `src/components/ui`, which suggests the intended UI direction is a reusable design-system layer rather than ad hoc page markup.
-
-## Validation and Type Strategy
-
-The project uses:
-
-- TypeScript in `strict` mode
-- Zod for runtime input validation
-- tRPC inference for end-to-end API types
-- shared domain types in `src/lib/types.ts`
-
-Type safety works across several boundaries:
-
-- form input validation
-- tRPC procedure inputs
-- tRPC router inference on the client
-- typed database schema and query results
-
-Serialization between client and server uses `superjson`.
-
-## Environment and Configuration
-
-Confirmed environment dependencies:
-
-- `DATABASE_URL`
-- `BETTER_AUTH_URL`
-- `NEXT_PUBLIC_APP_URL`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` optional
-- `X_API_BEARER_TOKEN`
-- `X_ENABLE_FULL_ARCHIVE` optional
-
-Behavior controlled by config:
-
-- `next.config.ts` currently has no special server external package configuration
-- `tsconfig.json` sets the `@/*` path alias and strict compiler behavior
-- `eslint.config.mjs` uses Next core-web-vitals and TypeScript rules
-- `postcss.config.mjs` uses `@tailwindcss/postcss`
-
-## Build, Runtime, and Tooling
-
-Scripts and tooling indicate the intended development workflow:
-
-- `bun` lockfile is present and test scripts use `bun test`
-- a `package-lock.json` is also present, so the repo has mixed package-manager artifacts
-- `next dev --turbopack` is the development server
-- `next build` and `next start` are standard production commands
-- Drizzle Kit manages database schema changes
-
-Available scripts:
-
-- `dev`
-- `build`
-- `start`
-- `lint`
-- `test`
-- `test:unit`
-- `test:integration`
-- `test:coverage`
-- `db:generate`
-- `db:migrate`
-- `db:push`
-- `db:studio`
-- production Drizzle variants
-
-Current-state caveat:
-
-- there is no `tests/` directory in this repository right now even though the test scripts exist
-
-## Current Gaps, Stubs, and Inconsistencies
-
-This section matters because it describes the real architecture, not the intended one.
-
-### Stubbed enrichment features
-
-In `src/server/services/leads.ts`:
-
-- `enrichLeadEmails(...)` returns `0`
-- `scanProjectEmails(...)` returns `0`
-
-So email enrichment is modeled in the schema and API, but not implemented.
-
-### App naming mismatch
-
-There is some naming drift:
-
-- package name is `"mark"`
-- app metadata title is `"skaleai"`
-- the repository/workspace is `skaledotai`
-
-This is not a runtime bug by itself, but it is part of the current architecture reality.
-
-### Unused or not-yet-used dependencies
-
-Dependencies declared but not currently used in the repo code include:
-
-- `@tanstack/react-query-devtools`
-- `radix-ui`
-
-## Architectural Strengths
-
-The current structure already has several sound choices:
-
-- auth, transport, services, and persistence are separated cleanly
-- user scoping is consistently enforced in backend queries
-- external integrations are wrapped behind local library modules
-- database schema and application types mostly line up well
-- AI usage is optional and has fallback behavior
-- the app is positioned to add frontend features without major backend rewrites
-
-## Architecture Summary
-
-Today, the system is best understood as:
-
-- a monolithic Next.js application
-- using Better Auth for identity
-- using tRPC for typed internal APIs
-- using Drizzle + Postgres for persistence
-- using X API for lead discovery and post metrics
-- using OpenAI for ranking and classification
-- using Tailwind/Base UI/shadcn-style components for the frontend
-
-The product is currently backend-first:
-
-- core workflows and data structures are implemented
-- the authenticated shell exists
-- the feature UI is still being built on top of that foundation
+The architecture is a classic thin-router / service-layer / provider-adapter design with strong typing across the request, validation, and persistence boundaries.
