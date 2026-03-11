@@ -13,6 +13,7 @@ import type {
   XResolvedTweet,
   XUserReference,
 } from "./types";
+import { XProviderRuntimeError } from "./types";
 import {
   dedupeProfiles,
   extractNestedItems,
@@ -38,7 +39,12 @@ const APIFY_RESULT_MULTIPLIER = 4;
 function requireApifyToken(): string {
   const token = process.env.APIFY_TOKEN;
   if (!token) {
-    throw new Error("APIFY_TOKEN is not set");
+    throw new XProviderRuntimeError({
+      provider: "apify",
+      code: "NOT_CONFIGURED",
+      message: "APIFY_TOKEN is not set.",
+      missingEnv: ["APIFY_TOKEN"],
+    });
   }
   return token;
 }
@@ -64,7 +70,11 @@ async function runActor<T>(actorId: string, input: Record<string, unknown>): Pro
     );
 
     if (result.status === 429 || result.status >= 500) {
-      throw new Error(`Apify transient failure (${result.status})`);
+      throw new XProviderRuntimeError({
+        provider: "apify",
+        code: result.status === 429 ? "UPSTREAM_RATE_LIMITED" : "UPSTREAM_REQUEST_FAILED",
+        message: `Apify transient failure (${result.status}).`,
+      });
     }
 
     return result;
@@ -72,16 +82,28 @@ async function runActor<T>(actorId: string, input: Record<string, unknown>): Pro
 
   // 408 = sync run exceeded Apify's 300s hard limit — not retryable
   if (response.status === 408) {
-    throw new Error("Apify actor run timed out (408). The actor exceeded the 300s sync limit.");
+    throw new XProviderRuntimeError({
+      provider: "apify",
+      code: "UPSTREAM_REQUEST_FAILED",
+      message: "Apify actor run timed out (408). The actor exceeded the 300s sync limit.",
+    });
   }
 
   if (!response.ok) {
-    throw new Error(`Apify request failed (${response.status}): ${await response.text()}`);
+    throw new XProviderRuntimeError({
+      provider: "apify",
+      code: "UPSTREAM_REQUEST_FAILED",
+      message: `Apify request failed (${response.status}): ${await response.text()}`,
+    });
   }
 
   const data = await parseJsonResponse<unknown>(
     response,
-    (details) => new Error(`Apify returned a non-JSON response. ${details}`),
+    (details) => new XProviderRuntimeError({
+      provider: "apify",
+      code: "UPSTREAM_INVALID_RESPONSE",
+      message: `Apify returned a non-JSON response. ${details}`,
+    }),
   );
   if (!Array.isArray(data)) {
     throw new Error(`Apify returned unexpected response shape (expected array, got ${typeof data})`);
@@ -194,13 +216,10 @@ async function runExpandedAdvancedSearch(
   query: string,
   maxResults: number,
 ): Promise<XPostSearchResult> {
+  const queries = buildApifyDiscoveryQueries(query);
+  const perQueryLimit = Math.min(100, Math.max(20, Math.ceil(maxResults / queries.length)));
   const resultSets = await Promise.all(
-    buildApifyDiscoveryQueries(query).map((variant) =>
-      runAdvancedSearch(
-        variant,
-        Math.min(100, Math.max(20, Math.ceil(maxResults / buildApifyDiscoveryQueries(query).length))),
-      ),
-    ),
+    queries.map((variant) => runAdvancedSearch(variant, perQueryLimit)),
   );
 
   return {
@@ -227,6 +246,32 @@ async function enrichProfilesFromHandles(
   return collectProfiles(items);
 }
 
+async function getNetworkPage(
+  input: Parameters<XDataClient["getFollowersPage"]>[0],
+  direction: "followers" | "following",
+): Promise<XProfilesPage> {
+  const username = requireUsername(input);
+  const maxItems = Math.max(
+    X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
+    input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
+  );
+  const items = await runActor<unknown>(
+    APIFY_USER_SCRAPER_ACTOR,
+    buildApifyUserScraperInput([username], {
+      getFollowers: direction === "followers",
+      getFollowing: direction === "following",
+      maxItems,
+    }),
+  );
+
+  return {
+    profiles: collectNestedProfiles(items, direction).slice(
+      0,
+      input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
+    ),
+  };
+}
+
 export const apifyClient: XDataClient = {
   provider: "apify",
 
@@ -246,56 +291,23 @@ export const apifyClient: XDataClient = {
       .slice(0, maxResults);
   },
 
-  lookupUsersByUsernames(usernames) {
+  async lookupUsersByUsernames(usernames) {
     const handles = [...new Set(usernames.map((username) => normalizeHandle(username)).filter(isString))];
-    if (handles.length === 0) return Promise.resolve([]);
+    if (handles.length === 0) return [];
 
-    return runActor<unknown>(
+    const items = await runActor<unknown>(
       APIFY_USER_SCRAPER_ACTOR,
       buildApifyUserScraperInput(handles, { maxItems: X_PROVIDER_THIRD_PARTY_MIN_RESULTS }),
-    ).then(collectProfiles);
+    );
+    return collectProfiles(items);
   },
 
-  async getFollowersPage(input): Promise<XProfilesPage> {
-    const username = requireUsername(input);
-    const items = await runActor<unknown>(
-      APIFY_USER_SCRAPER_ACTOR,
-      buildApifyUserScraperInput([username], {
-        getFollowers: true,
-        maxItems: Math.max(
-          X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
-          input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
-        ),
-      }),
-    );
-
-    return {
-      profiles: collectNestedProfiles(items, "followers").slice(
-        0,
-        input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
-      ),
-    };
+  getFollowersPage(input) {
+    return getNetworkPage(input, "followers");
   },
 
-  async getFollowingPage(input): Promise<XProfilesPage> {
-    const username = requireUsername(input);
-    const items = await runActor<unknown>(
-      APIFY_USER_SCRAPER_ACTOR,
-      buildApifyUserScraperInput([username], {
-        getFollowing: true,
-        maxItems: Math.max(
-          X_PROVIDER_THIRD_PARTY_MIN_RESULTS,
-          input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
-        ),
-      }),
-    );
-
-    return {
-      profiles: collectNestedProfiles(items, "following").slice(
-        0,
-        input.maxResults ?? X_PROVIDER_THIRD_PARTY_DEFAULT_NETWORK_LIMIT,
-      ),
-    };
+  getFollowingPage(input) {
+    return getNetworkPage(input, "following");
   },
 
   searchRecentPosts(query, maxResults = 50) {
@@ -306,11 +318,8 @@ export const apifyClient: XDataClient = {
   },
 
   searchAllPosts(query, maxResults = 50) {
-    // Apify has no recent/archive distinction — delegates to the same search
-    return runExpandedAdvancedSearch(
-      query,
-      Math.min(120, Math.max(40, maxResults * X_PROVIDER_THIRD_PARTY_SEARCH_EXPANSION_FACTOR)),
-    );
+    // Apify has no recent/archive distinction
+    return apifyClient.searchRecentPosts(query, maxResults);
   },
 
   async getUserTweets(input): Promise<XResolvedTweet[]> {
