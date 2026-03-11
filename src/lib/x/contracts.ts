@@ -205,49 +205,32 @@ export function ensureStrictXLeadCandidate(candidate: XLeadCandidate): XLeadCand
   });
 }
 
-export function ensureStrictXProfiles(profiles: XProfile[], scope: string): XProfile[] {
-  return profiles.flatMap((profile, index) => {
+function ensureStrictBatch<TIn, TOut = TIn>(items: TIn[], scope: string, ensure: (item: TIn) => TOut): TOut[] {
+  return items.flatMap((item, index) => {
     try {
-      return [ensureStrictXProfile(profile)];
+      return [ensure(item)];
     } catch (error) {
       logStrictJsonDrop(scope, index, error);
       return [];
     }
   });
+}
+
+export function ensureStrictXProfiles(profiles: XProfile[], scope: string): XProfile[] {
+  return ensureStrictBatch(profiles, scope, ensureStrictXProfile);
 }
 
 export function ensureStrictLeadImportProfiles(
   profiles: Array<XProfile & { source?: string }>,
   scope: string,
 ): Array<XProfile & { source?: z.infer<typeof DiscoverySourceSchema> }> {
-  return profiles.flatMap((profile, index) => {
-    try {
-      return [ensureStrictLeadImportProfile(profile)];
-    } catch (error) {
-      logStrictJsonDrop(scope, index, error);
-      return [];
-    }
-  });
+  return ensureStrictBatch(profiles, scope, ensureStrictLeadImportProfile);
 }
 
 export function ensureStrictXResolvedTweets(tweets: XResolvedTweet[], scope: string): XResolvedTweet[] {
-  return tweets.flatMap((tweet, index) => {
-    try {
-      return [ensureStrictXResolvedTweet(tweet)];
-    } catch (error) {
-      logStrictJsonDrop(scope, index, error);
-      return [];
-    }
-  });
+  return ensureStrictBatch(tweets, scope, ensureStrictXResolvedTweet);
 }
 
 export function ensureStrictXLeadCandidates(candidates: XLeadCandidate[], scope: string): XLeadCandidate[] {
-  return candidates.flatMap((candidate, index) => {
-    try {
-      return [ensureStrictXLeadCandidate(candidate)];
-    } catch (error) {
-      logStrictJsonDrop(scope, index, error);
-      return [];
-    }
-  });
+  return ensureStrictBatch(candidates, scope, ensureStrictXLeadCandidate);
 }
