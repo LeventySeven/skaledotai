@@ -5,12 +5,17 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
 import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummaryCard";
-import { ReasoningSheet, type LiveReasoningStep } from "@/components/runs/ReasoningSheet";
+import { SearchRunTracePanel } from "./SearchRunTracePanel";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
-import type { ProjectRunTrace } from "@/lib/validations/project-runs";
+import type { ProjectRunTrace, ProjectRunTraceStep } from "@/lib/validations/project-runs";
+import {
+  SearchRunStreamEventSchema,
+  type SearchRunStreamSnapshot,
+} from "@/lib/validations/search";
 
 const FOLLOWER_FLOOR_OPTIONS = [
   { label: "Any size", value: 0 },
@@ -22,33 +27,23 @@ const FOLLOWER_FLOOR_OPTIONS = [
   { label: "100k+", value: 100_000 },
 ] as const;
 
-const SEARCH_REASONING_STEPS: LiveReasoningStep[] = [
-  {
-    id: "discovery",
-    title: "Discovery sweep",
-    summary: "Collecting candidate accounts from the selected source and trimming obvious duplicates.",
-  },
-  {
-    id: "screening",
-    title: "Model screening",
-    summary: "Scoring the candidate pool and keeping the strongest niche matches.",
-  },
-  {
-    id: "canonicalization",
-    title: "Profile shaping",
-    summary: "Normalizing rows so every source lands in the same spreadsheet shape.",
-  },
-  {
-    id: "insert",
-    title: "Spreadsheet insert",
-    summary: "Writing the final rows into the project sheet and preparing the leads view.",
-  },
-] as const;
+async function readErrorMessage(response: Response): Promise<string> {
+  try {
+    const payload = await response.json() as { error?: { message?: string } };
+    if (payload.error?.message) return payload.error.message;
+  } catch {
+    // Fall back to text parsing below.
+  }
+
+  const text = await response.text().catch(() => "");
+  return text.trim() || "Live search failed.";
+}
 
 export function SearchForm() {
   const router = useRouter();
   const { data: projects = [] } = trpc.projects.list.useQuery();
   const utils = trpc.useUtils();
+  const { provider } = useXDataProviderPreference();
   const [query, setQuery] = useState("");
   const [projectMode, setProjectMode] = useState<"new" | "existing">("new");
   const [projectId, setProjectId] = useState("");
@@ -56,12 +51,13 @@ export function SearchForm() {
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
   const [minFollowers, setMinFollowers] = useState(1_000);
-  const [reasoningOpen, setReasoningOpen] = useState(false);
-  const [reasoningTrace, setReasoningTrace] = useState<ProjectRunTrace | null>(null);
+  const [liveSearchPending, setLiveSearchPending] = useState(false);
+  const [streamSteps, setStreamSteps] = useState<ProjectRunTraceStep[]>([]);
+  const [streamSnapshot, setStreamSnapshot] = useState<SearchRunStreamSnapshot | null>(null);
+  const [streamTrace, setStreamTrace] = useState<ProjectRunTrace | null>(null);
 
   const searchMutation = trpc.search.run.useMutation({
     onSuccess: async (result) => {
-      setReasoningTrace(result.trace);
       await Promise.all([
         utils.projects.list.invalidate(),
         utils.leads.list.invalidate(),
@@ -75,11 +71,90 @@ export function SearchForm() {
       }, 350);
     },
     onError: (error) => {
-      setReasoningTrace(null);
-      setReasoningOpen(false);
       toastManager.add({ type: "error", title: error.message });
     },
   });
+
+  async function runLiveMultiAgentSearch(payload: {
+    query: string;
+    projectId?: string;
+    projectName?: string;
+    followerUsername?: string;
+    minFollowers: number;
+  }) {
+    setLiveSearchPending(true);
+    setStreamSteps([]);
+    setStreamSnapshot(null);
+    setStreamTrace(null);
+
+    try {
+      const response = await fetch("/api/search/live", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-data-provider": provider,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          const event = SearchRunStreamEventSchema.parse(JSON.parse(trimmed));
+          if (event.type === "step") {
+            setStreamSteps((current) => current.some((step) => step.id === event.step.id)
+              ? current
+              : [...current, event.step]);
+            continue;
+          }
+
+          if (event.type === "snapshot") {
+            setStreamSnapshot(event.snapshot);
+            continue;
+          }
+
+          if (event.type === "complete") {
+            setStreamTrace(event.result.trace);
+            setStreamSteps(event.result.trace.steps);
+            await Promise.all([
+              utils.projects.list.invalidate(),
+              utils.leads.list.invalidate(),
+            ]);
+            toastManager.add({
+              type: "success",
+              title: `Added ${event.result.leads.length} leads to ${event.result.project.name}.`,
+            });
+            window.setTimeout(() => {
+              router.push(`/leads?project=${event.result.project.id}`);
+            }, 350);
+            return;
+          }
+
+          throw new Error(event.message);
+        }
+
+        if (done) break;
+      }
+    } finally {
+      setLiveSearchPending(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,9 +165,7 @@ export function SearchForm() {
       return;
     }
 
-    setReasoningTrace(null);
-    setReasoningOpen(true);
-    await searchMutation.mutateAsync({
+    const payload = {
       query: query.trim(),
       projectId: projectMode === "existing" ? projectId || undefined : undefined,
       projectName: projectMode === "new" ? projectName.trim() || query.trim() : undefined,
@@ -101,7 +174,22 @@ export function SearchForm() {
           ? followerUsername.replace(/^@/, "").trim()
           : undefined,
       minFollowers,
-    });
+    };
+
+    if (provider === "multiagent") {
+      try {
+        await runLiveMultiAgentSearch(payload);
+      } catch (error) {
+        setStreamTrace(null);
+        toastManager.add({
+          type: "error",
+          title: error instanceof Error ? error.message : "Live search failed.",
+        });
+      }
+      return;
+    }
+
+    await searchMutation.mutateAsync(payload);
   }
 
   return (
@@ -206,22 +294,21 @@ export function SearchForm() {
         <Button
           type="submit"
           className="h-[42px] w-full rounded-2xl text-[1rem] font-medium"
-          disabled={searchMutation.isPending}
+          disabled={searchMutation.isPending || liveSearchPending}
         >
-          {searchMutation.isPending ? <Spinner className="size-4" /> : null}
-          {searchMutation.isPending ? "Running Search" : "Run Search"}
+          {searchMutation.isPending || liveSearchPending ? <Spinner className="size-4" /> : null}
+          {searchMutation.isPending || liveSearchPending ? "Running Search" : "Run Search"}
         </Button>
       </form>
 
-      <ReasoningSheet
-        open={reasoningOpen}
-        onOpenChange={setReasoningOpen}
-        title="Search Reasoning"
-        description="Watching discovery, model filtering, normalization, and final spreadsheet insert."
-        isPending={searchMutation.isPending}
-        liveSteps={SEARCH_REASONING_STEPS}
-        trace={reasoningTrace}
-      />
+      {provider === "multiagent" && (liveSearchPending || streamSteps.length > 0 || streamTrace) ? (
+        <SearchRunTracePanel
+          steps={streamTrace?.steps ?? streamSteps}
+          snapshot={streamSnapshot}
+          isPending={liveSearchPending}
+          trace={streamTrace}
+        />
+      ) : null}
     </>
   );
 }

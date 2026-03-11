@@ -1,4 +1,4 @@
-import type { XProfile } from "@/lib/validations/search";
+import type { SearchRunStreamSnapshot, XProfile } from "@/lib/validations/search";
 import type { XDataProvider } from "./provider";
 import type { ProjectRunTraceStep } from "@/lib/validations/project-runs";
 
@@ -93,7 +93,8 @@ export type XDiscoveryInput = {
   seedHandle?: string;
   limit: number;
   minFollowers?: number;
-  traceRecorder?: (step: ProjectRunTraceStep) => void;
+  traceRecorder?: (step: ProjectRunTraceStep) => void | Promise<void>;
+  snapshotRecorder?: (snapshot: SearchRunStreamSnapshot) => void | Promise<void>;
 };
 
 export interface XDiscoveryProvider {

@@ -12,7 +12,7 @@ export const SEARCH_DISCOVERY_METADATA = {
   minimumFinalLeadsBeforeRetry: 20,
 } as const;
 export const NETWORK_TARGET = 1000;
-export const X_PROVIDER_SEARCH_USERS_LIMIT = 100;
+export const X_PROVIDER_SEARCH_USERS_LIMIT = 200;
 export const X_PROVIDER_POST_SEARCH_LIMIT = 100;
 export const X_PROVIDER_NETWORK_PAGE_SIZE = 250;
 export const X_PROVIDER_STATS_TWEET_LIMIT = 30;

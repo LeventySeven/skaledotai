@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { SEARCH_TARGET_MAX, SEARCH_TARGET_MIN } from "@/lib/constants";
+import { LeadSchema } from "./leads";
+import { ProjectRunTraceSchema, ProjectRunTraceStepSchema } from "./project-runs";
+import { ProjectSchema } from "./projects";
 
 export const SearchLeadInputSchema = z.object({
   query: z.string().min(1),
@@ -35,3 +38,38 @@ export const XProfileSchema = z.object({
   url: z.string().optional(),
 });
 export type XProfile = z.infer<typeof XProfileSchema>;
+
+export const SearchRunResultSchema = z.object({
+  leads: z.array(LeadSchema),
+  project: ProjectSchema,
+  trace: ProjectRunTraceSchema,
+});
+export type SearchRunResult = z.infer<typeof SearchRunResultSchema>;
+
+export const SearchRunStreamSnapshotSchema = z.object({
+  queries: z.number().int().nonnegative(),
+  urls: z.number().int().nonnegative(),
+  scraped: z.number().int().nonnegative(),
+  candidates: z.number().int().nonnegative(),
+});
+export type SearchRunStreamSnapshot = z.infer<typeof SearchRunStreamSnapshotSchema>;
+
+export const SearchRunStreamEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("step"),
+    step: ProjectRunTraceStepSchema,
+  }),
+  z.object({
+    type: z.literal("snapshot"),
+    snapshot: SearchRunStreamSnapshotSchema,
+  }),
+  z.object({
+    type: z.literal("complete"),
+    result: SearchRunResultSchema,
+  }),
+  z.object({
+    type: z.literal("error"),
+    message: z.string(),
+  }),
+]);
+export type SearchRunStreamEvent = z.infer<typeof SearchRunStreamEventSchema>;

@@ -28,6 +28,8 @@ import {
   normalizeProfilesFromPayload,
   normalizeTweetsFromPayload,
 } from "./agentql";
+import type { ProjectRunTraceStep } from "@/lib/validations/project-runs";
+import type { SearchRunStreamSnapshot } from "@/lib/validations/search";
 
 // Re-export builder functions used by tests and docs.
 export { buildTavilySearchRequest, normalizeDiscoveredUrls } from "./tavily";
@@ -36,6 +38,12 @@ export { buildAgentQlQueryRequest } from "./agentql";
 const MULTIAGENT_MAX_QUERIES = 3;
 const MULTIAGENT_MAX_URLS = 8;
 const MULTIAGENT_PLANNER_TIMEOUT_MS = 8_000;
+const MULTIAGENT_NODE_TITLES = {
+  planner: "Planner",
+  url_finder: "URL Finder",
+  profile_scraper: "Profile Scraper",
+  aggregator: "Aggregator",
+} as const;
 
 const MultiAgentState = Annotation.Root({
   niche: Annotation<string>,
@@ -82,6 +90,10 @@ function getPlannerModel(): ChatOpenAI {
   });
 }
 
+function getPlannerModelName(): string {
+  return process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5";
+}
+
 function dedupeQueries(queries: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -108,6 +120,98 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
   ];
 
   return dedupeQueries(queries).slice(0, MULTIAGENT_MAX_QUERIES);
+}
+
+type MultiAgentNodeName = keyof typeof MULTIAGENT_NODE_TITLES;
+
+type MultiAgentStateSnapshot = {
+  queries?: string[];
+  urls?: string[];
+  scraped?: unknown[];
+  candidates?: XLeadCandidate[];
+};
+
+function isMultiAgentNodeName(value: string): value is MultiAgentNodeName {
+  return value in MULTIAGENT_NODE_TITLES;
+}
+
+export function toMultiAgentStreamSnapshot(state: MultiAgentStateSnapshot): SearchRunStreamSnapshot {
+  return {
+    queries: state.queries?.length ?? 0,
+    urls: state.urls?.length ?? 0,
+    scraped: state.scraped?.length ?? 0,
+    candidates: state.candidates?.length ?? 0,
+  };
+}
+
+export function buildMultiAgentTraceStep(
+  nodeName: MultiAgentNodeName,
+  update: MultiAgentStateSnapshot,
+  index: number,
+  minFollowers: number | undefined,
+): ProjectRunTraceStep {
+  if (nodeName === "planner") {
+    const queries = update.queries ?? [];
+    return {
+      id: `multiagent-${index}-${nodeName}`,
+      title: MULTIAGENT_NODE_TITLES[nodeName],
+      summary: `Generated ${queries.length} bounded discovery queries.`,
+      status: "success",
+      provider: "multiagent",
+      model: getPlannerModelName(),
+      bullets: queries.slice(0, MULTIAGENT_MAX_QUERIES).map((query, queryIndex) => `Query ${queryIndex + 1}: ${query}`),
+      metrics: [
+        { label: "Queries", value: queries.length },
+      ],
+    };
+  }
+
+  if (nodeName === "url_finder") {
+    const urls = update.urls ?? [];
+    return {
+      id: `multiagent-${index}-${nodeName}`,
+      title: MULTIAGENT_NODE_TITLES[nodeName],
+      summary: `Resolved ${urls.length} candidate X profile URLs.`,
+      status: "success",
+      provider: "multiagent",
+      bullets: urls.slice(0, 3),
+      metrics: [
+        { label: "URLs", value: urls.length },
+      ],
+    };
+  }
+
+  if (nodeName === "profile_scraper") {
+    const scraped = update.scraped ?? [];
+    return {
+      id: `multiagent-${index}-${nodeName}`,
+      title: MULTIAGENT_NODE_TITLES[nodeName],
+      summary: `Scraped ${scraped.length} profile payloads from candidate URLs.`,
+      status: "success",
+      provider: "multiagent",
+      bullets: [
+        "AgentQL completed the bounded profile sweep for the discovered URLs.",
+      ],
+      metrics: [
+        { label: "Payloads", value: scraped.length },
+      ],
+    };
+  }
+
+  const candidates = update.candidates ?? [];
+  return {
+    id: `multiagent-${index}-${nodeName}`,
+    title: MULTIAGENT_NODE_TITLES[nodeName],
+    summary: `Normalized ${candidates.length} candidate accounts for downstream screening.`,
+    status: "success",
+    provider: "multiagent",
+    bullets: minFollowers && minFollowers > 0
+      ? [`Applied the final floor of ${minFollowers}+ followers inside the aggregation pass.`]
+      : [],
+    metrics: [
+      { label: "Candidates", value: candidates.length },
+    ],
+  };
 }
 
 async function withTimeout<T>(
@@ -230,14 +334,33 @@ export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
   provider: "multiagent",
   async discoverCandidates(input) {
     try {
-      const result = await graph.invoke({
+      let stepIndex = 0;
+      let latestState: MultiAgentStateSnapshot = {};
+      const stream = await graph.stream({
         niche: input.niche,
         seedHandle: input.seedHandle,
         limit: Math.max(4, Math.min(input.limit, MULTIAGENT_MAX_URLS)),
         minFollowers: input.minFollowers,
+      }, {
+        streamMode: ["updates", "values"],
       });
 
-      return result.candidates;
+      for await (const [mode, chunk] of stream) {
+        if (mode === "values") {
+          latestState = chunk as MultiAgentStateSnapshot;
+          await input.snapshotRecorder?.(toMultiAgentStreamSnapshot(latestState));
+          continue;
+        }
+
+        if (mode !== "updates") continue;
+        const entries = Object.entries(chunk as Record<string, MultiAgentStateSnapshot>);
+        const [nodeName, update] = entries[0] ?? [];
+        if (!nodeName || !update || !isMultiAgentNodeName(nodeName)) continue;
+        stepIndex += 1;
+        await input.traceRecorder?.(buildMultiAgentTraceStep(nodeName, update, stepIndex, input.minFollowers));
+      }
+
+      return latestState.candidates ?? [];
     } catch (error) {
       if (error instanceof XProviderRuntimeError) throw error;
       throw new XProviderRuntimeError({

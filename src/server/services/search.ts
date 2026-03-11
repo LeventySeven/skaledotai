@@ -3,15 +3,31 @@ import { TRPCError } from "@trpc/server";
 import { expandLeadSearchQueries, screenProfilesForLeadSearchDetailed } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
-import type { ProjectRunTrace } from "@/lib/validations/project-runs";
-import type { SearchLeadInput, XProfile } from "@/lib/validations/search";
+import type {
+  ProjectRunTrace,
+  ProjectRunTraceMetric,
+  ProjectRunTraceStep,
+  ProjectRunTraceStatus,
+} from "@/lib/validations/project-runs";
+import type {
+  SearchLeadInput,
+  SearchRunResult,
+  SearchRunStreamSnapshot,
+  XProfile,
+} from "@/lib/validations/search";
 import {
   getXDataClientForCapability,
   getXDiscoveryProvider,
   resolveXProviderForCapability,
   type XProviderResolution,
 } from "@/lib/x/registry";
-import { XProviderRuntimeError, type XDataProvider, type XLeadCandidate, type XProviderCapability } from "@/lib/x";
+import {
+  XProviderRuntimeError,
+  type XDataProvider,
+  type XDiscoveryProvider,
+  type XLeadCandidate,
+  type XProviderCapability,
+} from "@/lib/x";
 import { addProfilesToProject } from "./leads";
 import { createProjectRunTraceBuilder } from "./project-run-trace";
 import { recordProjectRun } from "./project-runs";
@@ -31,14 +47,45 @@ type CanonicalCandidate = XProfile & {
   source: XLeadCandidate["discoverySource"];
 };
 
-type SearchRunResult = {
-  leads: Lead[];
-  project: Project;
-  trace: ProjectRunTrace;
+type SearchProgressHandlers = {
+  onStep?: (step: ProjectRunTraceStep) => void | Promise<void>;
+  onSnapshot?: (snapshot: SearchRunStreamSnapshot) => void | Promise<void>;
 };
 
 function dedupeProviders(providers: XDataProvider[]): XDataProvider[] {
   return [...new Set(providers)];
+}
+
+async function emitStep(
+  handlers: SearchProgressHandlers | undefined,
+  input: {
+    id: string;
+    title: string;
+    summary: string;
+    status: ProjectRunTraceStatus;
+    provider?: XDataProvider;
+    model?: string;
+    bullets?: string[];
+    metrics?: ProjectRunTraceMetric[];
+  },
+): Promise<ProjectRunTraceStep> {
+  const step: ProjectRunTraceStep = {
+    id: input.id,
+    title: input.title,
+    summary: input.summary,
+    status: input.status,
+    provider: input.provider,
+    model: input.model,
+    bullets: input.bullets ?? [],
+    metrics: input.metrics ?? [],
+  };
+
+  await handlers?.onStep?.(step);
+  return step;
+}
+
+function getDiscoveryMinFollowers(provider: XDataProvider, minFollowers: number): number {
+  return provider === "x-api" ? 0 : minFollowers;
 }
 
 function byFollowersDesc(a: XLeadCandidate, b: XLeadCandidate): number {
@@ -149,30 +196,26 @@ async function canonicalizeCandidates(
 }
 
 async function discoverCandidatesWithRetry(
-  discoveryProvider: { provider: XDataProvider; discoverCandidates: (input: { niche: string; seedHandle?: string; limit: number; minFollowers?: number }) => Promise<XLeadCandidate[]> },
+  discoveryProvider: XDiscoveryProvider,
   query: string,
   seedHandle: string | undefined,
   minFollowers: number,
   parseAccountsTarget: number,
+  progress?: SearchProgressHandlers,
 ): Promise<{
   candidates: XLeadCandidate[];
   firstPassCount: number;
   retryQueries: string[];
 }> {
+  const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
   const firstPass = await discoveryProvider.discoverCandidates({
     niche: query,
     seedHandle,
     limit: parseAccountsTarget,
-    minFollowers,
+    minFollowers: discoveryMinFollowers,
+    traceRecorder: progress?.onStep,
+    snapshotRecorder: progress?.onSnapshot,
   });
-
-  if (firstPass.length === 0) {
-    return {
-      candidates: [],
-      firstPassCount: 0,
-      retryQueries: [],
-    };
-  }
 
   const firstFiltered = firstPass.filter((candidate) => candidate.account.followers >= minFollowers);
   if (firstFiltered.length >= SEARCH_DISCOVERY_METADATA.minimumFinalLeadsBeforeRetry) {
@@ -191,7 +234,9 @@ async function discoverCandidatesWithRetry(
         niche: retryQuery,
         seedHandle,
         limit: parseAccountsTarget,
-        minFollowers,
+        minFollowers: discoveryMinFollowers,
+        traceRecorder: progress?.onStep,
+        snapshotRecorder: progress?.onSnapshot,
       }),
     ),
   );
@@ -206,12 +251,15 @@ async function discoverCandidatesWithRetry(
   };
 }
 
-function resolveOperationProviders(requestedProvider: XDataProvider): Record<XProviderCapability, XDataProvider> {
+function resolveSearchOperationProviders(
+  requestedProvider: XDataProvider,
+  lookupProvider: XDataProvider,
+): Record<XProviderCapability, XDataProvider> {
   return {
     discovery: requestedProvider,
-    lookup: resolveXProviderForCapability(requestedProvider, "lookup").effectiveProvider,
-    network: resolveXProviderForCapability(requestedProvider, "network").effectiveProvider,
-    tweets: resolveXProviderForCapability(requestedProvider, "tweets").effectiveProvider,
+    lookup: lookupProvider,
+    network: requestedProvider,
+    tweets: requestedProvider,
   };
 }
 
@@ -224,6 +272,7 @@ export async function searchAndAddLeads(
   userId: string,
   input: SearchLeadInput,
   provider: XDataProvider = "x-api",
+  progress?: SearchProgressHandlers,
 ): Promise<SearchRunResult> {
   try {
     const trace = createProjectRunTraceBuilder({
@@ -243,10 +292,12 @@ export async function searchAndAddLeads(
       seedHandle,
       minFollowers,
       parseAccountsTarget,
+      progress,
     );
     const discoveredCandidates = discoveryResult.candidates;
 
-    trace.addStep({
+    trace.addStep(await emitStep(progress, {
+      id: "discovery-summary",
       title: "Discovery",
       summary: `Collected ${discoveredCandidates.length} candidate accounts for ${input.query}.`,
       status: "success",
@@ -263,7 +314,7 @@ export async function searchAndAddLeads(
         { label: "First pass", value: discoveryResult.firstPassCount },
         { label: "Final candidates", value: discoveredCandidates.length },
       ],
-    });
+    }));
 
     if (discoveredCandidates.length === 0) {
       throw new TRPCError({
@@ -293,7 +344,8 @@ export async function searchAndAddLeads(
       || selectedSet.has(candidate.account.handle.replace(/^@/, "").toLowerCase()),
     );
 
-    trace.addStep({
+    trace.addStep(await emitStep(progress, {
+      id: "screening",
       title: "AI Screening",
       summary: `The model kept ${screenedCandidates.length} leads from a pool of ${screeningPool.length}.`,
       status: screeningResult.batchSummaries.some((batch) => batch.usedFallback) ? "warning" : "success",
@@ -305,7 +357,7 @@ export async function searchAndAddLeads(
         { label: "Pool", value: screeningPool.length },
         { label: "Selected", value: screenedCandidates.length },
       ],
-    });
+    }));
 
     if (screenedCandidates.length === 0) {
       throw new TRPCError({
@@ -315,7 +367,8 @@ export async function searchAndAddLeads(
     }
 
     const { profiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, screenedCandidates);
-    trace.addStep({
+    trace.addStep(await emitStep(progress, {
+      id: "canonicalization",
       title: "Canonicalization",
       summary: `Prepared ${profiles.length} lead rows for insertion.`,
       status: lookupResolution.usedFallback ? "warning" : "success",
@@ -328,7 +381,7 @@ export async function searchAndAddLeads(
       metrics: [
         { label: "Rows", value: profiles.length },
       ],
-    });
+    }));
     const leadsList = await addProfilesToProject({
       userId,
       projectId: project.id,
@@ -337,7 +390,8 @@ export async function searchAndAddLeads(
       discoveryQuery: input.query,
     });
 
-    trace.addStep({
+    trace.addStep(await emitStep(progress, {
+      id: "insert",
       title: "Spreadsheet Insert",
       summary: `Inserted ${leadsList.length} rows into ${project.name}.`,
       status: "success",
@@ -348,9 +402,9 @@ export async function searchAndAddLeads(
       metrics: [
         { label: "Inserted", value: leadsList.length },
       ],
-    });
+    }));
 
-    const operationProviders = resolveOperationProviders(provider);
+    const operationProviders = resolveSearchOperationProviders(provider, lookupResolution.effectiveProvider);
     await recordProjectRun({
       projectId: project.id,
       operationType: "search",

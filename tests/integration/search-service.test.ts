@@ -314,6 +314,8 @@ describe("searchAndAddLeads", () => {
       seedHandle: undefined,
       limit: 200,
       minFollowers: 0,
+      traceRecorder: undefined,
+      snapshotRecorder: undefined,
     });
 
     const leadInsertValues = insertedValues[1] as Array<{ handle: string }>;
@@ -350,7 +352,69 @@ describe("searchAndAddLeads", () => {
       seedHandle: undefined,
       limit: 200,
       minFollowers: 0,
+      traceRecorder: undefined,
+      snapshotRecorder: undefined,
     });
+  });
+
+  test("keeps the follower floor as a final filter for x-api instead of an early discovery gate", async () => {
+    discoverCandidatesMock
+      .mockResolvedValueOnce([
+        profile({
+          xUserId: "small-id",
+          username: "small",
+          displayName: "Small Builder",
+          followersCount: 900,
+        }),
+        profile({
+          xUserId: "qualified-one-id",
+          username: "qualifiedone",
+          displayName: "Qualified One",
+          followersCount: 1_500,
+        }),
+      ])
+      .mockResolvedValueOnce([
+        profile({
+          xUserId: "qualified-two-id",
+          username: "qualifiedtwo",
+          displayName: "Qualified Two",
+          followersCount: 2_100,
+        }),
+      ]);
+
+    expandLeadSearchQueriesMock.mockResolvedValue([
+      "founding engineers",
+      "founding engineers founders builders",
+    ]);
+    screenProfilesForLeadSearchMock.mockImplementation(async (_query: unknown, rawCandidates: unknown) => {
+      const candidates = rawCandidates as Array<{ xUserId: string }>;
+      return candidates.map((candidate) => candidate.xUserId);
+    });
+
+    const result = await searchAndAddLeads("user-1", {
+      query: "founding engineers",
+      projectName: "Founding Engineers",
+      minFollowers: 1_000,
+    }, "x-api");
+
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, {
+      niche: "founding engineers",
+      seedHandle: undefined,
+      limit: 200,
+      minFollowers: 0,
+      traceRecorder: undefined,
+      snapshotRecorder: undefined,
+    });
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, {
+      niche: "founding engineers founders builders",
+      seedHandle: undefined,
+      limit: 200,
+      minFollowers: 0,
+      traceRecorder: undefined,
+      snapshotRecorder: undefined,
+    });
+    expect(result.leads.map((lead) => lead.handle)).toEqual(["qualifiedtwo", "qualifiedone"]);
+    expect(resolveXProviderForCapabilityMock).not.toHaveBeenCalled();
   });
 
   test("throws NOT_FOUND when screening removes every candidate", async () => {
@@ -423,12 +487,16 @@ describe("searchAndAddLeads", () => {
       seedHandle: undefined,
       limit: 120,
       minFollowers: 0,
+      traceRecorder: undefined,
+      snapshotRecorder: undefined,
     });
     expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, {
       niche: "founding engineers founder builder engineer creator operator",
       seedHandle: undefined,
       limit: 120,
       minFollowers: 0,
+      traceRecorder: undefined,
+      snapshotRecorder: undefined,
     });
   });
 });

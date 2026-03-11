@@ -209,13 +209,32 @@ export function isUnsupportedAuthenticationError(error: unknown): boolean {
 }
 
 export async function searchUsers(query: string, maxResults = 25): Promise<XProfile[]> {
-  const response = await xRequest<UserListResponse>("/users/search", {
-    q: query,
-    "user.fields": USER_FIELDS,
-    max_results: String(Math.min(100, Math.max(10, maxResults))),
-  });
+  const target = Math.max(10, maxResults);
+  const profiles: XProfile[] = [];
+  const seen = new Set<string>();
+  let nextToken: string | undefined;
 
-  return (response.data ?? []).map(mapXUserToProfile);
+  while (profiles.length < target) {
+    const response = await xRequest<UserListResponse>("/users/search", {
+      query,
+      "user.fields": USER_FIELDS,
+      max_results: String(Math.min(100, Math.max(10, target - profiles.length))),
+      next_token: nextToken,
+    });
+
+    for (const user of response.data ?? []) {
+      const profile = mapXUserToProfile(user);
+      if (seen.has(profile.xUserId)) continue;
+      seen.add(profile.xUserId);
+      profiles.push(profile);
+      if (profiles.length >= target) break;
+    }
+
+    nextToken = response.meta?.next_token;
+    if (!nextToken || (response.data?.length ?? 0) === 0) break;
+  }
+
+  return profiles;
 }
 
 export async function lookupUsersByUsernames(usernames: string[]): Promise<XProfile[]> {
