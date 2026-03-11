@@ -42,7 +42,6 @@ export type {
 // Server code should import them from "@/lib/x/registry" directly.
 
 export {
-  XApiError,
   buildPostSearchQuery,
   buildReplySearchQuery,
   isUnsupportedAuthenticationError,
