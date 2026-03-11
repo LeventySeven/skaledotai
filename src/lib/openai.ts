@@ -12,6 +12,16 @@ import {
   SEARCH_AI_BATCH_SIZE,
   SEARCH_DISCOVERY_METADATA,
 } from "@/lib/constants";
+import type { SearchScreeningCandidate } from "@/lib/screening-heuristics";
+import {
+  buildFallbackSearchQueries,
+  getFallbackInfluencerScore,
+  getFallbackScreenedIds,
+  getFallbackScreeningDecisions,
+  isHardRejectedSearchCandidate,
+} from "@/lib/screening-heuristics";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type StructuredResponse<T> = {
   schemaName: string;
@@ -22,168 +32,9 @@ type StructuredResponse<T> = {
   maxOutputTokens?: number;
 };
 
+// ── Client ────────────────────────────────────────────────────────────────────
+
 let client: OpenAI | null | undefined;
-
-type SearchScreeningCandidate = XProfile & {
-  samplePosts?: string[];
-  source?: string;
-};
-
-const SEARCH_QUERY_STOP_WORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "any",
-  "best",
-  "for",
-  "in",
-  "of",
-  "on",
-  "or",
-  "the",
-  "to",
-  "twitter",
-  "x",
-]);
-
-const SEARCH_HARD_NON_LEAD_TERMS = [
-  "assistant",
-  "bot",
-  "customer support",
-  "newsroom",
-  "parody account",
-  "automated account",
-];
-
-const SEARCH_SOFT_NON_LEAD_TERMS = [
-  "support",
-  "newsroom",
-  "breaking news",
-  "parody",
-  "automated",
-  "fan account",
-];
-
-const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
-  "grok",
-  "chatgpt",
-  "claude",
-  "claudeai",
-  "gemini",
-  "openai",
-  "xai",
-  "langchain",
-  "ieee",
-  "elonmusk",
-]);
-
-const SEARCH_FALLBACK_SCORE_THRESHOLD = 5;
-
-const SEARCH_PERSON_TERMS = [
-  "founder",
-  "cofounder",
-  "engineer",
-  "developer",
-  "designer",
-  "builder",
-  "cto",
-  "ceo",
-  "operator",
-  "indie hacker",
-  "i build",
-  "building",
-  "i'm",
-  "i am",
-  "my work",
-  "i write",
-  "working on",
-];
-
-const SEARCH_FIRST_PERSON_TERMS = [
-  " i'm ",
-  " i am ",
-  " my ",
-  " i build ",
-  " working on ",
-  " founded ",
-  " building ",
-  " i write ",
-];
-
-const SEARCH_ORG_TERMS = [
-  "customer support",
-  "newsroom",
-  "parody account",
-  "fan account",
-  "automated account",
-];
-
-const SEARCH_COMPANY_TERMS = [
-  "company",
-  "startup",
-  "software",
-  "product",
-  "platform",
-  "team",
-  "building",
-  "we build",
-  "we're building",
-  "for developers",
-  "for founders",
-  "b2b",
-  "saas",
-];
-
-function classifyCreatorStage(followers: number): InfluencerScore["stage"] {
-  if (followers >= 250_000) return "macro";
-  if (followers >= 50_000) return "mid";
-  if (followers >= 10_000) return "micro";
-  return "nano";
-}
-
-function getFallbackInfluencerScore(candidate: XLeadCandidate): InfluencerScore {
-  const haystack = [
-    candidate.account.name,
-    candidate.account.handle,
-    candidate.account.bio,
-    candidate.posts.map((post) => post.text).join(" "),
-  ].join(" ").toLowerCase();
-  const nicheTerms = getSearchQueryTerms(candidate.niche);
-  const nicheMatchScore = Math.min(
-    100,
-    nicheTerms.filter((term) => haystack.includes(term)).length * 18,
-  );
-  const engagementScore = Math.min(
-    100,
-    Math.round(
-      Math.log10(
-        candidate.metrics.avgLikes
-        + candidate.metrics.avgReplies * 2
-        + candidate.metrics.avgReposts * 2
-        + 10,
-      ) * 28,
-    ),
-  );
-  const authenticityPenalty = SEARCH_SOFT_NON_LEAD_TERMS.some((term) => haystack.includes(term)) ? 20 : 0;
-  const authenticityBonus = SEARCH_PERSON_TERMS.some((term) => haystack.includes(term)) ? 18 : 0;
-  const authenticityScore = Math.max(0, Math.min(100, 65 + authenticityBonus - authenticityPenalty));
-  const overallScore = Math.round((nicheMatchScore * 0.45) + (engagementScore * 0.25) + (authenticityScore * 0.3));
-  const isInfluencer = overallScore >= 55 && authenticityScore >= 45;
-  const fitForNiche = nicheMatchScore >= 40;
-
-  return {
-    is_influencer: isInfluencer,
-    fit_for_niche: fitForNiche,
-    overall_score: overallScore,
-    stage: classifyCreatorStage(candidate.account.followers),
-    niche_match_score: nicheMatchScore,
-    engagement_score: engagementScore,
-    authenticity_score: authenticityScore,
-    topics: nicheTerms.slice(0, 5),
-    notes: candidate.posts.slice(0, 2).map((post) => post.text).filter(Boolean),
-    red_flags: authenticityPenalty > 0 ? ["Possible brand/product or non-person account signal"] : [],
-  };
-}
 
 function getClient(): OpenAI | null {
   if (client !== undefined) return client;
@@ -191,6 +42,8 @@ function getClient(): OpenAI | null {
   client = apiKey ? new OpenAI({ apiKey }) : null;
   return client;
 }
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -200,110 +53,7 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-function getSearchQueryTerms(query: string): string[] {
-  return [...new Set(
-    query
-      .toLowerCase()
-      .split(/[^a-z0-9+#.-]+/)
-      .map((term) => term.trim())
-      .filter((term) => term.length >= 3 && !SEARCH_QUERY_STOP_WORDS.has(term)),
-  )];
-}
-
-function buildSearchCandidateText(candidate: SearchScreeningCandidate): string {
-  return [
-    candidate.displayName,
-    candidate.username,
-    candidate.bio,
-    candidate.samplePosts?.join(" ") ?? "",
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function hasPersonSignal(candidate: SearchScreeningCandidate, haystack: string): boolean {
-  const displayName = candidate.displayName.trim();
-  const looksLikeOrgName = /\b(partners|capital|labs|ventures|foundation|institute|media|studio|fund|org|university)\b/i.test(displayName);
-  const looksLikePersonName = /^[a-z][a-z.'-]+(?:\s+[a-z][a-z.'-]+){1,3}$/i.test(displayName) && !looksLikeOrgName;
-  const firstPersonSignal = SEARCH_FIRST_PERSON_TERMS.some((term) => haystack.includes(term));
-  if (looksLikeOrgName) return firstPersonSignal;
-  return looksLikePersonName || firstPersonSignal || SEARCH_PERSON_TERMS.some((term) => haystack.includes(term));
-}
-
-function hasCompanySignal(haystack: string): boolean {
-  return SEARCH_COMPANY_TERMS.some((term) => haystack.includes(term));
-}
-
-function hasNonLeadSignal(candidate: SearchScreeningCandidate, haystack: string): boolean {
-  return (
-    SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())
-    || SEARCH_SOFT_NON_LEAD_TERMS.some((term) => haystack.includes(term))
-    || SEARCH_ORG_TERMS.some((term) => haystack.includes(term))
-  );
-}
-
-function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidate): boolean {
-  const haystack = buildSearchCandidateText(candidate);
-  const personSignal = hasPersonSignal(candidate, haystack);
-
-  if (SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())) return true;
-  if (SEARCH_HARD_NON_LEAD_TERMS.some((term) => haystack.includes(term)) && !personSignal) return true;
-
-  return false;
-}
-
-function getFallbackSearchScore(query: string, candidate: SearchScreeningCandidate): number {
-  if (isHardRejectedSearchCandidate(candidate)) return 0;
-
-  const queryTerms = getSearchQueryTerms(query);
-  const haystack = buildSearchCandidateText(candidate);
-  const matchedTerms = queryTerms.filter((term) => haystack.includes(term)).length;
-  const personSignal = hasPersonSignal(candidate, haystack);
-  const companySignal = hasCompanySignal(haystack);
-  const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
-  const followerScore = Math.min(20, Math.round(Math.log10(candidate.followersCount + 10) * 6));
-  const postScore = candidate.samplePosts?.length ? 12 : 0;
-
-  let score = Math.min(36, matchedTerms * 12) + followerScore + postScore;
-  if (personSignal) score += 22;
-  if (companySignal) score += 14;
-  if (!personSignal && !companySignal) score -= 4;
-  if (hasWeakNonLeadSignal && !personSignal && !companySignal) score -= 12;
-  if (matchedTerms === 0 && !personSignal && !companySignal) score -= 8;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-function getFallbackScreenedIds(
-  query: string,
-  candidates: SearchScreeningCandidate[],
-  maxResults: number,
-): string[] {
-  return candidates
-    .map((candidate) => ({
-      id: candidate.xUserId,
-      score: getFallbackSearchScore(query, candidate),
-      followers: candidate.followersCount,
-    }))
-    .filter((candidate) => candidate.score >= SEARCH_FALLBACK_SCORE_THRESHOLD)
-    .sort((a, b) => b.score - a.score || b.followers - a.followers)
-    .slice(0, maxResults)
-    .map((candidate) => candidate.id);
-}
-
-function getFallbackScreeningDecisions(
-  query: string,
-  candidates: SearchScreeningCandidate[],
-): Array<{ profileId: string; include: boolean; score: number }> {
-  return candidates.map((candidate) => {
-    const score = getFallbackSearchScore(query, candidate);
-    return {
-      profileId: candidate.xUserId,
-      include: score >= SEARCH_FALLBACK_SCORE_THRESHOLD,
-      score,
-    };
-  });
-}
+// ── Response schemas ──────────────────────────────────────────────────────────
 
 const RankingSchema = z.object({
   profileIds: z.array(z.string()),
@@ -351,6 +101,8 @@ const OutreachTemplateSchema = z.object({
   replyRate: z.string(),
 });
 
+// ── Core AI wrapper ───────────────────────────────────────────────────────────
+
 async function structuredResponse<T>({
   schemaName,
   schema,
@@ -395,6 +147,8 @@ async function structuredResponse<T>({
   }
 }
 
+// ── Public API ────────────────────────────────────────────────────────────────
+
 export async function rankProfilesForQuery(
   query: string,
   candidates: Array<XProfile & { samplePosts?: string[] }>,
@@ -402,23 +156,21 @@ export async function rankProfilesForQuery(
   const fallback = candidates.slice(0, 30).map((c) => c.xUserId);
   if (candidates.length <= 12) return fallback;
 
-  const input = JSON.stringify({
-    query,
-    candidates: candidates.map((c) => ({
-      id: c.xUserId,
-      handle: `@${c.username}`,
-      name: c.displayName,
-      bio: c.bio,
-      posts: c.samplePosts?.slice(0, 3) ?? [],
-    })),
-  });
-
   const result = await structuredResponse<{ profileIds: string[] }>({
     schemaName: "profile_relevance_ranking",
     schema: RankingSchema,
     instructions:
       "Return only X profiles that are relevant to the search query. Be inclusive but remove clearly unrelated accounts. Keep the array ordered from most relevant to least relevant.",
-    input,
+    input: JSON.stringify({
+      query,
+      candidates: candidates.map((c) => ({
+        id: c.xUserId,
+        handle: `@${c.username}`,
+        name: c.displayName,
+        bio: c.bio,
+        posts: c.samplePosts?.slice(0, 3) ?? [],
+      })),
+    }),
     fallback: { profileIds: fallback },
     maxOutputTokens: 220,
   });
@@ -487,21 +239,6 @@ export async function screenProfilesForLeadSearch(
     : getFallbackScreenedIds(query, prefilteredCandidates, maxResults);
 }
 
-function buildFallbackSearchQueries(query: string, seedHandle?: string): string[] {
-  const cleanSeed = seedHandle?.replace(/^@/, "").trim();
-  const normalized = query.trim();
-  const variants = [
-    normalized,
-    `"${normalized}"`,
-    `${normalized} founders builders engineers`,
-    `${normalized} startups companies teams`,
-    `${normalized} creators operators builders`,
-    cleanSeed ? `${normalized} people and companies like @${cleanSeed}` : "",
-  ];
-
-  return [...new Set(variants.filter(Boolean))].slice(0, 5);
-}
-
 export async function expandLeadSearchQueries(
   query: string,
   seedHandle?: string,
@@ -529,15 +266,13 @@ export async function expandLeadSearchQueries(
 }
 
 export async function scoreLeadCandidate(candidate: XLeadCandidate): Promise<InfluencerScore> {
-  const fallback = getFallbackInfluencerScore(candidate);
-
   return structuredResponse<InfluencerScore>({
     schemaName: "influencer_candidate_score",
     schema: InfluencerScoreSchema,
     instructions:
       "Score whether this X/Twitter account is a strong influencer or creator lead for the niche. Prefer real individual creators, founders, operators, engineers, and domain experts. Penalize brands, bots, generic product accounts, and weak niche fit. Return conservative, internally consistent scores.",
     input: JSON.stringify(candidate),
-    fallback,
+    fallback: getFallbackInfluencerScore(candidate),
     maxOutputTokens: 240,
   });
 }
@@ -551,7 +286,7 @@ export async function extractTopicsAndPriority(
     return { topics: [], priority: "P1" };
   }
 
-  const result = await structuredResponse<{ topics: string[]; priority: Priority }>({
+  return structuredResponse<{ topics: string[]; priority: Priority }>({
     schemaName: "profile_topics_priority",
     schema: TopicsPrioritySchema,
     instructions: niche
@@ -564,8 +299,6 @@ export async function extractTopicsAndPriority(
     fallback: { topics: [], priority: "P1" },
     maxOutputTokens: 160,
   });
-
-  return result;
 }
 
 export async function analyzeLeadPoolForProject(input: {
@@ -659,7 +392,7 @@ export async function generateOutreachTemplate(input: {
     replyRate: fallbackExample.replyRate,
   };
 
-  const result = await structuredResponse<typeof fallback>({
+  return structuredResponse<typeof fallback>({
     schemaName: "outreach_template_generation",
     schema: OutreachTemplateSchema,
     instructions:
@@ -677,6 +410,4 @@ export async function generateOutreachTemplate(input: {
     fallback,
     maxOutputTokens: 260,
   });
-
-  return result;
 }
