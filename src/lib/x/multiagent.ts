@@ -293,20 +293,18 @@ export function buildTavilySearchRequest(query: string, limit: number): Record<s
 async function searchTavily(query: string, limit: number): Promise<TavilyResult[]> {
   let response: Response;
   try {
-    response = await withTimeout("Tavily", MULTIAGENT_FETCH_TIMEOUT_MS, () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), MULTIAGENT_FETCH_TIMEOUT_MS);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), MULTIAGENT_FETCH_TIMEOUT_MS);
 
-      return fetch("https://api.tavily.com/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(buildTavilySearchRequest(query, limit)),
-        cache: "no-store",
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeoutId));
-    });
+    response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildTavilySearchRequest(query, limit)),
+      cache: "no-store",
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
   } catch (error) {
     throwNetworkFailure("discovery", "Tavily", error);
   }
@@ -392,24 +390,22 @@ async function queryAgentQl(
 ): Promise<unknown> {
   let response: Response;
   try {
-    response = await withTimeout("AgentQL", MULTIAGENT_FETCH_TIMEOUT_MS, () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), MULTIAGENT_FETCH_TIMEOUT_MS);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), MULTIAGENT_FETCH_TIMEOUT_MS);
 
-      return fetch("https://api.agentql.com/v1/query-data", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": requireEnv("AGENTQL_API_KEY"),
-        },
-        body: JSON.stringify(buildAgentQlQueryRequest(
-          url,
-          capability === "tweets" ? "tweets" : "profile",
-        )),
-        cache: "no-store",
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeoutId));
-    });
+    response = await fetch("https://api.agentql.com/v1/query-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": requireEnv("AGENTQL_API_KEY"),
+      },
+      body: JSON.stringify(buildAgentQlQueryRequest(
+        url,
+        capability === "tweets" ? "tweets" : "profile",
+      )),
+      cache: "no-store",
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
   } catch (error) {
     throwNetworkFailure(capability, "AgentQL", error);
   }
