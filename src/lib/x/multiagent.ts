@@ -12,11 +12,10 @@ import type {
 import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
 import { dedupeProfiles, normalizeHandle } from "./normalizers";
-import { requireUsername } from "./scraper-utils";
+import { mapWithConcurrency, requireUsername } from "./scraper-utils";
 import {
   requireEnv,
   describeUpstreamError,
-  mapWithConcurrency,
   MULTIAGENT_SCRAPE_CONCURRENCY,
 } from "./multiagent-shared";
 import {

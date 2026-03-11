@@ -33,6 +33,28 @@ export function isString(value: string | undefined): value is string {
   return Boolean(value);
 }
 
+export async function mapWithConcurrency<TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  worker: (item: TInput, index: number) => Promise<TOutput>,
+): Promise<TOutput[]> {
+  const results: TOutput[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function runWorker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await worker(items[current], current);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(concurrency, items.length)) }, () => runWorker()),
+  );
+
+  return results;
+}
+
 export function collectNestedTweets(items: unknown[]): XResolvedTweet[] {
   const tweets: XResolvedTweet[] = [];
 

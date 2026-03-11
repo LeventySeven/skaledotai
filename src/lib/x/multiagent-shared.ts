@@ -85,27 +85,6 @@ export async function parseUpstreamJson(
   }
 }
 
-export async function mapWithConcurrency<TInput, TOutput>(
-  items: TInput[],
-  concurrency: number,
-  worker: (item: TInput, index: number) => Promise<TOutput>,
-): Promise<TOutput[]> {
-  const results: TOutput[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function runWorker(): Promise<void> {
-    while (nextIndex < items.length) {
-      const current = nextIndex++;
-      results[current] = await worker(items[current], current);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.max(1, Math.min(concurrency, items.length)) }, () => runWorker()),
-  );
-
-  return results;
-}
 
 export const MULTIAGENT_FETCH_TIMEOUT_MS = 12_000;
 export const MULTIAGENT_SCRAPE_CONCURRENCY = 2;

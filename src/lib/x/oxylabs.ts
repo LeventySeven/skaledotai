@@ -10,6 +10,7 @@ import type {
   XUserReference,
 } from "./types";
 import { XProviderRuntimeError } from "./types";
+import type { XProfile } from "@/lib/validations/search";
 import { buildLeadCandidate } from "./discovery";
 import { parseJsonResponse } from "./json";
 import { asRecord, asArray } from "./records";
@@ -19,12 +20,15 @@ import {
   normalizeScrapedProfile,
   normalizeScrapedTweet,
 } from "./normalizers";
-import { collectNestedTweets, requireUsername } from "./scraper-utils";
+import { collectNestedTweets, mapWithConcurrency, requireUsername } from "./scraper-utils";
 
 const OXYLABS_BASE_URL = process.env.OXYLABS_BASE_URL ?? "https://realtime.oxylabs.io/v1/queries";
 const OXYLABS_DISCOVERY_URL_LIMIT = 12;
 const OXYLABS_PROFILE_ENRICH_LIMIT = 24;
 const OXYLABS_RESULT_MULTIPLIER = 4;
+const OXYLABS_TIMEOUT_MS = 30_000;
+const OXYLABS_SEARCH_CONCURRENCY = 3;
+const OXYLABS_ENRICH_CONCURRENCY = 4;
 
 function unsupported(capability: "network"): never {
   throw new XProviderRuntimeError({
@@ -66,20 +70,36 @@ async function queryOxylabs(
   url: string,
   capability: "discovery" | "lookup" | "tweets",
 ): Promise<unknown> {
-  const response = await fetch(OXYLABS_BASE_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": getAuthHeader(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      source: "universal",
-      url,
-      parse: true,
-      render: "html",
-    }),
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OXYLABS_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(OXYLABS_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": getAuthHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        source: "universal",
+        url,
+        parse: true,
+        render: "html",
+      }),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    throw new XProviderRuntimeError({
+      provider: "oxylabs",
+      capability,
+      code: "UPSTREAM_REQUEST_FAILED",
+      message: `Oxylabs request failed.${error instanceof Error && error.name === "AbortError" ? ` Timed out after ${OXYLABS_TIMEOUT_MS}ms.` : error instanceof Error ? ` ${error.message}` : ""}`,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     throw new XProviderRuntimeError({
@@ -129,7 +149,7 @@ function extractOxylabsItems(value: unknown): unknown[] {
   return flattened.length > 0 ? flattened : [record];
 }
 
-function normalizeProfiles(payload: unknown): ReturnType<typeof dedupeProfiles> {
+function normalizeProfiles(payload: unknown): XProfile[] {
   return dedupeProfiles(
     extractOxylabsItems(payload)
       .map((item) => normalizeScrapedProfile(item))
@@ -198,7 +218,11 @@ export function buildOxylabsDiscoveryUrls(input: XDiscoveryInput): string[] {
 export const oxylabsDiscoveryProvider: XDiscoveryProvider = {
   provider: "oxylabs",
   async discoverCandidates(input: XDiscoveryInput): Promise<XLeadCandidate[]> {
-    const results = await Promise.all(buildOxylabsDiscoveryUrls(input).map((url) => queryOxylabs(url, "discovery")));
+    const results = await mapWithConcurrency(
+      buildOxylabsDiscoveryUrls(input),
+      OXYLABS_SEARCH_CONCURRENCY,
+      (url) => queryOxylabs(url, "discovery"),
+    );
     const byHandle = new Map<string, XLeadCandidate>();
 
     for (const result of results) {
