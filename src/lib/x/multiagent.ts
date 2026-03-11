@@ -603,7 +603,7 @@ const graph = new StateGraph(MultiAgentState)
     return {
       candidates: [...byHandle.values()]
         .sort((a, b) => b.account.followers - a.account.followers)
-        .slice(0, Math.max(state.limit * 2, state.limit)),
+        .slice(0, state.limit * 2),
     };
   })
   .addEdge(START, "planner")
