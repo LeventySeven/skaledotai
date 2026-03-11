@@ -8,7 +8,7 @@ import {
   getXDataClientForCapability,
   getXDiscoveryProvider,
   resolveXProviderForCapability,
-} from "@/lib/x/client";
+} from "@/lib/x/registry";
 import { supportsXProviderCapability, type XDataProvider, type XLeadCandidate, type XProviderCapability } from "@/lib/x";
 import { addProfilesToProject } from "./leads";
 import { recordProjectRun } from "./project-runs";

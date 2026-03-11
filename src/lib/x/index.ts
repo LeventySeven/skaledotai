@@ -39,7 +39,7 @@ export type {
 } from "./provider";
 
 // NOTE: getXDataClient and mapTweetsToMetrics are server-only.
-// Server code should import them from "@/lib/x/client" directly.
+// Server code should import them from "@/lib/x/registry" directly.
 
 export {
   XApiError,

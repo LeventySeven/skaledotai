@@ -9,7 +9,7 @@ import {
   getXDataClientForCapability,
   mapTweetsToMetrics,
   resolveXProviderForCapability,
-} from "@/lib/x/client";
+} from "@/lib/x/registry";
 import type { XDataProvider } from "@/lib/x";
 import { supportsXProviderCapability } from "@/lib/x";
 import type {

@@ -5,7 +5,7 @@ mock.module("server-only", () => ({}));
 const {
   getXProviderRuntimeStatuses,
   resolveXProviderForCapability,
-} = await import("@/lib/x/client");
+} = await import("@/lib/x/registry");
 
 describe("X provider runtime", () => {
   beforeEach(() => {

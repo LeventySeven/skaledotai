@@ -1,7 +1,7 @@
 import "server-only";
 import type { InfluencerScore, XDataProvider, XLeadCandidate } from "@/lib/x";
 import { X_DATA_PROVIDER_OPTIONS } from "@/lib/x";
-import { getXDiscoveryProvider, getXProviderRuntimeStatuses } from "@/lib/x/client";
+import { getXDiscoveryProvider, getXProviderRuntimeStatuses } from "@/lib/x/registry";
 import { scoreLeadCandidate } from "@/lib/openai";
 
 export type ProviderComparisonResult = {
