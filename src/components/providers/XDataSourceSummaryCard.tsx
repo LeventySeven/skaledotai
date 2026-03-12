@@ -10,6 +10,7 @@ import {
   getXDataProviderOption,
   X_DATA_PROVIDER_SURFACES,
   type XDataProvider,
+  type XProviderCapabilities,
 } from "@/lib/x";
 import { useXDataProviderPreference } from "./XDataProviderPreference";
 
@@ -86,15 +87,14 @@ export function XDataSourceSummaryCard({
           ) : null}
 
           <div className="mt-3 flex flex-wrap gap-2">
-            {X_DATA_PROVIDER_SURFACES.map((surface, index) => {
-              const capability = index === 0
-                ? "discovery"
-                : index === 1
-                  ? "network"
-                  : index === 2
-                    ? "tweets"
-                    : "lookup";
-              const supported = status ? status.capabilities[capability] : true;
+            {X_DATA_PROVIDER_SURFACES.map((surface) => {
+              const capabilityBySurface: Record<typeof X_DATA_PROVIDER_SURFACES[number], keyof XProviderCapabilities> = {
+                Search: "discovery",
+                Imports: "network",
+                Stats: "tweets",
+                AI: "lookup",
+              };
+              const supported = status ? status.capabilities[capabilityBySurface[surface]] : true;
 
               return (
                 <Badge key={surface} size="sm" variant="outline">
