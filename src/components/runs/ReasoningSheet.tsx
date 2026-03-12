@@ -19,7 +19,7 @@ import {
   SheetPanel,
   SheetTitle,
 } from "@/components/ui/sheet";
-import type { ProjectRunTrace, ProjectRunTraceStep } from "@/lib/validations/project-runs";
+import type { ProjectRunTrace } from "@/lib/validations/project-runs";
 import { cn } from "@/lib/utils";
 
 export type LiveReasoningStep = {
@@ -73,9 +73,6 @@ function toTraceDisplaySteps(trace: ProjectRunTrace): DisplayStep[] {
   }));
 }
 
-function toTraceStepStatus(step: ProjectRunTraceStep): StepStatus {
-  return step.status === "error" ? "idle" : "complete";
-}
 
 function getStepTone(status: StepStatus) {
   if (status === "active") {
@@ -279,8 +276,8 @@ function StreamBoard({
 
                 {step.metrics.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {step.metrics.map((metric) => (
-                      <Badge key={`${step.id}-${metric.label}`} variant="outline" className="rounded-full bg-background/70">
+                    {step.metrics.map((metric, i) => (
+                      <Badge key={`${step.id}-metric-${i}`} variant="outline" className="rounded-full bg-background/70">
                         {metric.label}: {metric.value}
                       </Badge>
                     ))}
@@ -289,8 +286,8 @@ function StreamBoard({
 
                 {step.bullets.length > 0 ? (
                   <div className="mt-4 space-y-2">
-                    {step.bullets.map((bullet) => (
-                      <div key={`${step.id}-${bullet}`} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    {step.bullets.map((bullet, i) => (
+                      <div key={`${step.id}-bullet-${i}`} className="flex items-start gap-2 text-sm text-muted-foreground">
                         <SparklesIcon className="mt-0.5 size-3.5 shrink-0" />
                         <span>{bullet}</span>
                       </div>
@@ -326,8 +323,8 @@ function StreamBoard({
                 </p>
                 {step.metrics.length > 0 ? (
                   <div className="mt-3 grid gap-2">
-                    {step.metrics.slice(0, 3).map((metric) => (
-                      <div key={`snapshot-${step.id}-${metric.label}`} className="flex items-center justify-between rounded-xl bg-background/80 px-3 py-2 text-xs">
+                    {step.metrics.slice(0, 3).map((metric, i) => (
+                      <div key={`snapshot-${step.id}-metric-${i}`} className="flex items-center justify-between rounded-xl bg-background/80 px-3 py-2 text-xs">
                         <span className="text-muted-foreground">{metric.label}</span>
                         <span className="font-semibold">{metric.value}</span>
                       </div>
@@ -406,7 +403,7 @@ export function ReasoningSheet({
   );
   const displaySteps = trace ? traceSteps : pendingSteps;
   const activeCount = trace
-    ? trace.steps.filter((step) => toTraceStepStatus(step) === "active").length
+    ? 0
     : pendingSteps.filter((step) => step.status === "active").length;
 
   return (
