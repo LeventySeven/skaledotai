@@ -139,7 +139,7 @@ export function ImportNetworkForm() {
           disabled={importMutation.isPending}
         >
           {importMutation.isPending ? <Spinner className="size-4" /> : null}
-          {importMutation.isPending ? "Importing Followers" : "Import Followers"}
+          {importMutation.isPending ? "Importing..." : "Import Followers"}
         </Button>
       </form>
 
