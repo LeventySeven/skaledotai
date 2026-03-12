@@ -499,4 +499,108 @@ describe("searchAndAddLeads", () => {
       snapshotRecorder: undefined,
     });
   });
+
+  test("aggregates live discovery progress across retry passes", async () => {
+    const streamedSteps: Array<{ id: string; title: string; bullets: string[] }> = [];
+    const streamedSnapshots: Array<{ queries: number; urls: number; scraped: number; candidates: number }> = [];
+
+    const plannerStep = {
+      id: "multiagent-1-planner",
+      title: "Planner",
+      summary: "Generated 3 bounded discovery queries.",
+      status: "success" as const,
+      provider: "multiagent" as const,
+      model: "gpt-5",
+      bullets: ["Query 1: founding engineers"],
+      metrics: [{ label: "Queries", value: 3 }],
+    };
+
+    discoverCandidatesMock
+      .mockImplementationOnce(async (input?: any) => {
+        await input?.traceRecorder?.(plannerStep);
+        await input?.snapshotRecorder?.({ queries: 3, urls: 12, scraped: 4, candidates: 1 });
+        return [
+          profile({
+            xUserId: "one-id",
+            username: "one",
+            displayName: "One Person",
+            followersCount: 2400,
+          }),
+        ];
+      })
+      .mockImplementationOnce(async (input?: any) => {
+        await input?.traceRecorder?.(plannerStep);
+        await input?.snapshotRecorder?.({ queries: 3, urls: 12, scraped: 5, candidates: 2 });
+        return [
+          profile({
+            xUserId: "two-id",
+            username: "two",
+            displayName: "Two Person",
+            followersCount: 4200,
+          }),
+        ];
+      })
+      .mockImplementationOnce(async (input?: any) => {
+        await input?.traceRecorder?.(plannerStep);
+        await input?.snapshotRecorder?.({ queries: 3, urls: 12, scraped: 6, candidates: 3 });
+        return [
+          profile({
+            xUserId: "three-id",
+            username: "three",
+            displayName: "Three Person",
+            followersCount: 5100,
+          }),
+        ];
+      });
+
+    expandLeadSearchQueriesMock.mockResolvedValue([
+      "founding engineers",
+      "founding engineers founder builder engineer creator operator",
+      "founding engineers startups companies teams",
+    ]);
+    screenProfilesForLeadSearchMock.mockResolvedValue(["one-id", "two-id", "three-id"]);
+
+    await searchAndAddLeads("user-1", {
+      query: "founding engineers",
+      projectName: "Founding Engineers",
+    }, "multiagent", {
+      onStep: async (step) => {
+        streamedSteps.push({
+          id: step.id,
+          title: step.title,
+          bullets: step.bullets,
+        });
+      },
+      onSnapshot: async (snapshot) => {
+        streamedSnapshots.push(snapshot);
+      },
+    });
+
+    const discoveryStepIds = streamedSteps
+      .map((step) => step.id)
+      .filter((id) => id.includes("multiagent-1-planner"));
+    const discoveryStepTitles = streamedSteps
+      .filter((step) => step.id.includes("multiagent-1-planner"))
+      .map((step) => step.title);
+
+    expect(discoveryStepIds).toEqual([
+      "pass-1:multiagent-1-planner",
+      "retry-1:multiagent-1-planner",
+      "retry-2:multiagent-1-planner",
+    ]);
+    expect(discoveryStepTitles).toEqual([
+      "Pass 1 · Planner",
+      "Retry 1 · Planner",
+      "Retry 2 · Planner",
+    ]);
+    expect(streamedSteps[0]?.bullets[0]).toBe("Discovery query: founding engineers");
+    expect(streamedSteps[1]?.bullets[0]).toBe("Discovery query: founding engineers founder builder engineer creator operator");
+    expect(streamedSteps[2]?.bullets[0]).toBe("Discovery query: founding engineers startups companies teams");
+
+    expect(streamedSnapshots).toEqual(expect.arrayContaining([
+      { queries: 3, urls: 12, scraped: 4, candidates: 1 },
+      { queries: 6, urls: 24, scraped: 9, candidates: 3 },
+      { queries: 9, urls: 36, scraped: 15, candidates: 6 },
+    ]));
+  });
 });

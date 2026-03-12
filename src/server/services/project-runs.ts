@@ -84,6 +84,10 @@ export async function getProjectSourceProvidersByProjectIds(
     .select({
       projectId: projectRuns.projectId,
       requestedProvider: projectRuns.requestedProvider,
+      discoveryProvider: projectRuns.discoveryProvider,
+      lookupProvider: projectRuns.lookupProvider,
+      networkProvider: projectRuns.networkProvider,
+      tweetsProvider: projectRuns.tweetsProvider,
     })
     .from(projectRuns)
     .innerJoin(projects, eq(projects.id, projectRuns.projectId))
@@ -92,12 +96,21 @@ export async function getProjectSourceProvidersByProjectIds(
   const providersByProject = new Map<string, XDataProvider[]>();
 
   for (const row of rows) {
-    const parsed = XDataProviderSchema.safeParse(row.requestedProvider);
-    if (!parsed.success) continue;
-
     const current = providersByProject.get(row.projectId) ?? [];
-    if (!current.includes(parsed.data)) {
+
+    for (const provider of [
+      row.requestedProvider,
+      row.discoveryProvider,
+      row.lookupProvider,
+      row.networkProvider,
+      row.tweetsProvider,
+    ]) {
+      const parsed = XDataProviderSchema.safeParse(provider);
+      if (!parsed.success || current.includes(parsed.data)) continue;
       current.push(parsed.data);
+    }
+
+    if (current.length > 0) {
       providersByProject.set(row.projectId, current);
     }
   }

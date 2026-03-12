@@ -64,6 +64,17 @@ async function readErrorMessage(response: Response): Promise<string> {
   return text.trim() || "Live search failed.";
 }
 
+function normalizeLiveStreamError(error: unknown): Error {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    if (/input stream/i.test(error.message)) {
+      return new Error("Live search stream disconnected before the multi-agent run finished.");
+    }
+    return error;
+  }
+
+  return new Error("Live search stream disconnected before the multi-agent run finished.");
+}
+
 export function SearchForm() {
   const router = useRouter();
   const { data: projects = [] } = trpc.projects.list.useQuery();
@@ -129,52 +140,74 @@ export function SearchForm() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let completed = false;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+      const handleEventLine = async (line: string): Promise<boolean> => {
+        const trimmed = line.trim();
+        if (!trimmed) return false;
 
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          const event = SearchRunStreamEventSchema.parse(JSON.parse(trimmed));
-          if (event.type === "step") {
-            setStreamSteps((current) => current.some((step) => step.id === event.step.id)
-              ? current
-              : [...current, event.step]);
-            continue;
-          }
-
-          if (event.type === "snapshot") {
-            setStreamSnapshot(event.snapshot);
-            continue;
-          }
-
-          if (event.type === "complete") {
-            setStreamTrace(event.result.trace);
-            setStreamSteps((current) => mergeTraceSteps(current, event.result.trace.steps));
-            await Promise.all([
-              utils.projects.list.invalidate(),
-              utils.leads.list.invalidate(),
-            ]);
-            toastManager.add({
-              type: "success",
-              title: `Added ${event.result.leads.length} leads to ${event.result.project.name}.`,
-            });
-            window.setTimeout(() => {
-              router.push(`/leads?project=${event.result.project.id}`);
-            }, 350);
-            return;
-          }
-
-          throw new Error(event.message);
+        const event = SearchRunStreamEventSchema.parse(JSON.parse(trimmed));
+        if (event.type === "step") {
+          setStreamSteps((current) => current.some((step) => step.id === event.step.id)
+            ? current
+            : [...current, event.step]);
+          return false;
         }
 
-        if (done) break;
+        if (event.type === "snapshot") {
+          setStreamSnapshot(event.snapshot);
+          return false;
+        }
+
+        if (event.type === "complete") {
+          completed = true;
+          setStreamTrace(event.result.trace);
+          setStreamSteps((current) => mergeTraceSteps(current, event.result.trace.steps));
+          await Promise.all([
+            utils.projects.list.invalidate(),
+            utils.leads.list.invalidate(),
+          ]);
+          toastManager.add({
+            type: "success",
+            title: `Added ${event.result.leads.length} leads to ${event.result.project.name}.`,
+          });
+          window.setTimeout(() => {
+            router.push(`/leads?project=${event.result.project.id}`);
+          }, 350);
+          return true;
+        }
+
+        throw new Error(event.message);
+      };
+
+      try {
+        while (true) {
+          let chunk;
+          try {
+            chunk = await reader.read();
+          } catch (error) {
+            throw normalizeLiveStreamError(error);
+          }
+
+          const { done, value } = chunk;
+          buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (await handleEventLine(line)) return;
+          }
+
+          if (done) break;
+        }
+
+        if (buffer.trim() && await handleEventLine(buffer)) return;
+        if (!completed) {
+          throw new Error("Live search ended before the multi-agent run completed.");
+        }
+      } finally {
+        reader.releaseLock();
       }
     } finally {
       setLiveSearchPending(false);

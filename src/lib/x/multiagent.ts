@@ -36,7 +36,8 @@ export { buildTavilySearchRequest, normalizeDiscoveredUrls } from "./tavily";
 export { buildAgentQlQueryRequest } from "./agentql";
 
 const MULTIAGENT_MAX_QUERIES = 3;
-const MULTIAGENT_MAX_URLS = 8;
+const MULTIAGENT_MIN_URLS = 12;
+const MULTIAGENT_MAX_URLS = 24;
 const MULTIAGENT_PLANNER_TIMEOUT_MS = 8_000;
 const MULTIAGENT_NODE_TITLES = {
   planner: "Planner",
@@ -120,6 +121,10 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
   ];
 
   return dedupeQueries(queries).slice(0, MULTIAGENT_MAX_QUERIES);
+}
+
+function resolveMultiAgentUrlLimit(limit: number): number {
+  return Math.max(MULTIAGENT_MIN_URLS, Math.min(limit, MULTIAGENT_MAX_URLS));
 }
 
 type MultiAgentNodeName = keyof typeof MULTIAGENT_NODE_TITLES;
@@ -286,12 +291,12 @@ const graph = new StateGraph(MultiAgentState)
     );
     return {
       // Keep fan-out bounded so the graph stays deterministic and avoids the unbounded-loop anti-pattern.
-      urls: normalizeDiscoveredUrls(results.flat(), Math.min(MULTIAGENT_MAX_URLS, Math.max(4, state.limit))),
+      urls: normalizeDiscoveredUrls(results.flat(), resolveMultiAgentUrlLimit(state.limit)),
     };
   })
   .addNode("profile_scraper", async (state) => ({
     scraped: (await mapWithConcurrency(
-      state.urls.slice(0, Math.min(MULTIAGENT_MAX_URLS, Math.max(4, state.limit))),
+      state.urls.slice(0, resolveMultiAgentUrlLimit(state.limit)),
       MULTIAGENT_SCRAPE_CONCURRENCY,
       (url) => queryAgentQlBestEffort(url, "discovery"),
     )).filter((payload): payload is NonNullable<typeof payload> => payload !== null),
@@ -339,7 +344,7 @@ export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
       const stream = await graph.stream({
         niche: input.niche,
         seedHandle: input.seedHandle,
-        limit: Math.max(4, Math.min(input.limit, MULTIAGENT_MAX_URLS)),
+        limit: resolveMultiAgentUrlLimit(input.limit),
         minFollowers: input.minFollowers,
       }, {
         streamMode: ["updates", "values"],

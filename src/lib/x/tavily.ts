@@ -32,7 +32,7 @@ export function buildTavilySearchRequest(query: string, limit: number): Record<s
     query,
     search_depth: "basic",
     include_domains: ["x.com", "twitter.com"],
-    max_results: Math.max(5, Math.min(10, limit)),
+    max_results: Math.max(10, Math.min(20, Math.ceil(limit / 2))),
   };
 }
 

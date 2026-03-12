@@ -52,6 +52,62 @@ type SearchProgressHandlers = {
   onSnapshot?: (snapshot: SearchRunStreamSnapshot) => void | Promise<void>;
 };
 
+function aggregateDiscoverySnapshots(
+  snapshots: Iterable<SearchRunStreamSnapshot>,
+): SearchRunStreamSnapshot {
+  const total = {
+    queries: 0,
+    urls: 0,
+    scraped: 0,
+    candidates: 0,
+  };
+
+  for (const snapshot of snapshots) {
+    total.queries += snapshot.queries;
+    total.urls += snapshot.urls;
+    total.scraped += snapshot.scraped;
+    total.candidates += snapshot.candidates;
+  }
+
+  return total;
+}
+
+function createDiscoveryProgressHandlers(
+  progress: SearchProgressHandlers | undefined,
+  input: {
+    attemptKey: string;
+    attemptLabel: string;
+    query: string;
+    snapshotStore: Map<string, SearchRunStreamSnapshot>;
+  },
+): SearchProgressHandlers {
+  if (!progress?.onStep && !progress?.onSnapshot) {
+    return {};
+  }
+
+  return {
+    onStep: progress.onStep
+      ? async (step) => {
+        await progress.onStep?.({
+          ...step,
+          id: `${input.attemptKey}:${step.id}`,
+          title: `${input.attemptLabel} · ${step.title}`,
+          bullets: [
+            `Discovery query: ${input.query}`,
+            ...step.bullets,
+          ],
+        });
+      }
+      : undefined,
+    onSnapshot: progress.onSnapshot
+      ? async (snapshot) => {
+        input.snapshotStore.set(input.attemptKey, snapshot);
+        await progress.onSnapshot?.(aggregateDiscoverySnapshots(input.snapshotStore.values()));
+      }
+      : undefined,
+  };
+}
+
 function dedupeProviders(providers: XDataProvider[]): XDataProvider[] {
   return [...new Set(providers)];
 }
@@ -208,13 +264,20 @@ async function discoverCandidatesWithRetry(
   retryQueries: string[];
 }> {
   const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
+  const discoverySnapshots = new Map<string, SearchRunStreamSnapshot>();
+  const firstPassProgress = createDiscoveryProgressHandlers(progress, {
+    attemptKey: "pass-1",
+    attemptLabel: "Pass 1",
+    query,
+    snapshotStore: discoverySnapshots,
+  });
   const firstPass = await discoveryProvider.discoverCandidates({
     niche: query,
     seedHandle,
     limit: parseAccountsTarget,
     minFollowers: discoveryMinFollowers,
-    traceRecorder: progress?.onStep,
-    snapshotRecorder: progress?.onSnapshot,
+    traceRecorder: firstPassProgress.onStep,
+    snapshotRecorder: firstPassProgress.onSnapshot,
   });
 
   const firstFiltered = firstPass.filter((candidate) => candidate.account.followers >= minFollowers);
@@ -229,16 +292,23 @@ async function discoverCandidatesWithRetry(
   const retryQueries = (await expandLeadSearchQueries(query, seedHandle))
     .filter((item) => item.trim().toLowerCase() !== query.trim().toLowerCase());
   const retryPasses = await Promise.all(
-    retryQueries.map((retryQuery) =>
-      discoveryProvider.discoverCandidates({
+    retryQueries.map((retryQuery, index) => {
+      const retryProgress = createDiscoveryProgressHandlers(progress, {
+        attemptKey: `retry-${index + 1}`,
+        attemptLabel: `Retry ${index + 1}`,
+        query: retryQuery,
+        snapshotStore: discoverySnapshots,
+      });
+
+      return discoveryProvider.discoverCandidates({
         niche: retryQuery,
         seedHandle,
         limit: parseAccountsTarget,
         minFollowers: discoveryMinFollowers,
-        traceRecorder: progress?.onStep,
-        snapshotRecorder: progress?.onSnapshot,
-      }),
-    ),
+        traceRecorder: retryProgress.onStep,
+        snapshotRecorder: retryProgress.onSnapshot,
+      });
+    }),
   );
 
   return {

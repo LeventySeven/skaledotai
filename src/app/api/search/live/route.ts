@@ -52,22 +52,31 @@ export async function POST(req: Request): Promise<Response> {
 
   const stream = new TransformStream<Uint8Array, Uint8Array>();
   const writer = stream.writable.getWriter();
+  let writeQueue = Promise.resolve();
+
+  function enqueueEvent(event: unknown): Promise<void> {
+    writeQueue = writeQueue
+      .catch(() => undefined)
+      .then(() => writeEvent(writer, event));
+    return writeQueue;
+  }
 
   void (async () => {
     try {
       const result = await searchAndAddLeads(ctx.userId!, parsed.data, ctx.xDataProvider, {
-        onStep: (step) => writeEvent(writer, { type: "step", step }),
-        onSnapshot: (snapshot) => writeEvent(writer, { type: "snapshot", snapshot }),
+        onStep: (step) => enqueueEvent({ type: "step", step }),
+        onSnapshot: (snapshot) => enqueueEvent({ type: "snapshot", snapshot }),
       });
 
-      await writeEvent(writer, { type: "complete", result });
+      await enqueueEvent({ type: "complete", result });
     } catch (error) {
       const normalized = error instanceof TRPCError ? error : toXProviderTrpcError(error);
-      await writeEvent(writer, {
+      await enqueueEvent({
         type: "error",
         message: normalized.message,
       }).catch(() => undefined);
     } finally {
+      await writeQueue.catch(() => undefined);
       await writer.close().catch(() => undefined);
     }
   })();

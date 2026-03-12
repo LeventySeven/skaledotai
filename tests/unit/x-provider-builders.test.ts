@@ -101,7 +101,7 @@ describe("Multi-agent request builders", () => {
       query: "founding engineers",
       search_depth: "basic",
       include_domains: ["x.com", "twitter.com"],
-      max_results: 10,
+      max_results: 13,
     });
   });
 
