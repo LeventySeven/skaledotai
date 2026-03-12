@@ -9,7 +9,7 @@ export default async function Home() {
   if (session?.user) redirect("/leads");
 
   return (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#F8FAFC]">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-soft-white">
       <h1 className="mb-8 text-4xl font-bold tracking-tight text-foreground">skaleai</h1>
       <Link
         href="/sign-in"
