@@ -300,8 +300,8 @@ export function SearchRunTracePanel({
 
                     {step.metrics.length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {step.metrics.map((metric) => (
-                          <Badge key={`${step.id}-${metric.label}`} variant="outline" className="rounded-full bg-card">
+                        {step.metrics.map((metric, i) => (
+                          <Badge key={`${step.id}-metric-${i}`} variant="outline" className="rounded-full bg-card">
                             {metric.label}: {metric.value}
                           </Badge>
                         ))}
@@ -310,8 +310,8 @@ export function SearchRunTracePanel({
 
                     {step.bullets.length > 0 ? (
                       <div className="mt-4 space-y-2">
-                        {step.bullets.map((bullet) => (
-                          <div key={`${step.id}-${bullet}`} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        {step.bullets.map((bullet, i) => (
+                          <div key={`${step.id}-bullet-${i}`} className="flex items-start gap-2 text-sm text-muted-foreground">
                             <SparklesIcon className="mt-0.5 size-3.5 shrink-0" />
                             <span>{bullet}</span>
                           </div>
