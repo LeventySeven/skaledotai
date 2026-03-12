@@ -103,7 +103,7 @@ function getStepTone(status: StepStatus) {
 
 function GraphLane({ steps }: { steps: DisplayStep[] }) {
   return (
-    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.10),_transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,250,252,0.95))] p-4 dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(15,23,42,0.96))]">
+    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,250,252,0.95))] p-4 dark:bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(15,23,42,0.96))]">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -145,7 +145,7 @@ function GraphLane({ steps }: { steps: DisplayStep[] }) {
                     </p>
                   </div>
                 </div>
-                <div className={cn("h-px w-8 bg-gradient-to-r", tone.line)} />
+                <div className={cn("h-px w-8 bg-linear-to-r", tone.line)} />
               </div>
             );
           })}
@@ -409,7 +409,7 @@ export function ReasoningSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" variant="inset" className="max-w-[760px]">
-        <SheetHeader className="border-b border-border/60 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(15,23,42,0.08),_transparent_28%),linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.85))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.20),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(148,163,184,0.12),_transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.80))]">
+        <SheetHeader className="border-b border-border/60 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_34%),radial-gradient(circle_at_top_right,rgba(15,23,42,0.08),transparent_28%),linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.85))] dark:bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.20),transparent_34%),radial-gradient(circle_at_top_right,rgba(148,163,184,0.12),transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.80))]">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={isPending ? "secondary" : "outline"}>
               {isPending ? "Live Stream" : "Completed"}
@@ -425,7 +425,7 @@ export function ReasoningSheet({
           <SheetDescription>{trace?.summary ?? description}</SheetDescription>
         </SheetHeader>
 
-        <SheetPanel className="space-y-4 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.055)_1px,transparent_0)] [background-size:18px_18px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(148,163,184,0.10)_1px,transparent_0)]">
+        <SheetPanel className="space-y-4 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.055)_1px,transparent_0)] bg-size-[18px_18px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(148,163,184,0.10)_1px,transparent_0)]">
           <OverviewCards
             isPending={isPending}
             trace={trace}
