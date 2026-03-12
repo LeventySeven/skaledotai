@@ -56,6 +56,12 @@ export const SearchRunGraphNodeSchema = z.object({
 }).strict();
 export type SearchRunGraphNode = z.infer<typeof SearchRunGraphNodeSchema>;
 
+export const SearchRunRecoveryStateSchema = z.enum(["low_yield", "rate_limited", "json_repair"]);
+export type SearchRunRecoveryState = z.infer<typeof SearchRunRecoveryStateSchema>;
+
+export const SearchRunStopReasonSchema = z.enum(["goal_reached", "max_attempts", "query_exhausted"]);
+export type SearchRunStopReason = z.infer<typeof SearchRunStopReasonSchema>;
+
 export const SearchRunStreamSnapshotSchema = z.object({
   queries: z.number().int().nonnegative(),
   urls: z.number().int().nonnegative(),
@@ -66,6 +72,9 @@ export const SearchRunStreamSnapshotSchema = z.object({
   attempt: z.number().int().positive(),
   maxAttempts: z.number().int().positive(),
   activeNode: z.string().optional(),
+  recoveryState: SearchRunRecoveryStateSchema.optional(),
+  stopReason: SearchRunStopReasonSchema.optional(),
+  firstPassCount: z.number().int().nonnegative().optional(),
   graphNodes: z.array(SearchRunGraphNodeSchema).default([]),
 }).strict();
 export type SearchRunStreamSnapshot = z.infer<typeof SearchRunStreamSnapshotSchema>;

@@ -31,10 +31,14 @@ describe("multi-agent stream mapping", () => {
       goalCount: 135,
       attempt: 2,
       maxAttempts: 4,
-      activeNode: "profile_scraper",
-      queries: ["one", "two"],
-      urls: ["https://x.com/one"],
-      scraped: [{ ok: true }, { ok: true }],
+      activeNode: "scraper",
+      completedNodes: ["planner", "source_fanout"],
+      plannedQueries: ["one", "two"],
+      candidateUrls: ["https://x.com/one"],
+      scraped: [
+        { url: "https://x.com/one", payload: { ok: true } },
+        { url: "https://x.com/two", payload: { ok: true } },
+      ],
       candidates: [
         {
           source: "multiagent",
@@ -68,12 +72,17 @@ describe("multi-agent stream mapping", () => {
       goalCount: 135,
       attempt: 2,
       maxAttempts: 4,
-      activeNode: "profile_scraper",
+      activeNode: "scraper",
+      recoveryState: undefined,
+      stopReason: undefined,
+      firstPassCount: undefined,
       graphNodes: [
         { id: "planner", title: "Planner", status: "complete" },
-        { id: "url_finder", title: "URL Finder", status: "complete" },
-        { id: "profile_scraper", title: "Profile Scraper", status: "active" },
-        { id: "aggregator", title: "Aggregator", status: "idle" },
+        { id: "source_fanout", title: "Source Fanout", status: "complete" },
+        { id: "scraper", title: "Scraper", status: "active" },
+        { id: "scorer", title: "Scorer", status: "idle" },
+        { id: "validator", title: "Validator", status: "idle" },
+        { id: "recovery", title: "Recovery", status: "idle" },
       ],
     });
   });

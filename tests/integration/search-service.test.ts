@@ -550,21 +550,61 @@ describe("searchAndAddLeads", () => {
       metrics: [{ label: "Queries", value: 3 }],
     };
 
-    discoverCandidatesMock
-      .mockImplementationOnce(async (input?: any) => {
-        await input?.traceRecorder?.(plannerStep);
-        await input?.snapshotRecorder?.({
-          queries: 3,
-          urls: 12,
-          scraped: 4,
-          candidates: 1,
-          targetLeadCount: 100,
-          goalCount: 135,
-          attempt: 1,
-          maxAttempts: 4,
-          activeNode: "planner",
-          graphNodes: [],
-        });
+    discoverCandidatesMock.mockImplementationOnce(async (input?: any) => {
+      await input?.traceRecorder?.(plannerStep);
+      await input?.snapshotRecorder?.({
+        queries: 3,
+        urls: 12,
+        scraped: 4,
+        candidates: 1,
+        targetLeadCount: 100,
+        goalCount: 135,
+        attempt: 1,
+        maxAttempts: 4,
+        activeNode: "planner",
+        recoveryState: "low_yield",
+        graphNodes: [],
+      });
+      await input?.traceRecorder?.({
+        id: "multiagent-2-recovery",
+        title: "Recovery",
+        summary: "Expanded the search for another bounded pass.",
+        status: "warning" as const,
+        provider: "multiagent" as const,
+        bullets: ["Low-yield recovery widened the query pool."],
+        metrics: [{ label: "Attempt", value: "2" }],
+      });
+      await input?.snapshotRecorder?.({
+        queries: 6,
+        urls: 24,
+        scraped: 9,
+        candidates: 3,
+        targetLeadCount: 100,
+        goalCount: 135,
+        attempt: 2,
+        maxAttempts: 4,
+        activeNode: "recovery",
+        recoveryState: "low_yield",
+        graphNodes: [],
+      });
+      await input?.traceRecorder?.({
+        ...plannerStep,
+        id: "multiagent-3-planner",
+      });
+      await input?.snapshotRecorder?.({
+        queries: 9,
+        urls: 36,
+        scraped: 15,
+        candidates: 6,
+        targetLeadCount: 100,
+        goalCount: 135,
+        attempt: 3,
+        maxAttempts: 4,
+        activeNode: "validator",
+        stopReason: "query_exhausted",
+        firstPassCount: 1,
+        graphNodes: [],
+      });
         return [
           profile({
             xUserId: "one-id",
@@ -572,46 +612,12 @@ describe("searchAndAddLeads", () => {
             displayName: "One Person",
             followersCount: 2400,
           }),
-        ];
-      })
-      .mockImplementationOnce(async (input?: any) => {
-        await input?.traceRecorder?.(plannerStep);
-        await input?.snapshotRecorder?.({
-          queries: 3,
-          urls: 12,
-          scraped: 5,
-          candidates: 2,
-          targetLeadCount: 100,
-          goalCount: 135,
-          attempt: 2,
-          maxAttempts: 4,
-          activeNode: "planner",
-          graphNodes: [],
-        });
-        return [
           profile({
             xUserId: "two-id",
             username: "two",
             displayName: "Two Person",
             followersCount: 4200,
           }),
-        ];
-      })
-      .mockImplementationOnce(async (input?: any) => {
-        await input?.traceRecorder?.(plannerStep);
-        await input?.snapshotRecorder?.({
-          queries: 3,
-          urls: 12,
-          scraped: 6,
-          candidates: 3,
-          targetLeadCount: 100,
-          goalCount: 135,
-          attempt: 3,
-          maxAttempts: 4,
-          activeNode: "planner",
-          graphNodes: [],
-        });
-        return [
           profile({
             xUserId: "three-id",
             username: "three",
@@ -619,13 +625,8 @@ describe("searchAndAddLeads", () => {
             followersCount: 5100,
           }),
         ];
-      });
+    });
 
-    expandLeadSearchQueriesMock.mockResolvedValue([
-      "founding engineers",
-      "founding engineers founder builder engineer creator operator",
-      "founding engineers startups companies teams",
-    ]);
     screenProfilesForLeadSearchMock.mockResolvedValue(["one-id", "two-id", "three-id"]);
 
     await searchAndAddLeads("user-1", {
@@ -644,31 +645,33 @@ describe("searchAndAddLeads", () => {
       },
     });
 
-    const discoveryStepIds = streamedSteps
-      .map((step) => step.id)
-      .filter((id) => id.includes("multiagent-1-planner"));
-    const discoveryStepTitles = streamedSteps
-      .filter((step) => step.id.includes("multiagent-1-planner"))
-      .map((step) => step.title);
+    expect(discoverCandidatesMock).toHaveBeenCalledTimes(1);
+    expect(discoverCandidatesMock).toHaveBeenCalledWith(expect.objectContaining({
+      niche: "founding engineers",
+      seedHandle: undefined,
+      limit: 200,
+      minFollowers: 0,
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 1,
+      maxAttempts: 4,
+      traceRecorder: expect.any(Function),
+      snapshotRecorder: expect.any(Function),
+    }));
 
-    expect(discoveryStepIds).toEqual([
-      "pass-1:multiagent-1-planner",
-      "retry-1:multiagent-1-planner",
-      "retry-2:multiagent-1-planner",
+    expect(streamedSteps.map((step) => step.id).slice(0, 3)).toEqual([
+      "multiagent-1-planner",
+      "multiagent-2-recovery",
+      "multiagent-3-planner",
     ]);
-    expect(discoveryStepTitles).toEqual([
-      "Pass 1 · Planner",
-      "Retry 1 · Planner",
-      "Retry 2 · Planner",
-    ]);
-    expect(streamedSteps[0]?.bullets[0]).toBe("Discovery query: founding engineers");
-    expect(streamedSteps[1]?.bullets[0]).toBe("Discovery query: founding engineers founder builder engineer creator operator");
-    expect(streamedSteps[2]?.bullets[0]).toBe("Discovery query: founding engineers startups companies teams");
+    expect(streamedSteps[0]?.title).toBe("Planner");
+    expect(streamedSteps[1]?.title).toBe("Recovery");
+    expect(streamedSteps[1]?.bullets[0]).toBe("Low-yield recovery widened the query pool.");
 
     expect(streamedSnapshots).toEqual(expect.arrayContaining([
-      expect.objectContaining({ queries: 3, urls: 12, scraped: 4, candidates: 1, attempt: 1, maxAttempts: 4, targetLeadCount: 100, goalCount: 135 }),
-      expect.objectContaining({ queries: 6, urls: 24, scraped: 9, candidates: 3, attempt: 2, maxAttempts: 4, targetLeadCount: 100, goalCount: 135 }),
-      expect.objectContaining({ queries: 9, urls: 36, scraped: 15, candidates: 6, attempt: 3, maxAttempts: 4, targetLeadCount: 100, goalCount: 135 }),
+      expect.objectContaining({ queries: 3, urls: 12, scraped: 4, candidates: 1, attempt: 1, maxAttempts: 4, targetLeadCount: 100, goalCount: 135, recoveryState: "low_yield" }),
+      expect.objectContaining({ queries: 6, urls: 24, scraped: 9, candidates: 3, attempt: 2, maxAttempts: 4, targetLeadCount: 100, goalCount: 135, recoveryState: "low_yield" }),
+      expect.objectContaining({ queries: 9, urls: 36, scraped: 15, candidates: 6, attempt: 3, maxAttempts: 4, targetLeadCount: 100, goalCount: 135, stopReason: "query_exhausted", firstPassCount: 1 }),
     ]));
   });
 });

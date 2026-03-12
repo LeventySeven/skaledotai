@@ -53,6 +53,7 @@ type SearchProgressHandlers = {
 };
 
 type DiscoveryStopReason = "goal_reached" | "max_attempts" | "query_exhausted";
+type DiscoveryRecoveryState = SearchRunStreamSnapshot["recoveryState"];
 
 type DiscoveryResult = {
   candidates: XLeadCandidate[];
@@ -64,6 +65,7 @@ type DiscoveryResult = {
   goalCount: number;
   satisfied: boolean;
   stopReason: DiscoveryStopReason;
+  recoveryState?: DiscoveryRecoveryState;
 };
 
 function aggregateDiscoverySnapshots(
@@ -311,6 +313,13 @@ function describeDiscoveryStopReason(reason: DiscoveryStopReason): string {
   return "The queued discovery queries were exhausted before the discovery goal was reached.";
 }
 
+function describeDiscoveryRecoveryState(reason: DiscoveryRecoveryState): string {
+  if (reason === "rate_limited") return "The recovery lane throttled the graph after upstream rate limits.";
+  if (reason === "json_repair") return "The recovery lane switched into JSON repair mode after brittle upstream output.";
+  if (reason === "low_yield") return "The recovery lane expanded the search when the current pass came back light.";
+  return "The graph stayed on the happy path without a recovery handoff.";
+}
+
 function enqueueUniqueQueries(
   queue: string[],
   seenQueries: Set<string>,
@@ -417,6 +426,68 @@ async function discoverCandidatesUntilGoal(
     goalCount,
     satisfied,
     stopReason,
+    recoveryState: undefined,
+  };
+}
+
+async function discoverCandidatesWithProviderOwnedLoop(
+  discoveryProvider: XDiscoveryProvider,
+  query: string,
+  seedHandle: string | undefined,
+  minFollowers: number,
+  targetLeadCount: number,
+  parseAccountsTarget: number,
+  progress?: SearchProgressHandlers,
+): Promise<DiscoveryResult> {
+  const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
+  const goalCount = getDiscoveryCandidateGoal(targetLeadCount);
+  const maxAttempts = SEARCH_DISCOVERY_METADATA.maxAttempts;
+  type DiscoverySnapshotSummary = {
+    attempt?: number;
+    maxAttempts?: number;
+    stopReason?: DiscoveryStopReason;
+    recoveryState?: DiscoveryRecoveryState;
+    firstPassCount?: number;
+  };
+  let latestSnapshot: DiscoverySnapshotSummary | null = null;
+
+  const candidates = await discoveryProvider.discoverCandidates({
+    niche: query,
+    seedHandle,
+    limit: parseAccountsTarget,
+    minFollowers: discoveryMinFollowers,
+    targetLeadCount,
+    goalCount,
+    attempt: 1,
+    maxAttempts,
+    traceRecorder: progress?.onStep,
+    snapshotRecorder: async (snapshot) => {
+      latestSnapshot = snapshot;
+      await progress?.onSnapshot?.(snapshot);
+    },
+  });
+  const finalSnapshot = latestSnapshot as DiscoverySnapshotSummary | null | undefined;
+
+  const satisfied = finalSnapshot?.stopReason === "goal_reached" || candidates.length >= goalCount;
+  const stopReason: DiscoveryStopReason = finalSnapshot?.stopReason ?? (
+    satisfied
+      ? "goal_reached"
+      : (finalSnapshot?.attempt ?? 1) >= maxAttempts
+        ? "max_attempts"
+        : "query_exhausted"
+  );
+
+  return {
+    candidates,
+    firstPassCount: finalSnapshot?.firstPassCount ?? candidates.length,
+    retryQueries: [],
+    attemptedQueries: [],
+    attempts: finalSnapshot?.attempt ?? 1,
+    maxAttempts: finalSnapshot?.maxAttempts ?? maxAttempts,
+    goalCount,
+    satisfied,
+    stopReason,
+    recoveryState: finalSnapshot?.recoveryState,
   };
 }
 
@@ -457,15 +528,25 @@ export async function searchAndAddLeads(
     const seedHandle = input.followerUsername?.replace(/^@/, "");
     const minFollowers = input.minFollowers ?? 0;
     const parseAccountsTarget = getDiscoveryParseTarget(provider, targetLeadCount);
-    const discoveryResult = await discoverCandidatesUntilGoal(
-      discoveryProvider,
-      input.query,
-      seedHandle,
-      minFollowers,
-      targetLeadCount,
-      parseAccountsTarget,
-      progress,
-    );
+    const discoveryResult = discoveryProvider.provider === "multiagent"
+      ? await discoverCandidatesWithProviderOwnedLoop(
+        discoveryProvider,
+        input.query,
+        seedHandle,
+        minFollowers,
+        targetLeadCount,
+        parseAccountsTarget,
+        progress,
+      )
+      : await discoverCandidatesUntilGoal(
+        discoveryProvider,
+        input.query,
+        seedHandle,
+        minFollowers,
+        targetLeadCount,
+        parseAccountsTarget,
+        progress,
+      );
     const discoveredCandidates = discoveryResult.candidates;
 
     trace.addStep(await emitStep(progress, {
@@ -478,9 +559,15 @@ export async function searchAndAddLeads(
       provider: discoveryProvider.provider,
       bullets: [
         seedHandle ? `Seed handle: @${seedHandle}` : "No seed handle used.",
-        discoveryResult.retryQueries.length > 0
-          ? `Expanded into ${discoveryResult.retryQueries.length} additional discovery queries after the first pass came back light.`
-          : "No additional discovery queries were required.",
+        discoveryProvider.provider === "multiagent"
+          ? (discoveryResult.recoveryState
+            ? describeDiscoveryRecoveryState(discoveryResult.recoveryState)
+            : discoveryResult.attempts > 1
+              ? "The provider-owned graph completed multiple bounded passes without surfacing a recovery lane in the final state."
+              : "The provider-owned graph completed on its first bounded pass.")
+          : (discoveryResult.retryQueries.length > 0
+            ? `Expanded into ${discoveryResult.retryQueries.length} additional discovery queries after the first pass came back light.`
+            : "No additional discovery queries were required."),
         describeDiscoveryStopReason(discoveryResult.stopReason),
       ],
       metrics: [

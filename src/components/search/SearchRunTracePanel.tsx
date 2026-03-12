@@ -169,6 +169,8 @@ export function SearchRunTracePanel({
           <Badge variant="outline">LangGraph</Badge>
           {trace ? <Badge variant="outline">{formatDuration(trace.durationMs)}</Badge> : null}
           {snapshot?.activeNode ? <Badge variant="outline">Node: {snapshot.activeNode}</Badge> : null}
+          {snapshot?.recoveryState ? <Badge variant="outline">Recovery: {snapshot.recoveryState.replace(/_/g, " ")}</Badge> : null}
+          {snapshot?.stopReason ? <Badge variant="outline">Stop: {snapshot.stopReason.replace(/_/g, " ")}</Badge> : null}
         </div>
         <h3 className="mt-3 text-[1.15rem] font-semibold tracking-[-0.02em]">Search reasoning</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -187,7 +189,9 @@ export function SearchRunTracePanel({
               {snapshot ? `~${snapshot.targetLeadCount}` : "—"}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {snapshot ? `${snapshot.goalCount} discovery candidates in the bounded search window` : "Awaiting the first state update"}
+              {snapshot
+                ? `${snapshot.goalCount} discovery candidates in the bounded search window${snapshot.firstPassCount !== undefined ? ` · first pass ${snapshot.firstPassCount}` : ""}`
+                : "Awaiting the first state update"}
             </p>
           </div>
 
@@ -200,7 +204,9 @@ export function SearchRunTracePanel({
               {snapshot ? `${snapshot.attempt} / ${snapshot.maxAttempts}` : "1 / 1"}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {isPending ? "Current bounded retry window" : "Completed discovery window"}
+              {snapshot?.recoveryState
+                ? `Recovery lane: ${snapshot.recoveryState.replace(/_/g, " ")}`
+                : isPending ? "Current bounded retry window" : "Completed discovery window"}
             </p>
           </div>
 
