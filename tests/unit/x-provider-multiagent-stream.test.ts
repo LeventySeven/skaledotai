@@ -14,7 +14,7 @@ describe("multi-agent stream mapping", () => {
         "founding engineers",
         "founding engineers founders builders engineers creators on x",
       ],
-    }, 1, 1_000);
+    }, 1, 1_000, "gpt-5");
 
     expect(step.id).toBe("multiagent-1-planner");
     expect(step.title).toBe("Planner");
