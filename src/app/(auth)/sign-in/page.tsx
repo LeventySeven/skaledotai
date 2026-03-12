@@ -9,7 +9,8 @@ export default function SignInPage() {
     <div className="grid min-h-[100dvh] lg:grid-cols-2">
       <div className="flex flex-col bg-[#F8FAFC]">
         <div className="flex shrink-0 justify-center gap-2 px-5 pt-6 sm:px-6 md:justify-start md:px-8 md:pt-10">
-          <Link href="/" className="font-semibold text-foreground tracking-tight">
+          <Link href="/" className="flex items-center gap-2 font-semibold text-foreground tracking-tight">
+            <Image src="/favicon.ico" alt="skaleai logo" width={20} height={20} />
             skaleai
           </Link>
         </div>
