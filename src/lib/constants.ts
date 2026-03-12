@@ -1,15 +1,17 @@
 // Search tuning
-export const SEARCH_TARGET_MIN = 80;
+export const SEARCH_TARGET_MIN = 20;
 export const SEARCH_TARGET = 100;
-export const SEARCH_TARGET_MAX = 120;
+export const SEARCH_TARGET_MAX = 180;
 export const SEARCH_CANDIDATE_OVERFETCH_FACTOR = 2;
-export const SEARCH_CANDIDATE_POOL_LIMIT = 240;
+export const SEARCH_CANDIDATE_POOL_LIMIT = 360;
 export const SEARCH_POST_SEARCH_PAGE_LIMIT = 2;
 export const SEARCH_AI_BATCH_SIZE = 40;
 export const SEARCH_DISCOVERY_METADATA = {
   parseAccountsTarget: 200,
   retryParseAccountsTarget: 200,
   minimumFinalLeadsBeforeRetry: 20,
+  candidateGoalOverfetchFactor: 1.35,
+  maxAttempts: 4,
 } as const;
 export const NETWORK_TARGET = 1000;
 export const X_PROVIDER_SEARCH_USERS_LIMIT = 200;

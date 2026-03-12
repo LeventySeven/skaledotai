@@ -54,13 +54,13 @@ describe("SearchLeadInputSchema", () => {
   });
 
   test("accepts targetLeadCount within the supported range", () => {
-    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 80 }).success).toBe(true);
-    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 120 }).success).toBe(true);
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 20 }).success).toBe(true);
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 180 }).success).toBe(true);
   });
 
   test("rejects targetLeadCount outside the supported range", () => {
-    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 79 }).success).toBe(false);
-    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 121 }).success).toBe(false);
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 19 }).success).toBe(false);
+    expect(SearchLeadInputSchema.safeParse({ query: "test", targetLeadCount: 181 }).success).toBe(false);
   });
 });
 

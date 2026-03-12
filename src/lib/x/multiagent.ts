@@ -29,15 +29,16 @@ import {
   normalizeTweetsFromPayload,
 } from "./agentql";
 import type { ProjectRunTraceStep } from "@/lib/validations/project-runs";
-import type { SearchRunStreamSnapshot } from "@/lib/validations/search";
+import type { SearchRunGraphNode, SearchRunStreamSnapshot } from "@/lib/validations/search";
 
 // Re-export builder functions used by tests and docs.
 export { buildTavilySearchRequest, normalizeDiscoveredUrls } from "./tavily";
 export { buildAgentQlQueryRequest } from "./agentql";
 
-const MULTIAGENT_MAX_QUERIES = 3;
+const MULTIAGENT_MIN_QUERIES = 3;
+const MULTIAGENT_MAX_QUERIES = 5;
 const MULTIAGENT_MIN_URLS = 12;
-const MULTIAGENT_MAX_URLS = 24;
+const MULTIAGENT_MAX_URLS = 36;
 const MULTIAGENT_PLANNER_TIMEOUT_MS = 8_000;
 const MULTIAGENT_NODE_TITLES = {
   planner: "Planner",
@@ -51,6 +52,15 @@ const MultiAgentState = Annotation.Root({
   seedHandle: Annotation<string | undefined>,
   limit: Annotation<number>,
   minFollowers: Annotation<number | undefined>,
+  targetLeadCount: Annotation<number>,
+  goalCount: Annotation<number>,
+  attempt: Annotation<number>,
+  maxAttempts: Annotation<number>,
+  queryBudget: Annotation<number>,
+  activeNode: Annotation<MultiAgentNodeName | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
   queries: Annotation<string[]>({
     reducer: (_left, right) => right,
     default: () => [],
@@ -70,8 +80,8 @@ const MultiAgentState = Annotation.Root({
 });
 
 const QueryPlanSchema = z.object({
-  queries: z.array(z.string()).min(2).max(6),
-});
+  queries: z.array(z.string()).min(2).max(8),
+}).strict();
 
 function unsupported(capability: "network"): never {
   throw new XProviderRuntimeError({
@@ -109,6 +119,13 @@ function dedupeQueries(queries: string[]): string[] {
   return result;
 }
 
+function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" | "targetLeadCount" | "limit">): number {
+  const requestedCount = input.goalCount ?? input.targetLeadCount ?? input.limit;
+  if (requestedCount >= 140) return 5;
+  if (requestedCount >= 80) return 4;
+  return MULTIAGENT_MIN_QUERIES;
+}
+
 export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[] {
   const niche = input.niche.trim();
   const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
@@ -120,16 +137,22 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
     seedHandle ? `people replying to @${seedHandle} about ${niche} on x` : "",
   ];
 
-  return dedupeQueries(queries).slice(0, MULTIAGENT_MAX_QUERIES);
+  return dedupeQueries(queries).slice(0, resolveMultiAgentQueryBudget(input));
 }
 
-function resolveMultiAgentUrlLimit(limit: number): number {
-  return Math.max(MULTIAGENT_MIN_URLS, Math.min(limit, MULTIAGENT_MAX_URLS));
+function resolveMultiAgentUrlLimit(limit: number, goalCount?: number): number {
+  const requested = Math.max(limit, goalCount ?? 0);
+  return Math.max(MULTIAGENT_MIN_URLS, Math.min(requested, MULTIAGENT_MAX_URLS));
 }
 
 type MultiAgentNodeName = keyof typeof MULTIAGENT_NODE_TITLES;
 
 type MultiAgentStateSnapshot = {
+  targetLeadCount?: number;
+  goalCount?: number;
+  attempt?: number;
+  maxAttempts?: number;
+  activeNode?: MultiAgentNodeName;
   queries?: string[];
   urls?: string[];
   scraped?: unknown[];
@@ -141,12 +164,37 @@ function isMultiAgentNodeName(value: string): value is MultiAgentNodeName {
 }
 
 export function toMultiAgentStreamSnapshot(state: MultiAgentStateSnapshot): SearchRunStreamSnapshot {
+  const activeNode = state.activeNode && isMultiAgentNodeName(state.activeNode)
+    ? state.activeNode
+    : undefined;
+
   return {
     queries: state.queries?.length ?? 0,
     urls: state.urls?.length ?? 0,
     scraped: state.scraped?.length ?? 0,
     candidates: state.candidates?.length ?? 0,
+    targetLeadCount: state.targetLeadCount ?? 1,
+    goalCount: state.goalCount ?? state.targetLeadCount ?? 1,
+    attempt: state.attempt ?? 1,
+    maxAttempts: state.maxAttempts ?? 1,
+    activeNode,
+    graphNodes: buildGraphNodes(activeNode),
   };
+}
+
+function buildGraphNodes(activeNode: MultiAgentNodeName | undefined): SearchRunGraphNode[] {
+  const orderedNodes = Object.entries(MULTIAGENT_NODE_TITLES) as Array<[MultiAgentNodeName, string]>;
+  const activeIndex = activeNode ? orderedNodes.findIndex(([nodeName]) => nodeName === activeNode) : -1;
+
+  return orderedNodes.map(([id, title], index) => ({
+    id,
+    title,
+    status:
+      activeIndex === -1 ? "idle"
+      : index < activeIndex ? "complete"
+      : index === activeIndex ? "active"
+      : "idle",
+  }));
 }
 
 export function buildMultiAgentTraceStep(
@@ -247,6 +295,7 @@ async function withTimeout<T>(
 
 async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
   const heuristicQueries = buildMultiAgentHeuristicQueries(input);
+  const queryBudget = resolveMultiAgentQueryBudget(input);
 
   try {
     const planner = getPlannerModel().withStructuredOutput(QueryPlanSchema, { name: "x_query_plan" });
@@ -258,10 +307,13 @@ async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
         niche: input.niche,
         seedHandle: input.seedHandle,
         limit: input.limit,
+        targetLeadCount: input.targetLeadCount,
+        goalCount: input.goalCount,
+        queryBudget,
       }),
     ].join("\n")));
 
-    return dedupeQueries([...result.queries, ...heuristicQueries]).slice(0, MULTIAGENT_MAX_QUERIES);
+    return dedupeQueries([...result.queries, ...heuristicQueries]).slice(0, queryBudget);
   } catch (error) {
     if (error instanceof XProviderRuntimeError && error.code === "NOT_CONFIGURED") {
       throw error;
@@ -278,25 +330,30 @@ async function buildQueries(input: XDiscoveryInput): Promise<string[]> {
 
 const graph = new StateGraph(MultiAgentState)
   .addNode("planner", async (state) => ({
+    activeNode: "planner",
     queries: await buildQueries({
       niche: state.niche,
       seedHandle: state.seedHandle,
       limit: state.limit,
       minFollowers: state.minFollowers,
+      targetLeadCount: state.targetLeadCount,
+      goalCount: state.goalCount,
     }),
   }))
   .addNode("url_finder", async (state) => {
     const results = await Promise.all(
-      state.queries.slice(0, MULTIAGENT_MAX_QUERIES).map((query) => searchTavily(query, state.limit)),
+      state.queries.slice(0, state.queryBudget).map((query) => searchTavily(query, state.limit)),
     );
     return {
+      activeNode: "url_finder",
       // Keep fan-out bounded so the graph stays deterministic and avoids the unbounded-loop anti-pattern.
-      urls: normalizeDiscoveredUrls(results.flat(), resolveMultiAgentUrlLimit(state.limit)),
+      urls: normalizeDiscoveredUrls(results.flat(), resolveMultiAgentUrlLimit(state.limit, state.goalCount)),
     };
   })
   .addNode("profile_scraper", async (state) => ({
+    activeNode: "profile_scraper",
     scraped: (await mapWithConcurrency(
-      state.urls.slice(0, resolveMultiAgentUrlLimit(state.limit)),
+      state.urls.slice(0, resolveMultiAgentUrlLimit(state.limit, state.goalCount)),
       MULTIAGENT_SCRAPE_CONCURRENCY,
       (url) => queryAgentQlBestEffort(url, "discovery"),
     )).filter((payload): payload is NonNullable<typeof payload> => payload !== null),
@@ -323,9 +380,10 @@ const graph = new StateGraph(MultiAgentState)
     }
 
     return {
+      activeNode: "aggregator",
       candidates: [...byHandle.values()]
         .sort((a, b) => b.account.followers - a.account.followers)
-        .slice(0, state.limit * 2),
+        .slice(0, Math.max(state.goalCount, state.limit)),
     };
   })
   .addEdge(START, "planner")
@@ -344,10 +402,16 @@ export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
       const stream = await graph.stream({
         niche: input.niche,
         seedHandle: input.seedHandle,
-        limit: resolveMultiAgentUrlLimit(input.limit),
+        limit: resolveMultiAgentUrlLimit(input.limit, input.goalCount),
         minFollowers: input.minFollowers,
+        targetLeadCount: input.targetLeadCount ?? input.limit,
+        goalCount: input.goalCount ?? input.limit,
+        attempt: input.attempt ?? 1,
+        maxAttempts: input.maxAttempts ?? 1,
+        queryBudget: resolveMultiAgentQueryBudget(input),
       }, {
         streamMode: ["updates", "values"],
+        recursionLimit: 8,
       });
 
       for await (const [mode, chunk] of stream) {

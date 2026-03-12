@@ -309,14 +309,18 @@ describe("searchAndAddLeads", () => {
       projectName: "Founding Engineers",
     });
 
-    expect(discoverCandidatesMock).toHaveBeenCalledWith({
+    expect(discoverCandidatesMock).toHaveBeenCalledWith(expect.objectContaining({
       niche: "founding engineers",
       seedHandle: undefined,
       limit: 200,
       minFollowers: 0,
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 1,
+      maxAttempts: 4,
       traceRecorder: undefined,
       snapshotRecorder: undefined,
-    });
+    }));
 
     const leadInsertValues = insertedValues[1] as Array<{ handle: string }>;
     expect(leadInsertValues.map((value) => value.handle)).toEqual(["austinxwalker", "dannycrichton"]);
@@ -347,14 +351,18 @@ describe("searchAndAddLeads", () => {
       targetLeadCount: 120,
     });
 
-    expect(discoverCandidatesMock).toHaveBeenCalledWith({
+    expect(discoverCandidatesMock).toHaveBeenCalledWith(expect.objectContaining({
       niche: "founding engineers",
       seedHandle: undefined,
       limit: 200,
       minFollowers: 0,
+      targetLeadCount: 120,
+      goalCount: 162,
+      attempt: 1,
+      maxAttempts: 4,
       traceRecorder: undefined,
       snapshotRecorder: undefined,
-    });
+    }));
   });
 
   test("keeps the follower floor as a final filter for x-api instead of an early discovery gate", async () => {
@@ -397,22 +405,30 @@ describe("searchAndAddLeads", () => {
       minFollowers: 1_000,
     }, "x-api");
 
-    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, {
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
       niche: "founding engineers",
       seedHandle: undefined,
       limit: 200,
       minFollowers: 0,
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 1,
+      maxAttempts: 4,
       traceRecorder: undefined,
       snapshotRecorder: undefined,
-    });
-    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, {
+    }));
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       niche: "founding engineers founders builders",
       seedHandle: undefined,
       limit: 200,
       minFollowers: 0,
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 2,
+      maxAttempts: 4,
       traceRecorder: undefined,
       snapshotRecorder: undefined,
-    });
+    }));
     expect(result.leads.map((lead) => lead.handle)).toEqual(["qualifiedtwo", "qualifiedone"]);
     expect(resolveXProviderForCapabilityMock).not.toHaveBeenCalled();
   });
@@ -482,27 +498,46 @@ describe("searchAndAddLeads", () => {
     }, "apify");
 
     expect(discoverCandidatesMock).toHaveBeenCalledTimes(3);
-    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, {
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
       niche: "founding engineers",
       seedHandle: undefined,
-      limit: 120,
+      limit: 200,
       minFollowers: 0,
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 1,
+      maxAttempts: 4,
       traceRecorder: undefined,
       snapshotRecorder: undefined,
-    });
-    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, {
+    }));
+    expect(discoverCandidatesMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       niche: "founding engineers founder builder engineer creator operator",
       seedHandle: undefined,
-      limit: 120,
+      limit: 200,
       minFollowers: 0,
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 2,
+      maxAttempts: 4,
       traceRecorder: undefined,
       snapshotRecorder: undefined,
-    });
+    }));
   });
 
   test("aggregates live discovery progress across retry passes", async () => {
     const streamedSteps: Array<{ id: string; title: string; bullets: string[] }> = [];
-    const streamedSnapshots: Array<{ queries: number; urls: number; scraped: number; candidates: number }> = [];
+    const streamedSnapshots: Array<{
+      queries: number;
+      urls: number;
+      scraped: number;
+      candidates: number;
+      targetLeadCount: number;
+      goalCount: number;
+      attempt: number;
+      maxAttempts: number;
+      activeNode?: string;
+      graphNodes: Array<{ id: string; title: string; status: string }>;
+    }> = [];
 
     const plannerStep = {
       id: "multiagent-1-planner",
@@ -518,7 +553,18 @@ describe("searchAndAddLeads", () => {
     discoverCandidatesMock
       .mockImplementationOnce(async (input?: any) => {
         await input?.traceRecorder?.(plannerStep);
-        await input?.snapshotRecorder?.({ queries: 3, urls: 12, scraped: 4, candidates: 1 });
+        await input?.snapshotRecorder?.({
+          queries: 3,
+          urls: 12,
+          scraped: 4,
+          candidates: 1,
+          targetLeadCount: 100,
+          goalCount: 135,
+          attempt: 1,
+          maxAttempts: 4,
+          activeNode: "planner",
+          graphNodes: [],
+        });
         return [
           profile({
             xUserId: "one-id",
@@ -530,7 +576,18 @@ describe("searchAndAddLeads", () => {
       })
       .mockImplementationOnce(async (input?: any) => {
         await input?.traceRecorder?.(plannerStep);
-        await input?.snapshotRecorder?.({ queries: 3, urls: 12, scraped: 5, candidates: 2 });
+        await input?.snapshotRecorder?.({
+          queries: 3,
+          urls: 12,
+          scraped: 5,
+          candidates: 2,
+          targetLeadCount: 100,
+          goalCount: 135,
+          attempt: 2,
+          maxAttempts: 4,
+          activeNode: "planner",
+          graphNodes: [],
+        });
         return [
           profile({
             xUserId: "two-id",
@@ -542,7 +599,18 @@ describe("searchAndAddLeads", () => {
       })
       .mockImplementationOnce(async (input?: any) => {
         await input?.traceRecorder?.(plannerStep);
-        await input?.snapshotRecorder?.({ queries: 3, urls: 12, scraped: 6, candidates: 3 });
+        await input?.snapshotRecorder?.({
+          queries: 3,
+          urls: 12,
+          scraped: 6,
+          candidates: 3,
+          targetLeadCount: 100,
+          goalCount: 135,
+          attempt: 3,
+          maxAttempts: 4,
+          activeNode: "planner",
+          graphNodes: [],
+        });
         return [
           profile({
             xUserId: "three-id",
@@ -598,9 +666,9 @@ describe("searchAndAddLeads", () => {
     expect(streamedSteps[2]?.bullets[0]).toBe("Discovery query: founding engineers startups companies teams");
 
     expect(streamedSnapshots).toEqual(expect.arrayContaining([
-      { queries: 3, urls: 12, scraped: 4, candidates: 1 },
-      { queries: 6, urls: 24, scraped: 9, candidates: 3 },
-      { queries: 9, urls: 36, scraped: 15, candidates: 6 },
+      expect.objectContaining({ queries: 3, urls: 12, scraped: 4, candidates: 1, attempt: 1, maxAttempts: 4, targetLeadCount: 100, goalCount: 135 }),
+      expect.objectContaining({ queries: 6, urls: 24, scraped: 9, candidates: 3, attempt: 2, maxAttempts: 4, targetLeadCount: 100, goalCount: 135 }),
+      expect.objectContaining({ queries: 9, urls: 36, scraped: 15, candidates: 6, attempt: 3, maxAttempts: 4, targetLeadCount: 100, goalCount: 135 }),
     ]));
   });
 });

@@ -27,6 +27,11 @@ describe("multi-agent stream mapping", () => {
 
   test("maps values snapshots into count-based stream state", () => {
     const snapshot = toMultiAgentStreamSnapshot({
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 2,
+      maxAttempts: 4,
+      activeNode: "profile_scraper",
       queries: ["one", "two"],
       urls: ["https://x.com/one"],
       scraped: [{ ok: true }, { ok: true }],
@@ -59,6 +64,17 @@ describe("multi-agent stream mapping", () => {
       urls: 1,
       scraped: 2,
       candidates: 1,
+      targetLeadCount: 100,
+      goalCount: 135,
+      attempt: 2,
+      maxAttempts: 4,
+      activeNode: "profile_scraper",
+      graphNodes: [
+        { id: "planner", title: "Planner", status: "complete" },
+        { id: "url_finder", title: "URL Finder", status: "complete" },
+        { id: "profile_scraper", title: "Profile Scraper", status: "active" },
+        { id: "aggregator", title: "Aggregator", status: "idle" },
+      ],
     });
   });
 });

@@ -43,33 +43,49 @@ export const SearchRunResultSchema = z.object({
   leads: z.array(LeadSchema),
   project: ProjectSchema,
   trace: ProjectRunTraceSchema,
-});
+}).strict();
 export type SearchRunResult = z.infer<typeof SearchRunResultSchema>;
+
+export const SearchRunGraphNodeStatusSchema = z.enum(["idle", "active", "complete"]);
+export type SearchRunGraphNodeStatus = z.infer<typeof SearchRunGraphNodeStatusSchema>;
+
+export const SearchRunGraphNodeSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  status: SearchRunGraphNodeStatusSchema,
+}).strict();
+export type SearchRunGraphNode = z.infer<typeof SearchRunGraphNodeSchema>;
 
 export const SearchRunStreamSnapshotSchema = z.object({
   queries: z.number().int().nonnegative(),
   urls: z.number().int().nonnegative(),
   scraped: z.number().int().nonnegative(),
   candidates: z.number().int().nonnegative(),
-});
+  targetLeadCount: z.number().int().positive(),
+  goalCount: z.number().int().positive(),
+  attempt: z.number().int().positive(),
+  maxAttempts: z.number().int().positive(),
+  activeNode: z.string().optional(),
+  graphNodes: z.array(SearchRunGraphNodeSchema).default([]),
+}).strict();
 export type SearchRunStreamSnapshot = z.infer<typeof SearchRunStreamSnapshotSchema>;
 
 export const SearchRunStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("step"),
     step: ProjectRunTraceStepSchema,
-  }),
+  }).strict(),
   z.object({
     type: z.literal("snapshot"),
     snapshot: SearchRunStreamSnapshotSchema,
-  }),
+  }).strict(),
   z.object({
     type: z.literal("complete"),
     result: SearchRunResultSchema,
-  }),
+  }).strict(),
   z.object({
     type: z.literal("error"),
     message: z.string(),
-  }),
+  }).strict(),
 ]);
 export type SearchRunStreamEvent = z.infer<typeof SearchRunStreamEventSchema>;

@@ -27,6 +27,12 @@ const FOLLOWER_FLOOR_OPTIONS = [
   { label: "100k+", value: 100_000 },
 ] as const;
 
+const LEAD_TARGET_BOUNDS = {
+  min: 20,
+  max: 180,
+  step: 10,
+} as const;
+
 function mergeTraceSteps(
   current: ProjectRunTraceStep[],
   incoming: ProjectRunTraceStep[],
@@ -87,6 +93,7 @@ export function SearchForm() {
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
   const [minFollowers, setMinFollowers] = useState(1_000);
+  const [targetLeadCount, setTargetLeadCount] = useState(100);
   const [liveSearchPending, setLiveSearchPending] = useState(false);
   const [streamSteps, setStreamSteps] = useState<ProjectRunTraceStep[]>([]);
   const [streamSnapshot, setStreamSnapshot] = useState<SearchRunStreamSnapshot | null>(null);
@@ -117,6 +124,7 @@ export function SearchForm() {
     projectName?: string;
     followerUsername?: string;
     minFollowers: number;
+    targetLeadCount: number;
   }) {
     setLiveSearchPending(true);
     setStreamSteps([]);
@@ -232,6 +240,10 @@ export function SearchForm() {
           ? followerUsername.replace(/^@/, "").trim()
           : undefined,
       minFollowers,
+      targetLeadCount: Math.max(
+        LEAD_TARGET_BOUNDS.min,
+        Math.min(LEAD_TARGET_BOUNDS.max, targetLeadCount),
+      ),
     };
 
     if (provider === "multiagent") {
@@ -309,7 +321,7 @@ export function SearchForm() {
           </select>
         ) : null}
 
-        <div className="grid gap-5 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        <div className="grid gap-5 md:grid-cols-[minmax(0,270px)_minmax(0,1fr)_minmax(0,180px)]">
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">X data source</label>
             <XDataSourceSummaryCard />
@@ -329,6 +341,25 @@ export function SearchForm() {
             </select>
             <p className="text-[0.95rem] text-muted-foreground">
               X returns `public_metrics.followers_count`; results are filtered and biased toward larger accounts.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[1.05rem] font-semibold">Approximate leads</label>
+            <Input
+              className="h-[42px] rounded-2xl text-[1rem]"
+              type="number"
+              min={LEAD_TARGET_BOUNDS.min}
+              max={LEAD_TARGET_BOUNDS.max}
+              step={LEAD_TARGET_BOUNDS.step}
+              value={targetLeadCount}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                if (Number.isNaN(nextValue)) return;
+                setTargetLeadCount(nextValue);
+              }}
+            />
+            <p className="text-[0.95rem] text-muted-foreground">
+              Multi-agent search treats this as a bounded goal and keeps iterating until it gets close or exhausts the retry window.
             </p>
           </div>
         </div>

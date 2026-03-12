@@ -93,6 +93,10 @@ export type XDiscoveryInput = {
   seedHandle?: string;
   limit: number;
   minFollowers?: number;
+  targetLeadCount?: number;
+  goalCount?: number;
+  attempt?: number;
+  maxAttempts?: number;
   traceRecorder?: (step: ProjectRunTraceStep) => void | Promise<void>;
   snapshotRecorder?: (snapshot: SearchRunStreamSnapshot) => void | Promise<void>;
 };

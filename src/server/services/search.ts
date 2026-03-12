@@ -35,9 +35,9 @@ import { createProject, getProjectById } from "./projects";
 import { getCandidateSampleTexts, toXProfileFromCandidate } from "@/lib/x/discovery";
 import {
   NETWORK_TARGET,
+  SEARCH_CANDIDATE_POOL_LIMIT,
   SEARCH_DISCOVERY_METADATA,
   SEARCH_TARGET,
-  SEARCH_TARGET_MAX,
   X_PROVIDER_NETWORK_PAGE_SIZE,
 } from "@/lib/constants";
 import { toXProviderTrpcError } from "@/lib/x/error-handling";
@@ -52,14 +52,35 @@ type SearchProgressHandlers = {
   onSnapshot?: (snapshot: SearchRunStreamSnapshot) => void | Promise<void>;
 };
 
+type DiscoveryStopReason = "goal_reached" | "max_attempts" | "query_exhausted";
+
+type DiscoveryResult = {
+  candidates: XLeadCandidate[];
+  firstPassCount: number;
+  retryQueries: string[];
+  attemptedQueries: string[];
+  attempts: number;
+  maxAttempts: number;
+  goalCount: number;
+  satisfied: boolean;
+  stopReason: DiscoveryStopReason;
+};
+
 function aggregateDiscoverySnapshots(
   snapshots: Iterable<SearchRunStreamSnapshot>,
 ): SearchRunStreamSnapshot {
-  const total = {
+  let latest: SearchRunStreamSnapshot | null = null;
+  const total: SearchRunStreamSnapshot = {
     queries: 0,
     urls: 0,
     scraped: 0,
     candidates: 0,
+    targetLeadCount: SEARCH_TARGET,
+    goalCount: SEARCH_DISCOVERY_METADATA.minimumFinalLeadsBeforeRetry,
+    attempt: 1,
+    maxAttempts: 1,
+    activeNode: undefined as string | undefined,
+    graphNodes: [],
   };
 
   for (const snapshot of snapshots) {
@@ -67,6 +88,19 @@ function aggregateDiscoverySnapshots(
     total.urls += snapshot.urls;
     total.scraped += snapshot.scraped;
     total.candidates += snapshot.candidates;
+
+    if (!latest || snapshot.attempt >= latest.attempt) {
+      latest = snapshot;
+    }
+  }
+
+  if (latest) {
+    total.targetLeadCount = latest.targetLeadCount;
+    total.goalCount = latest.goalCount;
+    total.attempt = latest.attempt;
+    total.maxAttempts = latest.maxAttempts;
+    total.activeNode = latest.activeNode;
+    total.graphNodes = latest.graphNodes;
   }
 
   return total;
@@ -77,6 +111,10 @@ function createDiscoveryProgressHandlers(
   input: {
     attemptKey: string;
     attemptLabel: string;
+    attempt: number;
+    maxAttempts: number;
+    targetLeadCount: number;
+    goalCount: number;
     query: string;
     snapshotStore: Map<string, SearchRunStreamSnapshot>;
   },
@@ -95,6 +133,12 @@ function createDiscoveryProgressHandlers(
           bullets: [
             `Discovery query: ${input.query}`,
             ...step.bullets,
+          ],
+          metrics: [
+            { label: "Attempt", value: `${input.attempt} / ${input.maxAttempts}` },
+            { label: "Lead goal", value: `~${input.targetLeadCount}` },
+            { label: "Candidate goal", value: input.goalCount },
+            ...step.metrics,
           ],
         });
       }
@@ -251,73 +295,128 @@ async function canonicalizeCandidates(
   }
 }
 
-async function discoverCandidatesWithRetry(
+function getDiscoveryCandidateGoal(targetLeadCount: number): number {
+  return Math.min(
+    SEARCH_CANDIDATE_POOL_LIMIT,
+    Math.max(
+      SEARCH_DISCOVERY_METADATA.minimumFinalLeadsBeforeRetry,
+      Math.ceil(targetLeadCount * SEARCH_DISCOVERY_METADATA.candidateGoalOverfetchFactor),
+    ),
+  );
+}
+
+function describeDiscoveryStopReason(reason: DiscoveryStopReason): string {
+  if (reason === "goal_reached") return "The discovery goal was reached before the retry budget ran out.";
+  if (reason === "max_attempts") return "The bounded retry budget was exhausted before the discovery goal was reached.";
+  return "The queued discovery queries were exhausted before the discovery goal was reached.";
+}
+
+function enqueueUniqueQueries(
+  queue: string[],
+  seenQueries: Set<string>,
+  queries: string[],
+): string[] {
+  const inserted: string[] = [];
+
+  for (const query of queries.map((item) => item.trim()).filter(Boolean)) {
+    const key = query.toLowerCase();
+    if (seenQueries.has(key)) continue;
+    seenQueries.add(key);
+    queue.push(query);
+    inserted.push(query);
+  }
+
+  return inserted;
+}
+
+async function discoverCandidatesUntilGoal(
   discoveryProvider: XDiscoveryProvider,
   query: string,
   seedHandle: string | undefined,
   minFollowers: number,
+  targetLeadCount: number,
   parseAccountsTarget: number,
   progress?: SearchProgressHandlers,
-): Promise<{
-  candidates: XLeadCandidate[];
-  firstPassCount: number;
-  retryQueries: string[];
-}> {
+): Promise<DiscoveryResult> {
   const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
+  const goalCount = getDiscoveryCandidateGoal(targetLeadCount);
+  const maxAttempts = SEARCH_DISCOVERY_METADATA.maxAttempts;
   const discoverySnapshots = new Map<string, SearchRunStreamSnapshot>();
-  const firstPassProgress = createDiscoveryProgressHandlers(progress, {
-    attemptKey: "pass-1",
-    attemptLabel: "Pass 1",
-    query,
-    snapshotStore: discoverySnapshots,
-  });
-  const firstPass = await discoveryProvider.discoverCandidates({
-    niche: query,
-    seedHandle,
-    limit: parseAccountsTarget,
-    minFollowers: discoveryMinFollowers,
-    traceRecorder: firstPassProgress.onStep,
-    snapshotRecorder: firstPassProgress.onSnapshot,
-  });
+  const seenQueries = new Set<string>([query.trim().toLowerCase()]);
+  const queuedQueries = [query.trim()];
+  const attemptedQueries: string[] = [];
+  const retryQueries: string[] = [];
+  let combinedCandidates: XLeadCandidate[] = [];
+  let firstPassCount = 0;
+  let expansionLoaded = false;
 
-  const firstFiltered = firstPass.filter((candidate) => candidate.account.followers >= minFollowers);
-  if (firstFiltered.length >= SEARCH_DISCOVERY_METADATA.minimumFinalLeadsBeforeRetry) {
-    return {
-      candidates: dedupeCandidates(firstFiltered),
-      firstPassCount: firstPass.length,
-      retryQueries: [],
-    };
+  while (queuedQueries.length > 0 && attemptedQueries.length < maxAttempts && combinedCandidates.length < goalCount) {
+    const currentQuery = queuedQueries.shift();
+    if (!currentQuery) break;
+
+    const attempt = attemptedQueries.length + 1;
+    const attemptProgress = createDiscoveryProgressHandlers(progress, {
+      attemptKey: attempt === 1 ? "pass-1" : `retry-${attempt - 1}`,
+      attemptLabel: attempt === 1 ? "Pass 1" : `Retry ${attempt - 1}`,
+      attempt,
+      maxAttempts,
+      targetLeadCount,
+      goalCount,
+      query: currentQuery,
+      snapshotStore: discoverySnapshots,
+    });
+
+    const attemptCandidates = await discoveryProvider.discoverCandidates({
+      niche: currentQuery,
+      seedHandle,
+      limit: parseAccountsTarget,
+      minFollowers: discoveryMinFollowers,
+      targetLeadCount,
+      goalCount,
+      attempt,
+      maxAttempts,
+      traceRecorder: attemptProgress.onStep,
+      snapshotRecorder: attemptProgress.onSnapshot,
+    });
+
+    attemptedQueries.push(currentQuery);
+    if (attempt === 1) firstPassCount = attemptCandidates.length;
+
+    combinedCandidates = dedupeCandidates(
+      [...combinedCandidates, ...attemptCandidates]
+        .filter((candidate) => candidate.account.followers >= minFollowers),
+    );
+
+    if (!expansionLoaded && combinedCandidates.length < goalCount) {
+      expansionLoaded = true;
+      retryQueries.push(
+        ...enqueueUniqueQueries(
+          queuedQueries,
+          seenQueries,
+          (await expandLeadSearchQueries(query, seedHandle))
+            .filter((item) => item.trim().toLowerCase() !== query.trim().toLowerCase()),
+        ),
+      );
+    }
   }
 
-  const retryQueries = (await expandLeadSearchQueries(query, seedHandle))
-    .filter((item) => item.trim().toLowerCase() !== query.trim().toLowerCase());
-  const retryPasses = await Promise.all(
-    retryQueries.map((retryQuery, index) => {
-      const retryProgress = createDiscoveryProgressHandlers(progress, {
-        attemptKey: `retry-${index + 1}`,
-        attemptLabel: `Retry ${index + 1}`,
-        query: retryQuery,
-        snapshotStore: discoverySnapshots,
-      });
-
-      return discoveryProvider.discoverCandidates({
-        niche: retryQuery,
-        seedHandle,
-        limit: parseAccountsTarget,
-        minFollowers: discoveryMinFollowers,
-        traceRecorder: retryProgress.onStep,
-        snapshotRecorder: retryProgress.onSnapshot,
-      });
-    }),
-  );
+  const satisfied = combinedCandidates.length >= goalCount;
+  const stopReason: DiscoveryStopReason = satisfied
+    ? "goal_reached"
+    : attemptedQueries.length >= maxAttempts
+      ? "max_attempts"
+      : "query_exhausted";
 
   return {
-    candidates: dedupeCandidates(
-      [...firstPass, ...retryPasses.flat()]
-        .filter((candidate) => candidate.account.followers >= minFollowers),
-    ),
-    firstPassCount: firstPass.length,
+    candidates: combinedCandidates,
+    firstPassCount,
     retryQueries,
+    attemptedQueries,
+    attempts: attemptedQueries.length,
+    maxAttempts,
+    goalCount,
+    satisfied,
+    stopReason,
   };
 }
 
@@ -333,9 +432,11 @@ function resolveSearchOperationProviders(
   };
 }
 
-function getDiscoveryParseTarget(provider: XDataProvider, targetLeadCount: number): number {
-  if (provider === "x-api") return SEARCH_DISCOVERY_METADATA.parseAccountsTarget;
-  return Math.max(targetLeadCount, Math.min(SEARCH_TARGET_MAX, Math.ceil(targetLeadCount * 1.2)));
+function getDiscoveryParseTarget(_provider: XDataProvider, targetLeadCount: number): number {
+  return Math.max(
+    SEARCH_DISCOVERY_METADATA.parseAccountsTarget,
+    Math.ceil(targetLeadCount * 1.5),
+  );
 }
 
 export async function searchAndAddLeads(
@@ -356,11 +457,12 @@ export async function searchAndAddLeads(
     const seedHandle = input.followerUsername?.replace(/^@/, "");
     const minFollowers = input.minFollowers ?? 0;
     const parseAccountsTarget = getDiscoveryParseTarget(provider, targetLeadCount);
-    const discoveryResult = await discoverCandidatesWithRetry(
+    const discoveryResult = await discoverCandidatesUntilGoal(
       discoveryProvider,
       input.query,
       seedHandle,
       minFollowers,
+      targetLeadCount,
       parseAccountsTarget,
       progress,
     );
@@ -369,17 +471,22 @@ export async function searchAndAddLeads(
     trace.addStep(await emitStep(progress, {
       id: "discovery-summary",
       title: "Discovery",
-      summary: `Collected ${discoveredCandidates.length} candidate accounts for ${input.query}.`,
-      status: "success",
+      summary: discoveryResult.satisfied
+        ? `Collected ${discoveredCandidates.length} candidate accounts and hit the bounded discovery goal.`
+        : `Collected ${discoveredCandidates.length} candidate accounts before the bounded search window closed.`,
+      status: discoveryResult.satisfied ? "success" : "warning",
       provider: discoveryProvider.provider,
       bullets: [
         seedHandle ? `Seed handle: @${seedHandle}` : "No seed handle used.",
         discoveryResult.retryQueries.length > 0
-          ? `Expanded to ${discoveryResult.retryQueries.length} retry queries when the first pass came back light.`
-          : "The first-pass query returned enough candidates, so no retry expansion was needed.",
+          ? `Expanded into ${discoveryResult.retryQueries.length} additional discovery queries after the first pass came back light.`
+          : "No additional discovery queries were required.",
+        describeDiscoveryStopReason(discoveryResult.stopReason),
       ],
       metrics: [
-        { label: "Target", value: targetLeadCount },
+        { label: "Lead target", value: `~${targetLeadCount}` },
+        { label: "Candidate goal", value: discoveryResult.goalCount },
+        { label: "Attempts", value: `${discoveryResult.attempts} / ${discoveryResult.maxAttempts}` },
         { label: "Parse pool", value: parseAccountsTarget },
         { label: "First pass", value: discoveryResult.firstPassCount },
         { label: "Final candidates", value: discoveredCandidates.length },
@@ -413,16 +520,25 @@ export async function searchAndAddLeads(
       selectedSet.has(candidate.account.xUserId ?? candidate.account.handle.replace(/^@/, "").toLowerCase())
       || selectedSet.has(candidate.account.handle.replace(/^@/, "").toLowerCase()),
     );
+    const targetSatisfiedAfterScreening = screenedCandidates.length >= Math.ceil(targetLeadCount * 0.8);
 
     trace.addStep(await emitStep(progress, {
       id: "screening",
       title: "AI Screening",
       summary: `The model kept ${screenedCandidates.length} leads from a pool of ${screeningPool.length}.`,
-      status: screeningResult.batchSummaries.some((batch) => batch.usedFallback) ? "warning" : "success",
+      status:
+        screeningResult.batchSummaries.some((batch) => batch.usedFallback) || !targetSatisfiedAfterScreening
+          ? "warning"
+          : "success",
       model: process.env.OPENAI_MODEL ?? "gpt-5",
-      bullets: screeningResult.batchSummaries.map((batch, index) =>
-        `Batch ${index + 1}: reviewed ${batch.candidateCount}, kept ${batch.includedCount}${batch.usedFallback ? " using fallback heuristics" : ""}.`,
-      ),
+      bullets: [
+        ...screeningResult.batchSummaries.map((batch, index) =>
+          `Batch ${index + 1}: reviewed ${batch.candidateCount}, kept ${batch.includedCount}${batch.usedFallback ? " using fallback heuristics" : ""}.`,
+        ),
+        screenedCandidates.length >= targetLeadCount
+          ? `Reached the requested lead target of ~${targetLeadCount}.`
+          : `Requested ~${targetLeadCount} leads; the bounded search retained ${screenedCandidates.length}.`,
+      ],
       metrics: [
         { label: "Pool", value: screeningPool.length },
         { label: "Selected", value: screenedCandidates.length },
@@ -492,7 +608,13 @@ export async function searchAndAddLeads(
       ...project,
       sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
     };
-    const finalTrace = trace.build(`Added ${leadsList.length} leads to ${project.name}.`);
+    const hitLeadTarget = leadsList.length >= targetLeadCount;
+    const finalTrace = trace.build(
+      hitLeadTarget
+        ? `Added ${leadsList.length} leads to ${project.name}.`
+        : `Added ${leadsList.length} leads to ${project.name} against a target of ~${targetLeadCount}.`,
+      hitLeadTarget ? "success" : "warning",
+    );
 
     return {
       leads: leadsList,
