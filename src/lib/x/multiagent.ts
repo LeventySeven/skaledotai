@@ -995,7 +995,7 @@ const graph = new StateGraph(MultiAgentState)
           ? "json_repair"
           : attemptYield < resolveLowYieldThreshold(state.goalCount)
             ? "low_yield"
-            : "low_yield";
+            : undefined;
 
     return {
       activeNode: "validator" as const,
