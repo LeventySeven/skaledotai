@@ -5,6 +5,7 @@ import {
   SearchRunStreamEventSchema,
   type SearchRunStreamSnapshot,
 } from "../../src/lib/validations/search";
+import { MULTIAGENT_NODE_TITLES } from "../../src/lib/x/multiagent-types";
 import { verifyMultiAgentServiceToken, isAllowedMultiAgentOrigin } from "../../src/lib/multiagent-service-auth";
 import { searchAndAddLeads } from "../../src/server/services/search";
 import { toXProviderTrpcError } from "../../src/lib/x/error-handling";
@@ -38,10 +39,10 @@ function jsonError(status: number, message: string, origin: string | null | unde
   );
 }
 
-async function writeEvent(
+function writeEvent(
   controller: ReadableStreamDefaultController<Uint8Array>,
   event: unknown,
-): Promise<void> {
+): void {
   const payload = SearchRunStreamEventSchema.parse(event);
   controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
 }
@@ -71,7 +72,12 @@ function createBootstrapSnapshot(input: {
     goalCount: targetLeadCount,
     attempt: 1,
     maxAttempts,
-    graphNodes: [],
+    activeNode: "planner",
+    graphNodes: Object.entries(MULTIAGENT_NODE_TITLES).map(([id, title]) => ({
+      id,
+      title,
+      status: id === "planner" ? "active" : "idle",
+    })),
   };
 }
 
@@ -132,7 +138,7 @@ async function handleLiveSearch(req: Request): Promise<Response> {
       const safeWriteEvent = async (event: unknown): Promise<void> => {
         if (closed) return;
         try {
-          await writeEvent(controller, event);
+          writeEvent(controller, event);
         } catch (error) {
           if (closed) return;
           closed = true;
@@ -159,12 +165,12 @@ async function handleLiveSearch(req: Request): Promise<Response> {
         void safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
       }, 10_000);
 
+      for (let index = 0; index < 12; index += 1) {
+        writeEvent(controller, { type: "snapshot", snapshot: latestSnapshot });
+      }
+
       void (async () => {
         try {
-          for (let index = 0; index < 8; index += 1) {
-            await safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
-          }
-
           const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
             onStep: (step) => safeWriteEvent({ type: "step", step }),
             onSnapshot: (snapshot) => {
