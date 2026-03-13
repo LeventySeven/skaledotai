@@ -83,7 +83,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           <button
             type="button"
             onClick={() => setCreateModalOpen(true)}
-            className="flex h-8 min-w-8 items-center gap-0.5 rounded-[10px] border border-[#00000014] bg-[#00000009] px-1.5 text-[0.88rem] font-medium whitespace-nowrap"
+            className="flex h-8 min-w-8 items-center gap-0.5 rounded-[10px] border border-[#00000014] bg-[#00000009] px-1.5 text-[0.88rem] font-medium whitespace-nowrap transition-colors hover:bg-[#00000015] hover:border-[#00000025] active:bg-[#00000022]"
           >
             <span className="px-1">Create new</span>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="shrink-0">
