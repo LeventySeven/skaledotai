@@ -139,8 +139,10 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
   });
 
   const leads = listQuery.data ?? [];
-  const standardTemplates = templatesQuery.data ?? [];
-  const generatedTemplates = savedTemplatesQuery.data ?? [];
+  const allSavedTemplates = savedTemplatesQuery.data ?? [];
+  const forkedSourceIds = new Set(allSavedTemplates.map((t) => t.sourceId).filter(Boolean));
+  const standardTemplates = (templatesQuery.data ?? []).filter((t) => !forkedSourceIds.has(t.id));
+  const generatedTemplates = allSavedTemplates;
   const templates = [...standardTemplates, ...generatedTemplates];
 
   const selectedLeads = useMemo(
@@ -206,8 +208,8 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     setSelectedLeadIds([]);
   }
 
-  function handleCreateTemplate({ title, body }: { title: string; body: string }) {
-    createTemplate.mutate({ title, body, subject: title, replyRate: "—" });
+  function handleCreateTemplate({ title, body, sourceId }: { title: string; body: string; sourceId?: string }) {
+    createTemplate.mutate({ title, body, subject: title, replyRate: "—", sourceId });
   }
 
   function handleUpdateTemplate(id: string, { title, body }: { title: string; body: string }) {

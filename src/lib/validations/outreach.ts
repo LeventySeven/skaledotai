@@ -6,6 +6,7 @@ export const OutreachTemplateSchema = z.object({
   subject: z.string(),
   body: z.string(),
   replyRate: z.string(),
+  sourceId: z.string().optional(),
   generated: z.boolean().optional(),
 });
 export type OutreachTemplate = z.infer<typeof OutreachTemplateSchema>;
@@ -22,6 +23,7 @@ export const SaveOutreachTemplateInputSchema = z.object({
   subject: z.string().min(1),
   body: z.string().min(1),
   replyRate: z.string().min(1),
+  sourceId: z.string().optional(),
 });
 export type SaveOutreachTemplateInput = z.infer<typeof SaveOutreachTemplateInputSchema>;
 

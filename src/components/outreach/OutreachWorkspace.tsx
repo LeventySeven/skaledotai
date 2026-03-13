@@ -100,7 +100,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
               template={template}
               selected={selectedTemplateIds.includes(template.id)}
               onToggle={() => toggleTemplate(template.id)}
-              onSave={(updated) => handleCreateTemplate(updated)}
+              onSave={(updated) => handleCreateTemplate({ ...updated, sourceId: template.id })}
               fork
             />
           ))}

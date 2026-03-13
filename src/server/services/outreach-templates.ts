@@ -12,6 +12,7 @@ function rowToTemplate(row: typeof outreachTemplates.$inferSelect): OutreachTemp
     subject: row.subject,
     body: row.body,
     replyRate: row.replyRate,
+    sourceId: row.sourceId ?? undefined,
     generated: true,
   };
 }
@@ -28,7 +29,7 @@ export async function listOutreachTemplates(userId: string): Promise<OutreachTem
 
 export async function saveOutreachTemplate(
   userId: string,
-  data: { title: string; subject: string; body: string; replyRate: string },
+  data: { title: string; subject: string; body: string; replyRate: string; sourceId?: string },
 ): Promise<OutreachTemplate> {
   const [row] = await db
     .insert(outreachTemplates)
