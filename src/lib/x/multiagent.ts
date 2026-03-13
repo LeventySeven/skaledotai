@@ -64,7 +64,9 @@ const MULTIAGENT_MIN_URLS = 12;
 const MULTIAGENT_MAX_URLS = 36;
 const MULTIAGENT_MIN_BATCH_SIZE = 3;
 const MULTIAGENT_MAX_BATCH_SIZE = 8;
-const MULTIAGENT_PLANNER_TIMEOUT_MS = 8_000;
+const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 20_000;
+const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
+const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 60_000;
 
 const mergeUniqueStrings = (left: string[], right: string[]): string[] => {
   const merged = [...left];
@@ -303,6 +305,19 @@ function resolveMultiAgentScrapeBatchSize(limit: number, goalCount?: number): nu
   );
 }
 
+function resolveMultiAgentPlannerTimeoutMs(): number {
+  const rawValue = process.env.MULTIAGENT_PLANNER_TIMEOUT_MS?.trim();
+  if (!rawValue) return DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS;
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS;
+
+  return Math.max(
+    MIN_MULTIAGENT_PLANNER_TIMEOUT_MS,
+    Math.min(MAX_MULTIAGENT_PLANNER_TIMEOUT_MS, Math.round(parsed)),
+  );
+}
+
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) {
@@ -468,7 +483,8 @@ async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerRes
 
   try {
     const planner = getPlannerModel().withStructuredOutput(QueryPlanSchema, { name: "x_query_plan" });
-    const result = await withTimeout("OpenAI planner", MULTIAGENT_PLANNER_TIMEOUT_MS, () => planner.invoke([
+    const plannerTimeoutMs = resolveMultiAgentPlannerTimeoutMs();
+    const result = await withTimeout("OpenAI planner", plannerTimeoutMs, () => planner.invoke([
       "Generate a bounded set of X lead discovery queries for a supervisor-style multi-agent workflow.",
       "Keep the list compact, deduplicated, and focused on individual creators, founders, operators, and practitioners in the niche.",
       "Prefer queries that surface profile pages, relevant threads, and seed-handle adjacency.",
@@ -499,6 +515,7 @@ async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerRes
 
     console.warn("[x-provider][multiagent][planner]", JSON.stringify({
       message: describeUpstreamError(error),
+      plannerTimeoutMs: resolveMultiAgentPlannerTimeoutMs(),
       usingHeuristicQueries: true,
     }));
 
@@ -620,6 +637,17 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
 
 function resolveLowYieldThreshold(goalCount: number): number {
   return Math.max(6, Math.ceil(goalCount * 0.12));
+}
+
+function summarizeMultiAgentErrors(errors: MultiAgentErrorRecord[], limit = 3): string {
+  const items = errors
+    .slice(-limit)
+    .map((error) => {
+      const location = error.query ? ` query=${error.query}` : error.url ? ` url=${error.url}` : "";
+      return `${error.stage}:${error.code}${location} - ${error.message}`;
+    });
+
+  return items.join(" | ");
 }
 
 const graph = new StateGraph(MultiAgentState)
@@ -822,9 +850,10 @@ const graph = new StateGraph(MultiAgentState)
 export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
   provider: "multiagent",
   async discoverCandidates(input) {
+    let latestState: MultiAgentStateSnapshot = {};
+
     try {
       let stepIndex = 0;
-      let latestState: MultiAgentStateSnapshot = {};
       const maxAttempts = input.maxAttempts ?? 1;
       const stream = await graph.stream({
         niche: input.niche,
@@ -857,14 +886,42 @@ export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
         await input.traceRecorder?.(buildMultiAgentTraceStep(nodeName, update, stepIndex, input.minFollowers, getPlannerModelName()));
       }
 
+      if ((latestState.candidates?.length ?? 0) === 0 && (latestState.errors?.length ?? 0) > 0) {
+        const errorSummary = summarizeMultiAgentErrors(latestState.errors ?? []);
+        console.warn("[x-provider][multiagent][workflow]", JSON.stringify({
+          attempt: latestState.attempt ?? input.attempt ?? 1,
+          stopReason: latestState.stopReason,
+          recoveryState: latestState.recoveryState,
+          errorCount: latestState.errors?.length ?? 0,
+          errors: latestState.errors,
+        }));
+
+        throw new XProviderRuntimeError({
+          provider: "multiagent",
+          capability: "discovery",
+          code: "UPSTREAM_REQUEST_FAILED",
+          message: `Multi-agent workflow exhausted without candidates. ${errorSummary}`,
+        });
+      }
+
       return latestState.candidates ?? [];
     } catch (error) {
+      if ((latestState.errors?.length ?? 0) > 0) {
+        console.warn("[x-provider][multiagent][workflow]", JSON.stringify({
+          attempt: latestState.attempt ?? input.attempt ?? 1,
+          stopReason: latestState.stopReason,
+          recoveryState: latestState.recoveryState,
+          errorCount: latestState.errors?.length ?? 0,
+          errors: latestState.errors,
+        }));
+      }
+
       if (error instanceof XProviderRuntimeError) throw error;
       throw new XProviderRuntimeError({
         provider: "multiagent",
         capability: "discovery",
         code: "UPSTREAM_REQUEST_FAILED",
-        message: `Multi-agent workflow failed. ${describeUpstreamError(error)}`,
+        message: `Multi-agent workflow failed. ${describeUpstreamError(error)}${(latestState.errors?.length ?? 0) > 0 ? ` Recent stage errors: ${summarizeMultiAgentErrors(latestState.errors ?? [])}` : ""}`,
       });
     }
   },
