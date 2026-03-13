@@ -1,11 +1,10 @@
 "use client";
 
-import { useRef, useMemo, useState, useCallback } from "react";
+import { useRef, useMemo, useState } from "react";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
-
 
 function toPatchInput(patch: Partial<Lead>) {
   const payload: {
@@ -121,6 +120,19 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     },
   });
 
+  const createTemplate = trpc.outreach.createTemplate.useMutation({
+    onSuccess: async (saved) => {
+      await utils.outreach.savedTemplates.invalidate();
+      toastManager.add({ type: "success", title: `${saved.title} created.` });
+    },
+    onError: (error) => { toastManager.add({ type: "error", title: error.message }); },
+  });
+
+  const updateTemplate = trpc.outreach.updateTemplate.useMutation({
+    onSuccess: async () => { await utils.outreach.savedTemplates.invalidate(); },
+    onError: (error) => { toastManager.add({ type: "error", title: error.message }); },
+  });
+
   const deleteTemplate = trpc.outreach.deleteTemplate.useMutation({
     onSuccess: async () => { await utils.outreach.savedTemplates.invalidate(); },
     onError: (error) => { toastManager.add({ type: "error", title: error.message }); },
@@ -128,9 +140,7 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
 
   const leads = listQuery.data ?? [];
   const standardTemplates = templatesQuery.data ?? [];
-  const [localTemplates, setLocalTemplates] = useState<OutreachTemplate[]>([]);
-  const serverSavedTemplates = savedTemplatesQuery.data ?? [];
-  const generatedTemplates = [...serverSavedTemplates, ...localTemplates];
+  const generatedTemplates = savedTemplatesQuery.data ?? [];
   const templates = [...standardTemplates, ...generatedTemplates];
 
   const selectedLeads = useMemo(
@@ -196,19 +206,13 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     setSelectedLeadIds([]);
   }
 
-  const handleCreateTemplate = useCallback(({ title, body }: { title: string; body: string }) => {
-    const newTemplate: OutreachTemplate = {
-      id: `local-${Date.now()}`,
-      title,
-      body,
-      subject: title,
-      replyRate: "—",
-      generated: true,
-    };
-    setLocalTemplates((prev) => [newTemplate, ...prev]);
-    toastManager.add({ type: "success", title: `${title} created.` });
-    // TODO: wire to backend saveOutreachTemplate mutation
-  }, []);
+  function handleCreateTemplate({ title, body }: { title: string; body: string }) {
+    createTemplate.mutate({ title, body, subject: title, replyRate: "—" });
+  }
+
+  function handleUpdateTemplate(id: string, { title, body }: { title: string; body: string }) {
+    updateTemplate.mutate({ id, title, body, subject: title, replyRate: "—" });
+  }
 
   async function handleSendSelected() {
     if (selectedLeads.length === 0) {
@@ -262,6 +266,7 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     handleImportFolder,
     handleGenerateTemplate,
     handleCreateTemplate,
+    handleUpdateTemplate,
     handleRemoveSelected,
     handleSendSelected,
     handleDeleteTemplate: (id: string) => deleteTemplate.mutate({ id }),

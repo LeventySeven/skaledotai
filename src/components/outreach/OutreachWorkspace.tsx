@@ -48,6 +48,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
     handleImportFolder,
     handleGenerateTemplate,
     handleCreateTemplate,
+    handleUpdateTemplate,
     handleRemoveSelected,
     handleSendSelected,
     handleDeleteTemplate,
@@ -140,6 +141,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
                   template={template}
                   selected={selectedTemplateIds.includes(template.id)}
                   onToggle={() => toggleTemplate(template.id)}
+                  onSave={(updated) => handleUpdateTemplate(template.id, updated)}
                   onDelete={() => handleDeleteTemplate(template.id)}
                 />
               ))}
