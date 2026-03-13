@@ -89,6 +89,7 @@ async function getLiveMultiAgentStreamTarget(provider: XDataProvider): Promise<{
 }> {
   const response = await fetch("/api/multiagent/session", {
     method: "POST",
+    credentials: "include",
     headers: {
       "x-data-provider": provider,
     },
@@ -172,6 +173,7 @@ export function SearchForm() {
       const target = await getLiveMultiAgentStreamTarget(provider);
       const response = await fetch(target.streamUrl, {
         method: "POST",
+        credentials: target.streamUrl.startsWith("/") ? "include" : "omit",
         headers: target.headers,
         body: JSON.stringify(payload),
       });
