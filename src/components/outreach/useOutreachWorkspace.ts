@@ -134,7 +134,10 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
   });
 
   const deleteTemplate = trpc.outreach.deleteTemplate.useMutation({
-    onSuccess: async () => { await utils.outreach.savedTemplates.invalidate(); },
+    onSuccess: async () => {
+      await utils.outreach.savedTemplates.invalidate();
+      toastManager.add({ type: "success", title: "Template deleted." });
+    },
     onError: (error) => { toastManager.add({ type: "error", title: error.message }); },
   });
 
