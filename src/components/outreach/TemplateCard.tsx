@@ -22,9 +22,10 @@ interface TemplateCardProps {
   onToggle: () => void;
   onSave?: (updated: Pick<OutreachTemplate, "title" | "body">) => void;
   onDelete?: () => void;
+  fork?: boolean;
 }
 
-export function TemplateCard({ template, selected, onToggle, onSave, onDelete }: TemplateCardProps) {
+export function TemplateCard({ template, selected, onToggle, onSave, onDelete, fork }: TemplateCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [localTemplate, setLocalTemplate] = useState(template);
 
@@ -86,7 +87,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
 
       {editOpen ? (
         <TemplateModal
-          mode="edit"
+          mode={fork ? "fork" : "edit"}
           initialTitle={localTemplate.title}
           initialBody={localTemplate.body}
           onClose={() => setEditOpen(false)}

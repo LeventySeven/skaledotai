@@ -4,7 +4,7 @@ import { useState } from "react";
 import { XIcon } from "lucide-react";
 
 interface TemplateModalProps {
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "fork";
   initialTitle?: string;
   initialBody?: string;
   onClose: () => void;
@@ -22,7 +22,9 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[18px] font-medium">{mode === "create" ? "New template" : "Edit template"}</h2>
+          <h2 className="text-[18px] font-medium">
+            {mode === "create" ? "New template" : mode === "fork" ? "Save as your template" : "Edit template"}
+          </h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground">
             <XIcon className="size-4" />
           </button>
@@ -65,7 +67,7 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
             onClick={() => { onSave({ title, body }); onClose(); }}
             className="h-9 rounded-xl bg-foreground px-4 text-[0.9rem] text-background hover:opacity-90 disabled:opacity-40"
           >
-            {mode === "create" ? "Create" : "Save"}
+            {mode === "create" ? "Create" : mode === "fork" ? "Save to my templates" : "Save"}
           </button>
         </div>
       </div>
