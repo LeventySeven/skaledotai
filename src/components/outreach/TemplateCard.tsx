@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2Icon, Trash2Icon, XIcon } from "lucide-react";
+import { CheckCircle2Icon, Trash2Icon } from "lucide-react";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
+import { TemplateModal } from "./TemplateModal";
 
 function EditIcon({ className }: { className?: string }) {
   return (
@@ -12,70 +13,6 @@ function EditIcon({ className }: { className?: string }) {
         <path d="M10.5 4.5L13.5 7.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
       </g>
     </svg>
-  );
-}
-
-interface EditModalProps {
-  template: OutreachTemplate;
-  onClose: () => void;
-  onSave: (updated: Pick<OutreachTemplate, "title" | "body">) => void;
-}
-
-function EditModal({ template, onClose, onSave }: EditModalProps) {
-  const [title, setTitle] = useState(template.title);
-  const [body, setBody] = useState(template.body);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div
-        className="w-full max-w-lg rounded-2xl border border-border/70 bg-background p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[18px] font-medium">Edit template</h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground">
-            <XIcon className="size-4" />
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[0.85rem] font-medium text-muted-foreground">Title</label>
-            <input
-              className="h-10 rounded-xl border border-input bg-background px-3 text-[0.95rem] outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[0.85rem] font-medium text-muted-foreground">Body</label>
-            <textarea
-              className="min-h-[160px] resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-[0.95rem] leading-relaxed outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 rounded-xl border border-input px-4 text-[0.9rem] text-muted-foreground hover:text-foreground"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => { onSave({ title, body }); onClose(); }}
-            className="h-9 rounded-xl bg-foreground px-4 text-[0.9rem] text-background hover:opacity-90"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -91,7 +28,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
   const [editOpen, setEditOpen] = useState(false);
   const [localTemplate, setLocalTemplate] = useState(template);
 
-  function handleSave(updated: Pick<OutreachTemplate, "title" | "body">) {
+  function handleSave(updated: { title: string; body: string }) {
     setLocalTemplate((t) => ({ ...t, ...updated }));
     onSave?.(updated);
   }
@@ -147,8 +84,10 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
       </div>
 
       {editOpen ? (
-        <EditModal
-          template={localTemplate}
+        <TemplateModal
+          mode="edit"
+          initialTitle={localTemplate.title}
+          initialBody={localTemplate.body}
           onClose={() => setEditOpen(false)}
           onSave={handleSave}
         />

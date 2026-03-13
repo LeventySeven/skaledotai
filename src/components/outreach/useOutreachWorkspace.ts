@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useMemo, useState } from "react";
+import { useRef, useMemo, useState, useCallback } from "react";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
+
 
 function toPatchInput(patch: Partial<Lead>) {
   const payload: {
@@ -127,7 +128,9 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
 
   const leads = listQuery.data ?? [];
   const standardTemplates = templatesQuery.data ?? [];
-  const generatedTemplates = savedTemplatesQuery.data ?? [];
+  const [localTemplates, setLocalTemplates] = useState<OutreachTemplate[]>([]);
+  const serverSavedTemplates = savedTemplatesQuery.data ?? [];
+  const generatedTemplates = [...serverSavedTemplates, ...localTemplates];
   const templates = [...standardTemplates, ...generatedTemplates];
 
   const selectedLeads = useMemo(
@@ -193,6 +196,20 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     setSelectedLeadIds([]);
   }
 
+  const handleCreateTemplate = useCallback(({ title, body }: { title: string; body: string }) => {
+    const newTemplate: OutreachTemplate = {
+      id: `local-${Date.now()}`,
+      title,
+      body,
+      subject: title,
+      replyRate: "—",
+      generated: true,
+    };
+    setLocalTemplates((prev) => [newTemplate, ...prev]);
+    toastManager.add({ type: "success", title: `${title} created.` });
+    // TODO: wire to backend saveOutreachTemplate mutation
+  }, []);
+
   async function handleSendSelected() {
     if (selectedLeads.length === 0) {
       toastManager.add({ type: "info", title: "Select at least one lead." });
@@ -244,6 +261,7 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     toggleTemplate,
     handleImportFolder,
     handleGenerateTemplate,
+    handleCreateTemplate,
     handleRemoveSelected,
     handleSendSelected,
     handleDeleteTemplate: (id: string) => deleteTemplate.mutate({ id }),

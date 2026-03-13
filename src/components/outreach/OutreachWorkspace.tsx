@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDownIcon, Trash2Icon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AiPanel } from "./AiPanel";
 import { TemplateCard } from "./TemplateCard";
+import { TemplateModal } from "./TemplateModal";
 import { useOutreachWorkspace } from "./useOutreachWorkspace";
 
 function statusLabel(stage: string): string {
@@ -45,10 +47,13 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
     toggleTemplate,
     handleImportFolder,
     handleGenerateTemplate,
+    handleCreateTemplate,
     handleRemoveSelected,
     handleSendSelected,
     handleDeleteTemplate,
   } = useOutreachWorkspace({ initialStandardTemplates, initialSavedTemplates });
+
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   return (
     <div className="mx-auto max-w-[1700px] px-8 py-8">
@@ -77,12 +82,13 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           </div>
           <button
             type="button"
-            className="flex h-8 min-w-8 items-center gap-1.5 rounded-[10px] border border-[#00000014] bg-[#00000009] px-1.5 text-[0.88rem] font-medium whitespace-nowrap"
+            onClick={() => setCreateModalOpen(true)}
+            className="flex h-8 min-w-8 items-center gap-0.5 rounded-[10px] border border-[#00000014] bg-[#00000009] px-1.5 text-[0.88rem] font-medium whitespace-nowrap"
           >
+            <span className="px-1">Create new</span>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="shrink-0">
               <path d="M9 3.75V14.25M3.75 9H14.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            Create new
           </button>
         </div>
 
@@ -246,6 +252,14 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           Send to Selected
         </Button>
       </div>
+
+      {createModalOpen ? (
+        <TemplateModal
+          mode="create"
+          onClose={() => setCreateModalOpen(false)}
+          onSave={handleCreateTemplate}
+        />
+      ) : null}
     </div>
   );
 }
