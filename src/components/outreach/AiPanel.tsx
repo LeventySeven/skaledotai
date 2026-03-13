@@ -30,7 +30,7 @@ export function AiPanel({
       <div className="mb-4 flex items-center gap-2">
         <SparklesIcon className="size-4 text-muted-foreground" />
         <span className="text-[0.95rem] font-medium">Generate with AI</span>
-        <span className="text-[0.85rem] text-muted-foreground">— pick folders to give AI context about your leads</span>
+        <span className="text-[0.85rem] text-muted-foreground">— select folders so AI knows who you're reaching out to</span>
       </div>
 
       {projects.length > 0 ? (
@@ -58,7 +58,7 @@ export function AiPanel({
       <div className="flex flex-wrap items-center gap-3">
         <Input
           className="h-9 w-[280px] rounded-xl text-[0.88rem]"
-          placeholder="Style angle (optional)"
+          placeholder="e.g. more casual, friendly, or direct"
           value={stylePrompt}
           onChange={(e: ChangeEvent<HTMLInputElement>) => onStylePromptChange(e.target.value)}
         />
