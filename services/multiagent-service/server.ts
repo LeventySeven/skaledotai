@@ -1,5 +1,10 @@
 import { TRPCError } from "@trpc/server";
-import { SearchLeadInputSchema, SearchRunStreamEventSchema } from "../../src/lib/validations/search";
+import { SEARCH_TARGET } from "../../src/lib/constants";
+import {
+  SearchLeadInputSchema,
+  SearchRunStreamEventSchema,
+  type SearchRunStreamSnapshot,
+} from "../../src/lib/validations/search";
 import { verifyMultiAgentServiceToken, isAllowedMultiAgentOrigin } from "../../src/lib/multiagent-service-auth";
 import { searchAndAddLeads } from "../../src/server/services/search";
 import { toXProviderTrpcError } from "../../src/lib/x/error-handling";
@@ -50,6 +55,26 @@ function extractBearerToken(req: Request): string | null {
   return token;
 }
 
+function createBootstrapSnapshot(input: {
+  targetLeadCount?: number;
+  maxAttempts?: number;
+}): SearchRunStreamSnapshot {
+  const targetLeadCount = input.targetLeadCount ?? SEARCH_TARGET;
+  const maxAttempts = input.maxAttempts ?? 1;
+
+  return {
+    queries: 0,
+    urls: 0,
+    scraped: 0,
+    candidates: 0,
+    targetLeadCount,
+    goalCount: targetLeadCount,
+    attempt: 1,
+    maxAttempts,
+    graphNodes: [],
+  };
+}
+
 async function handleLiveSearch(req: Request): Promise<Response> {
   const origin = req.headers.get("origin");
   if (!isAllowedMultiAgentOrigin(origin)) {
@@ -93,6 +118,16 @@ async function handleLiveSearch(req: Request): Promise<Response> {
   const stream = new TransformStream<Uint8Array, Uint8Array>();
   const writer = stream.writable.getWriter();
   let writeQueue = Promise.resolve();
+  let latestSnapshot = createBootstrapSnapshot({
+    targetLeadCount: parsed.data.targetLeadCount,
+  });
+
+  console.info("[multiagent-service][search-live] accepted", JSON.stringify({
+    origin,
+    userId: auth.sub,
+    query: parsed.data.query,
+    targetLeadCount: parsed.data.targetLeadCount ?? SEARCH_TARGET,
+  }));
 
   function enqueueEvent(event: unknown): Promise<void> {
     writeQueue = writeQueue
@@ -102,20 +137,41 @@ async function handleLiveSearch(req: Request): Promise<Response> {
   }
 
   void (async () => {
+    const heartbeat = setInterval(() => {
+      void enqueueEvent({ type: "snapshot", snapshot: latestSnapshot });
+    }, 10_000);
+
     try {
+      await enqueueEvent({ type: "snapshot", snapshot: latestSnapshot });
+
       const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
         onStep: (step) => enqueueEvent({ type: "step", step }),
-        onSnapshot: (snapshot) => enqueueEvent({ type: "snapshot", snapshot }),
+        onSnapshot: (snapshot) => {
+          latestSnapshot = snapshot;
+          return enqueueEvent({ type: "snapshot", snapshot });
+        },
       });
 
+      console.info("[multiagent-service][search-live] complete", JSON.stringify({
+        userId: auth.sub,
+        query: parsed.data.query,
+        leads: result.leads.length,
+        projectId: result.project.id,
+      }));
       await enqueueEvent({ type: "complete", result });
     } catch (error) {
       const normalized = error instanceof TRPCError ? error : toXProviderTrpcError(error);
+      console.error("[multiagent-service][search-live] error", JSON.stringify({
+        userId: auth.sub,
+        query: parsed.data.query,
+        message: normalized.message,
+      }));
       await enqueueEvent({
         type: "error",
         message: normalized.message,
       }).catch(() => undefined);
     } finally {
+      clearInterval(heartbeat);
       await writeQueue.catch(() => undefined);
       await writer.close().catch(() => undefined);
     }
@@ -134,6 +190,11 @@ async function handleLiveSearch(req: Request): Promise<Response> {
 export async function multiAgentServiceFetch(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const origin = req.headers.get("origin");
+  console.info("[multiagent-service][request]", JSON.stringify({
+    method: req.method,
+    pathname: url.pathname,
+    origin,
+  }));
 
   if (req.method === "OPTIONS") {
     return new Response(null, {
