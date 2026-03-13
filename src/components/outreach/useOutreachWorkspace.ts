@@ -187,10 +187,9 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
 
   async function handleGenerateTemplate() {
     if (effectiveProjectIds.length === 0) {
-      setUiError("Select at least one project.");
+      toastManager.add({ type: "error", title: "Select at least one project to give AI context." });
       return;
     }
-    setUiError(null);
     await generateTemplate.mutateAsync({
       projectIds: effectiveProjectIds,
       requestedStyle: stylePrompt.trim() || undefined,
