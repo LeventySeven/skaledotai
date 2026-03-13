@@ -160,6 +160,7 @@ export const outreachTemplates = pgTable("outreach_templates", {
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   replyRate: text("reply_rate").notNull().default("—"),
+  sourceId: text("source_id"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
