@@ -35,11 +35,20 @@ function applyTemplate(template: OutreachTemplate, lead: Lead): string {
     .replaceAll("{{company}}", "")}`;
 }
 
-export function useOutreachWorkspace() {
+interface UseOutreachWorkspaceOptions {
+  initialStandardTemplates?: OutreachTemplate[];
+  initialSavedTemplates?: OutreachTemplate[];
+}
+
+export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
   const utils = trpc.useUtils();
   const listQuery = trpc.outreach.list.useQuery();
-  const templatesQuery = trpc.outreach.templates.useQuery();
-  const savedTemplatesQuery = trpc.outreach.savedTemplates.useQuery();
+  const templatesQuery = trpc.outreach.templates.useQuery(undefined, {
+    initialData: options?.initialStandardTemplates,
+  });
+  const savedTemplatesQuery = trpc.outreach.savedTemplates.useQuery(undefined, {
+    initialData: options?.initialSavedTemplates,
+  });
   const { data: projects = [] } = trpc.projects.list.useQuery();
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);

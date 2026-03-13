@@ -15,7 +15,12 @@ function statusLabel(stage: string): string {
   return "Queued";
 }
 
-export function OutreachWorkspace() {
+interface OutreachWorkspaceProps {
+  initialStandardTemplates?: import("@/lib/validations/outreach").OutreachTemplate[];
+  initialSavedTemplates?: import("@/lib/validations/outreach").OutreachTemplate[];
+}
+
+export function OutreachWorkspace({ initialStandardTemplates, initialSavedTemplates }: OutreachWorkspaceProps) {
   const {
     leads,
     projects,
@@ -43,7 +48,7 @@ export function OutreachWorkspace() {
     handleRemoveSelected,
     handleSendSelected,
     handleDeleteTemplate,
-  } = useOutreachWorkspace();
+  } = useOutreachWorkspace({ initialStandardTemplates, initialSavedTemplates });
 
   return (
     <div className="mx-auto max-w-[1700px] px-8 py-8">
@@ -166,7 +171,6 @@ export function OutreachWorkspace() {
               <TableRow className="h-11 hover:bg-transparent">
                 <TableHead className="w-[44px] px-3 text-center">
                   <Checkbox
-                    id="outreach-select-all"
                     checked={leads.length > 0 && leads.every((lead) => selectedLeadIds.includes(lead.id))}
                     onCheckedChange={(value) =>
                       setSelectedLeadIds(Boolean(value) ? leads.map((lead) => lead.id) : [])
@@ -191,7 +195,6 @@ export function OutreachWorkspace() {
                   <TableRow key={lead.id} className="h-[58px] border-b border-border/50 hover:bg-muted/5">
                     <TableCell className="px-3 text-center">
                       <Checkbox
-                        id={`outreach-${lead.id}`}
                         checked={selectedLeadIds.includes(lead.id)}
                         onCheckedChange={(value) => toggleLead(lead.id, Boolean(value))}
                       />
