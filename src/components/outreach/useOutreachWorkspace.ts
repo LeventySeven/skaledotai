@@ -57,7 +57,6 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
   const hasUserToggledProjects = useRef(false);
   const [stylePrompt, setStylePrompt] = useState("");
   const [importProjectId, setImportProjectId] = useState("");
-  const [showAiPanel, setShowAiPanel] = useState(false);
   const [uiError, setUiError] = useState<string | null>(null);
 
   const effectiveProjectIds =
@@ -181,7 +180,7 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
   }
 
   async function handleImportFolder() {
-    if (!effectiveImportProjectId) { setUiError("Select a folder to import."); return; }
+    if (!effectiveImportProjectId) { toastManager.add({ type: "error", title: "Select a folder to import." }); return; }
     setUiError(null);
     await queueAllLeads.mutateAsync({ projectId: effectiveImportProjectId });
   }
@@ -257,8 +256,6 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     setStylePrompt,
     importProjectId: effectiveImportProjectId,
     setImportProjectId,
-    showAiPanel,
-    setShowAiPanel,
     uiError,
     // pending
     isSending: updateLead.isPending,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDownIcon, Trash2Icon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,8 +36,6 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
     setStylePrompt,
     importProjectId,
     setImportProjectId,
-    showAiPanel,
-    setShowAiPanel,
     uiError,
     isSending,
     isRemoving,
@@ -55,6 +53,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
   } = useOutreachWorkspace({ initialStandardTemplates, initialSavedTemplates });
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+
 
   return (
     <div className="mx-auto max-w-[1700px] px-8 py-8">
@@ -106,35 +105,10 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           ))}
         </div>
 
-        <div className="mt-5">
-          <Button
-            variant="outline"
-            className="h-10 rounded-xl px-4 text-[0.92rem]"
-            onClick={() => setShowAiPanel((current) => !current)}
-          >
-            AI analysis
-            <ChevronDownIcon className={`size-4 transition-transform ${showAiPanel ? "rotate-180" : ""}`} />
-          </Button>
-        </div>
-
-        {showAiPanel ? (
-          <div className="mt-4">
-            <AiPanel
-              projects={projects}
-              selectedProjectIds={selectedProjectIds}
-              onToggleProject={toggleProject}
-              stylePrompt={stylePrompt}
-              onStylePromptChange={setStylePrompt}
-              isGenerating={isGenerating}
-              onGenerate={() => { handleGenerateTemplate().catch(() => undefined); }}
-            />
-          </div>
-        ) : null}
-
         {generatedTemplates.length > 0 ? (
           <div className="mt-8">
             <div className="mb-4 text-[0.92rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Generated templates
+              Your templates
             </div>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(271px,1fr))] items-stretch gap-5">
               {generatedTemplates.map((template) => (
@@ -150,6 +124,18 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
             </div>
           </div>
         ) : null}
+
+        <div className="mt-8">
+          <AiPanel
+            projects={projects}
+            selectedProjectIds={selectedProjectIds}
+            onToggleProject={toggleProject}
+            stylePrompt={stylePrompt}
+            onStylePromptChange={setStylePrompt}
+            isGenerating={isGenerating}
+            onGenerate={() => { handleGenerateTemplate().catch(() => undefined); }}
+          />
+        </div>
       </div>
 
       <div className="mb-8">
