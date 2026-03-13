@@ -10,7 +10,6 @@ const {
   buildMultiAgentHeuristicQueries,
   normalizeDiscoveredUrls,
 } = await import("@/lib/x/multiagent");
-const { buildOxylabsDiscoveryUrls } = await import("@/lib/x/oxylabs");
 
 describe("Apify payload builders", () => {
   test("expands simple discovery queries for better lead coverage", () => {
@@ -143,30 +142,6 @@ describe("Multi-agent request builders", () => {
     ], 10)).toEqual([
       "https://x.com/austinxwalker",
       "https://x.com/jack",
-    ]);
-  });
-});
-
-describe("Oxylabs request builders", () => {
-  test("expands X search coverage for discovery", () => {
-    expect(buildOxylabsDiscoveryUrls({
-      niche: "founding engineers",
-      seedHandle: "austinxwalker",
-      limit: 25,
-      minFollowers: 1000,
-    })).toEqual([
-      "https://x.com/search?q=founding%20engineers&src=typed_query&f=user",
-      "https://x.com/search?q=founding%20engineers&src=typed_query&f=live",
-      "https://x.com/search?q=founding%20engineers&src=typed_query&f=top",
-      "https://x.com/search?q=%22founding%20engineers%22&src=typed_query&f=user",
-      "https://x.com/search?q=%22founding%20engineers%22&src=typed_query&f=live",
-      "https://x.com/search?q=%22founding%20engineers%22&src=typed_query&f=top",
-      "https://x.com/search?q=founding%20engineers%20founder&src=typed_query&f=user",
-      "https://x.com/search?q=founding%20engineers%20founder&src=typed_query&f=live",
-      "https://x.com/search?q=founding%20engineers%20founder&src=typed_query&f=top",
-      "https://x.com/search?q=founding%20engineers%20builder&src=typed_query&f=user",
-      "https://x.com/search?q=founding%20engineers%20builder&src=typed_query&f=live",
-      "https://x.com/search?q=founding%20engineers%20builder&src=typed_query&f=top",
     ]);
   });
 });

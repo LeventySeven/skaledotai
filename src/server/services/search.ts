@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { TRPCError } from "@trpc/server";
 import { expandLeadSearchQueries, screenProfilesForLeadSearchDetailed } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";

@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { X_PROVIDER_RETRY_BASE_DELAY_MS } from "@/lib/constants";
 import type { XUserReference, XResolvedTweet } from "./types";
 import { normalizeHandle, normalizeScrapedTweet, extractNestedItems } from "./normalizers";

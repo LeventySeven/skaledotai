@@ -47,12 +47,6 @@ export const X_PROVIDER_CAPABILITIES: Record<XDataProvider, XProviderCapabilitie
     network: true,
     tweets: true,
   },
-  oxylabs: {
-    discovery: true,
-    lookup: true,
-    network: false,
-    tweets: true,
-  },
   multiagent: {
     discovery: true,
     lookup: true,
@@ -113,21 +107,6 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
       {
         label: "User scraper actor",
         href: "https://apify.com/apidojo/twitter-user-scraper/input-schema",
-      },
-    ],
-  },
-  {
-    value: "oxylabs",
-    label: "Oxylabs",
-    badge: "Experimental",
-    description: "Enterprise scraper API wrapper for X profile and search URL extraction.",
-    integration: "Server-side scraper API calls normalize parsed page results into the shared adapter contract.",
-    experimental: true,
-    capabilities: X_PROVIDER_CAPABILITIES.oxylabs,
-    docs: [
-      {
-        label: "Web scraper API",
-        href: "https://oxylabs.io/products/scraper-api/web",
       },
     ],
   },

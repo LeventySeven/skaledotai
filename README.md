@@ -145,17 +145,37 @@ Supported providers today:
 
 - `x-api`
 - `apify`
-- `oxylabs`
 - `multiagent`
 - `openrouter`
 
 Capability support differs by provider:
 
 - Full search/lookup/network/tweets: `x-api`, `apify`
-- No network support: `oxylabs`, `multiagent`
+- No network support: `multiagent`
 - Discovery-only style provider: `openrouter`
 
 The backend does not silently switch to a different provider. Unsupported capabilities raise explicit runtime errors.
+
+## Multi-agent worker deployment
+
+`multiagent` can be deployed as a separate Render service using `render.yaml` and `services/multiagent-service/Dockerfile`.
+
+App-side env:
+
+- `MULTIAGENT_SERVICE_URL`
+- `MULTIAGENT_SERVICE_SHARED_SECRET`
+
+Render worker env:
+
+- `DATABASE_URL`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` or `MULTIAGENT_PLANNER_MODEL`
+- `TAVILY_API_KEY`
+- `AGENTQL_API_KEY`
+- `MULTIAGENT_SERVICE_SHARED_SECRET`
+- `MULTIAGENT_ALLOWED_ORIGINS`
+
+The app mints a short-lived signed token, and the browser streams `multiagent` NDJSON events directly from Render. That keeps the live reasoning UI intact without holding a Vercel function open for the full run.
 
 ## Important implementation notes
 

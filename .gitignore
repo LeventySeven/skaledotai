@@ -43,6 +43,10 @@ src/db/migrations/meta/
 .tmp/
 tmp/
 temp/
+.render/
+services/multiagent-service/.env
+services/multiagent-service/.env.local
+services/multiagent-service/.env.production
 
 # OS and editor noise
 .DS_Store

@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { z } from "zod";
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";

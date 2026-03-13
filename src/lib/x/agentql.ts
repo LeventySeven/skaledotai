@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import type { XProfile } from "@/lib/validations/search";
 import type { XResolvedTweet } from "./types";
 import { XProviderRuntimeError } from "./types";

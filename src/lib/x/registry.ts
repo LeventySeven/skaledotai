@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import type { XDataClient, XDiscoveryProvider, XTweetMetrics } from "./types";
 import { XProviderRuntimeError } from "./types";
 import type { XDataProvider, XProviderCapability } from "./provider";
@@ -18,7 +18,6 @@ import { xApiClient } from "./x-api";
 import { createSearchBackedDiscoveryProvider } from "./discovery";
 import { multiAgentClient, multiAgentDiscoveryProvider } from "./multiagent";
 import { openRouterClient, openRouterDiscoveryProvider } from "./openrouter";
-import { oxylabsClient, oxylabsDiscoveryProvider } from "./oxylabs";
 
 export type XProviderRuntimeStatus = {
   provider: XDataProvider;
@@ -41,7 +40,6 @@ export type XProviderResolution = {
 const X_PROVIDER_ENV_REQUIREMENTS: Record<XDataProvider, string[]> = {
   "x-api": ["X_API_BEARER_TOKEN"],
   apify: ["APIFY_TOKEN"],
-  oxylabs: ["OXYLABS_USERNAME", "OXYLABS_PASSWORD", "OXYLABS_FIXTURE_READY"],
   multiagent: ["OPENAI_API_KEY", "TAVILY_API_KEY", "AGENTQL_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
 };
@@ -65,11 +63,6 @@ const PROVIDER_COST_ESTIMATES: Record<XDataProvider, Partial<Record<XProviderCap
     network: 0.012,
     tweets: 0.004,
   },
-  oxylabs: {
-    discovery: 0.018,
-    lookup: 0.01,
-    tweets: 0.01,
-  },
   multiagent: {
     discovery: 0.03,
     lookup: 0.014,
@@ -83,7 +76,6 @@ const PROVIDER_COST_ESTIMATES: Record<XDataProvider, Partial<Record<XProviderCap
 const RAW_X_DATA_CLIENTS: Record<XDataProvider, XDataClient> = {
   "x-api": xApiClient,
   apify: apifyClient,
-  oxylabs: oxylabsClient,
   multiagent: multiAgentClient,
   openrouter: openRouterClient,
 };
@@ -91,17 +83,12 @@ const RAW_X_DATA_CLIENTS: Record<XDataProvider, XDataClient> = {
 const X_DISCOVERY_PROVIDERS: Record<XDataProvider, XDiscoveryProvider> = {
   "x-api": createSearchBackedDiscoveryProvider("x-api", xApiClient),
   apify: createSearchBackedDiscoveryProvider("apify", apifyClient),
-  oxylabs: oxylabsDiscoveryProvider,
   multiagent: multiAgentDiscoveryProvider,
   openrouter: openRouterDiscoveryProvider,
 };
 
 function getMissingProviderEnv(provider: XDataProvider): string[] {
-  return X_PROVIDER_ENV_REQUIREMENTS[provider].filter((name) => {
-    const value = process.env[name];
-    if (name === "OXYLABS_FIXTURE_READY") return value !== "true";
-    return !value;
-  });
+  return X_PROVIDER_ENV_REQUIREMENTS[provider].filter((name) => !process.env[name]);
 }
 
 function getCapabilityNote(provider: XDataProvider): string {

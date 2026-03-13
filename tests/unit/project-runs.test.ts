@@ -75,13 +75,13 @@ describe("project source provider aggregation", () => {
         discoveryProvider: "multiagent",
         lookupProvider: "apify",
         networkProvider: "not-a-provider",
-        tweetsProvider: "oxylabs",
+        tweetsProvider: "x-api",
       },
     ]];
 
     const result = await getProjectSourceProvidersByProjectIds("user-1", ["project-1", "project-2"]);
 
     expect(result.get("project-1")).toEqual(["openrouter", "x-api", "apify", "multiagent"]);
-    expect(result.get("project-2")).toEqual(["multiagent", "apify", "oxylabs"]);
+    expect(result.get("project-2")).toEqual(["multiagent", "apify", "x-api"]);
   });
 });

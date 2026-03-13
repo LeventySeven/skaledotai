@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { protectedProcedure, router } from "../trpc";
 import { assertProject } from "@/server/services/projects";
 import { importAccountNetwork, searchAndAddLeads } from "@/server/services/search";

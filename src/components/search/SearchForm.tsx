@@ -12,10 +12,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { ProjectRunTrace, ProjectRunTraceStep } from "@/lib/validations/project-runs";
+import { MultiAgentServiceSessionSchema } from "@/lib/validations/multiagent-service";
 import {
   SearchRunStreamEventSchema,
   type SearchRunStreamSnapshot,
 } from "@/lib/validations/search";
+import type { XDataProvider } from "@/lib/x";
 
 const FOLLOWER_FLOOR_OPTIONS = [
   { label: "Any size", value: 0 },
@@ -81,6 +83,41 @@ function normalizeLiveStreamError(error: unknown): Error {
   return new Error("Live search stream disconnected before the multi-agent run finished.");
 }
 
+async function getLiveMultiAgentStreamTarget(provider: XDataProvider): Promise<{
+  streamUrl: string;
+  headers: Record<string, string>;
+}> {
+  const response = await fetch("/api/multiagent/session", {
+    method: "POST",
+    headers: {
+      "x-data-provider": provider,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  const session = MultiAgentServiceSessionSchema.parse(await response.json());
+  if (session.mode === "external") {
+    return {
+      streamUrl: session.streamUrl,
+      headers: {
+        authorization: `Bearer ${session.token}`,
+        "content-type": "application/json",
+      },
+    };
+  }
+
+  return {
+    streamUrl: session.streamUrl,
+    headers: {
+      "content-type": "application/json",
+      "x-data-provider": provider,
+    },
+  };
+}
+
 export function SearchForm() {
   const router = useRouter();
   const { data: projects = [] } = trpc.projects.list.useQuery();
@@ -132,12 +169,10 @@ export function SearchForm() {
     setStreamTrace(null);
 
     try {
-      const response = await fetch("/api/search/live", {
+      const target = await getLiveMultiAgentStreamTarget(provider);
+      const response = await fetch(target.streamUrl, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-data-provider": provider,
-        },
+        headers: target.headers,
         body: JSON.stringify(payload),
       });
 

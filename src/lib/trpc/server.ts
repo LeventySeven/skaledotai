@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { createCallerFactory } from "@/server/trpc/trpc";
 import { headers } from "next/headers";
 import { appRouter } from "@/server/trpc/root";

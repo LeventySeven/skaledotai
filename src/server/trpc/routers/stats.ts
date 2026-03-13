@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { protectedProcedure, router } from "../trpc";
 import { getPostStats, refreshProfileStats } from "@/server/services/stats";
 import { GetPostStatsInputSchema, RefreshStatsInputSchema } from "@/lib/validations/stats";

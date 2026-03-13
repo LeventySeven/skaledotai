@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";

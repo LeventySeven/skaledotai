@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: skaledotai-multiagent
+    runtime: docker
+    dockerfilePath: ./services/multiagent-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    plan: starter
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: MULTIAGENT_PLANNER_MODEL
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: AGENTQL_API_KEY
+        sync: false
+      - key: MULTIAGENT_SERVICE_SHARED_SECRET
+        sync: false
+      - key: MULTIAGENT_ALLOWED_ORIGINS
+        sync: false

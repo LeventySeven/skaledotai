@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { auth } from "@/lib/auth";
 import {
   DEFAULT_X_DATA_PROVIDER,

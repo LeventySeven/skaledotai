@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { router } from "./trpc";
 import { projectsRouter } from "./routers/projects";
 import { leadsRouter } from "./routers/leads";

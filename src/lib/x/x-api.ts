@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import type { XDataClient, XResolvedTweet } from "./types";
 import {
   getFollowersPage as getXFollowersPage,

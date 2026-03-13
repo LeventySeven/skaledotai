@@ -15,9 +15,6 @@ describe("X provider runtime", () => {
     process.env.TAVILY_API_KEY = "test-tavily";
     process.env.AGENTQL_API_KEY = "test-agentql";
     process.env.OPENAI_API_KEY = "test-openai";
-    delete process.env.OXYLABS_USERNAME;
-    delete process.env.OXYLABS_PASSWORD;
-    delete process.env.OXYLABS_FIXTURE_READY;
   });
 
   test("throws when an unsupported capability is requested", () => {
@@ -29,14 +26,10 @@ describe("X provider runtime", () => {
     });
   });
 
-  test("marks oxylabs as not configured until fixture gate and credentials are present", () => {
-    const status = getXProviderRuntimeStatuses().find((item) => item.provider === "oxylabs");
+  test("marks multiagent as configured when its runtime env is present", () => {
+    const status = getXProviderRuntimeStatuses().find((item) => item.provider === "multiagent");
     expect(status).toBeDefined();
-    expect(status?.configured).toBe(false);
-    expect(status?.missingEnv).toEqual([
-      "OXYLABS_USERNAME",
-      "OXYLABS_PASSWORD",
-      "OXYLABS_FIXTURE_READY",
-    ]);
+    expect(status?.configured).toBe(true);
+    expect(status?.missingEnv).toEqual([]);
   });
 });

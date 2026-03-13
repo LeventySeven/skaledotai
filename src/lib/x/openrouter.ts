@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { z } from "zod";
 import type {
   XDataClient,

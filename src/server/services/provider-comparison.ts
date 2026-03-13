@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import type { InfluencerScore, XDataProvider, XLeadCandidate } from "@/lib/x";
 import { X_DATA_PROVIDER_OPTIONS } from "@/lib/x";
 import { getXDiscoveryProvider, getXProviderRuntimeStatuses } from "@/lib/x/registry";

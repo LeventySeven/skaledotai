@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { protectedProcedure, router } from "../trpc";
 import { createApiKey, deleteApiKey, listApiKeys } from "@/server/services/api-keys";
 import { CreateApiKeyInputSchema, DeleteApiKeyInputSchema } from "@/lib/validations/settings";

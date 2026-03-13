@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { projectRuns, projects } from "@/db/schema";

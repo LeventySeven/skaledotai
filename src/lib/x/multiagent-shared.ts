@@ -1,4 +1,4 @@
-import "server-only";
+import "@/lib/server-runtime";
 import { XProviderRuntimeError } from "./types";
 import { parseJsonResponse } from "./json";
 

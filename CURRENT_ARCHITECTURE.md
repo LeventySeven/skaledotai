@@ -508,7 +508,6 @@ Current providers:
 
 - `x-api`
 - `apify`
-- `oxylabs`
 - `multiagent`
 - `openrouter`
 
@@ -596,23 +595,6 @@ Implementation pattern:
 - advanced-search actor for tweet/user discovery
 - user-scraper actor for enrichment and network snapshots
 - normalized results mapped into the shared contract
-
-### Oxylabs adapter
-
-`src/lib/x/oxylabs.ts`
-
-Key exports:
-
-- `buildOxylabsDiscoveryUrls`
-- `oxylabsDiscoveryProvider`
-- `oxylabsClient`
-
-Implementation pattern:
-
-- sends rendered-page scrape requests to Oxylabs
-- discovers profiles from X search URLs
-- enriches high-value handles by scraping their profile pages
-- does not support network operations
 
 ### Multi-Agent adapter
 
