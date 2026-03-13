@@ -1,6 +1,7 @@
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { createMultiAgentServiceToken, getMultiAgentServiceUrl } from "@/lib/multiagent-service-auth";
 import { MultiAgentServiceSessionSchema } from "@/lib/validations/multiagent-service";
-import { createContext } from "@/server/trpc/context";
 
 export const runtime = "nodejs";
 
@@ -16,8 +17,8 @@ function jsonError(status: number, message: string): Response {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const ctx = await createContext({ headers: req.headers });
-  if (!ctx.userId) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) {
     return jsonError(401, "Unauthorized.");
   }
 
@@ -34,7 +35,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const origin = req.headers.get("origin") ?? undefined;
     const { token, payload } = createMultiAgentServiceToken({
-      userId: ctx.userId,
+      userId: session.user.id,
       origin,
     });
 
