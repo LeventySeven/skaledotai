@@ -149,7 +149,7 @@ export function MobileHeader() {
       {/* Drawer */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[305px] flex-col bg-background shadow-xl transition-transform duration-200 md:hidden",
+          "fixed inset-y-0 left-0 z-50 flex w-[228px] flex-col bg-background shadow-xl transition-transform duration-200 md:hidden",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -167,7 +167,7 @@ export function MobileHeader() {
 
 export function Sidebar() {
   return (
-    <aside className="hidden h-screen w-[305px] shrink-0 flex-col border-r bg-background md:flex">
+    <aside className="hidden h-screen w-[228px] shrink-0 flex-col border-r bg-background md:flex">
       <div className="flex h-[74px] items-center px-7 shrink-0">
         <span className="text-[1.1rem] font-semibold tracking-tight">Dashboard</span>
       </div>

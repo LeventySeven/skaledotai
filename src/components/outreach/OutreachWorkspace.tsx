@@ -72,7 +72,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           You can select multiple templates to randomise the outreach.
         </div>
 
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(256px,1fr))] items-stretch gap-5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(271px,1fr))] items-stretch gap-5">
           {standardTemplates.map((template) => (
             <TemplateCard
               key={template.id}
@@ -113,7 +113,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
             <div className="mb-4 text-[0.92rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Generated templates
             </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(256px,1fr))] items-stretch gap-5">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(271px,1fr))] items-stretch gap-5">
               {generatedTemplates.map((template) => (
                 <TemplateCard
                   key={template.id}
