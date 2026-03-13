@@ -39,11 +39,11 @@ function jsonError(status: number, message: string, origin: string | null | unde
 }
 
 async function writeEvent(
-  writer: WritableStreamDefaultWriter<Uint8Array>,
+  controller: ReadableStreamDefaultController<Uint8Array>,
   event: unknown,
 ): Promise<void> {
   const payload = SearchRunStreamEventSchema.parse(event);
-  await writer.write(encoder.encode(`${JSON.stringify(payload)}\n`));
+  controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
 }
 
 function extractBearerToken(req: Request): string | null {
@@ -115,69 +115,101 @@ async function handleLiveSearch(req: Request): Promise<Response> {
     return jsonError(400, "Invalid live search payload.", origin);
   }
 
-  const stream = new TransformStream<Uint8Array, Uint8Array>();
-  const writer = stream.writable.getWriter();
-  let writeQueue = Promise.resolve();
-  let latestSnapshot = createBootstrapSnapshot({
-    targetLeadCount: parsed.data.targetLeadCount,
-  });
-
   console.info("[multiagent-service][search-live] accepted", JSON.stringify({
     origin,
     userId: auth.sub,
     query: parsed.data.query,
     targetLeadCount: parsed.data.targetLeadCount ?? SEARCH_TARGET,
   }));
-
-  function enqueueEvent(event: unknown): Promise<void> {
-    writeQueue = writeQueue
-      .catch(() => undefined)
-      .then(() => writeEvent(writer, event));
-    return writeQueue;
-  }
-
-  void (async () => {
-    const heartbeat = setInterval(() => {
-      void enqueueEvent({ type: "snapshot", snapshot: latestSnapshot });
-    }, 10_000);
-
-    try {
-      await enqueueEvent({ type: "snapshot", snapshot: latestSnapshot });
-
-      const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
-        onStep: (step) => enqueueEvent({ type: "step", step }),
-        onSnapshot: (snapshot) => {
-          latestSnapshot = snapshot;
-          return enqueueEvent({ type: "snapshot", snapshot });
-        },
+  const readable = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let latestSnapshot = createBootstrapSnapshot({
+        targetLeadCount: parsed.data.targetLeadCount,
       });
+      let closed = false;
 
-      console.info("[multiagent-service][search-live] complete", JSON.stringify({
+      const safeWriteEvent = async (event: unknown): Promise<void> => {
+        if (closed) return;
+        try {
+          await writeEvent(controller, event);
+        } catch (error) {
+          closed = true;
+          console.error("[multiagent-service][stream-write] error", JSON.stringify({
+            userId: auth.sub,
+            query: parsed.data.query,
+            message: error instanceof Error ? error.message : String(error),
+          }));
+          controller.error(error);
+        }
+      };
+
+      const closeStream = () => {
+        if (closed) return;
+        closed = true;
+        controller.close();
+      };
+
+      const heartbeat = setInterval(() => {
+        void safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
+      }, 10_000);
+
+      void (async () => {
+        try {
+          await safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
+
+          const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
+            onStep: (step) => safeWriteEvent({ type: "step", step }),
+            onSnapshot: (snapshot) => {
+              latestSnapshot = snapshot;
+              return safeWriteEvent({ type: "snapshot", snapshot });
+            },
+          });
+
+          console.info("[multiagent-service][search-live] complete", JSON.stringify({
+            userId: auth.sub,
+            query: parsed.data.query,
+            leads: result.leads.length,
+            projectId: result.project.id,
+          }));
+          await safeWriteEvent({ type: "complete", result });
+          closeStream();
+        } catch (error) {
+          const normalized = error instanceof TRPCError ? error : toXProviderTrpcError(error);
+          console.error("[multiagent-service][search-live] error", JSON.stringify({
+            userId: auth.sub,
+            query: parsed.data.query,
+            message: normalized.message,
+          }));
+          await safeWriteEvent({
+            type: "error",
+            message: normalized.message,
+          });
+          closeStream();
+        } finally {
+          clearInterval(heartbeat);
+        }
+      })().catch((error) => {
+        clearInterval(heartbeat);
+        console.error("[multiagent-service][search-live][unhandled]", JSON.stringify({
+          userId: auth.sub,
+          query: parsed.data.query,
+          message: error instanceof Error ? error.message : String(error),
+        }));
+        if (!closed) {
+          controller.error(error);
+        }
+      });
+    },
+    cancel(reason) {
+      console.warn("[multiagent-service][search-live] cancelled", JSON.stringify({
         userId: auth.sub,
         query: parsed.data.query,
-        leads: result.leads.length,
-        projectId: result.project.id,
+        reason: reason instanceof Error ? reason.message : String(reason),
       }));
-      await enqueueEvent({ type: "complete", result });
-    } catch (error) {
-      const normalized = error instanceof TRPCError ? error : toXProviderTrpcError(error);
-      console.error("[multiagent-service][search-live] error", JSON.stringify({
-        userId: auth.sub,
-        query: parsed.data.query,
-        message: normalized.message,
-      }));
-      await enqueueEvent({
-        type: "error",
-        message: normalized.message,
-      }).catch(() => undefined);
-    } finally {
-      clearInterval(heartbeat);
-      await writeQueue.catch(() => undefined);
-      await writer.close().catch(() => undefined);
-    }
-  })();
+    },
+  });
 
-  return new Response(stream.readable, {
+  return new Response(readable, {
     headers: {
       ...buildCorsHeaders(origin),
       "content-type": "application/x-ndjson; charset=utf-8",
