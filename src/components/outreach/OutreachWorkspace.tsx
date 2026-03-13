@@ -54,8 +54,8 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
     <div className="mx-auto max-w-[1700px] px-8 py-8">
       <div className="mb-8 flex flex-col gap-5 border-b border-border/70 pb-6 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <div className="text-[0.95rem] text-muted-foreground">Campaign</div>
-          <h1 className="mt-1 text-[2.9rem] font-semibold tracking-[-0.04em]">Outreach</h1>
+          <div className="text-[18px] font-medium text-[#111111]/40">Campaign</div>
+          <h1 className="mt-1 text-[28px] font-medium tracking-[-0.04em]">Outreach</h1>
         </div>
         <div />
       </div>
