@@ -99,10 +99,12 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
   return (
     <>
       <div className="relative">
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onClick={onToggle}
-          className={`flex h-[335px] w-full flex-col gap-3 rounded-[10px] border bg-card p-4 text-left shadow-sm transition-colors ${
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(); }}
+          className={`flex h-[335px] w-full cursor-pointer flex-col gap-3 rounded-[10px] border bg-card p-4 text-left shadow-sm transition-colors ${
             selected ? "border-[#e43420]" : "border-border/70 hover:border-foreground/20"
           }`}
         >
@@ -114,7 +116,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
-                className="rounded p-0.5 hover:opacity-70"
+                className="rounded p-1 hover:bg-muted"
               >
                 <EditIcon className="shrink-0 text-foreground" />
               </button>
@@ -131,7 +133,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
             <span className="truncate text-muted-foreground">{localTemplate.subject}</span>
             <span className="shrink-0 font-medium">{localTemplate.replyRate}</span>
           </div>
-        </button>
+        </div>
 
         {onDelete ? (
           <button

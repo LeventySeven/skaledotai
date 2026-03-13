@@ -59,7 +59,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
         </div>
         <div />
       </div>
-      <div className="-mx-8 mb-8 border-b border-border/70" />
+      <div className="-mx-8 mb-5 border-b border-border/70" />
 
       {uiError ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[0.95rem] text-red-700">
@@ -68,9 +68,11 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
       ) : null}
 
       <div className="mb-8">
-        <div className="mb-1 text-[18px] font-medium text-[#111111]">Choose a template to outreach</div>
-        <div className="mb-5 text-[0.95rem] text-muted-foreground">
-          You can select multiple templates to randomise the outreach.
+        <div className="mb-5 w-fit">
+          <div className="mb-1 text-[18px] font-medium text-[#111111]">Choose a template to outreach</div>
+          <div className="text-[16px] font-normal text-muted-foreground">
+            You can select multiple templates to randomise the outreach.
+          </div>
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fill,minmax(271px,1fr))] items-stretch gap-5">
