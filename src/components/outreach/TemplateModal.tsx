@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { XIcon } from "lucide-react";
+import { toastManager } from "@/components/ui/toast";
 
 interface TemplateModalProps {
   mode: "create" | "edit" | "fork";
@@ -11,9 +12,25 @@ interface TemplateModalProps {
   onSave: (values: { title: string; body: string }) => void;
 }
 
+const TITLE_MIN = 3;
+const BODY_MIN = 10;
+
 export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClose, onSave }: TemplateModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const [body, setBody] = useState(initialBody);
+
+  function handleSave() {
+    if (title.trim().length < TITLE_MIN) {
+      toastManager.add({ type: "error", title: `Title must be at least ${TITLE_MIN} characters.` });
+      return;
+    }
+    if (body.trim().length < BODY_MIN) {
+      toastManager.add({ type: "error", title: `Body must be at least ${BODY_MIN} characters.` });
+      return;
+    }
+    onSave({ title: title.trim(), body: body.trim() });
+    onClose();
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -32,7 +49,12 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
 
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[0.85rem] font-medium text-muted-foreground">Title</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[0.85rem] font-medium text-muted-foreground">Title</label>
+              <span className={`text-[0.78rem] ${title.trim().length < TITLE_MIN ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                {title.trim().length}/{TITLE_MIN} min
+              </span>
+            </div>
             <input
               autoFocus
               className="h-10 rounded-xl border border-input bg-background px-3 text-[0.95rem] outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background"
@@ -43,7 +65,12 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[0.85rem] font-medium text-muted-foreground">Body</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[0.85rem] font-medium text-muted-foreground">Body</label>
+              <span className={`text-[0.78rem] ${body.trim().length < BODY_MIN ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                {body.trim().length}/{BODY_MIN} min
+              </span>
+            </div>
             <textarea
               className="min-h-[160px] resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-[0.95rem] leading-relaxed outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background"
               placeholder={"Hi {{name}},\n\n..."}
@@ -63,9 +90,8 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
           </button>
           <button
             type="button"
-            disabled={!title.trim()}
-            onClick={() => { onSave({ title, body }); onClose(); }}
-            className="h-9 rounded-xl bg-foreground px-4 text-[0.9rem] text-background hover:opacity-90 disabled:opacity-40"
+            onClick={handleSave}
+            className="h-9 rounded-xl bg-foreground px-4 text-[0.9rem] text-background hover:opacity-90"
           >
             {mode === "create" ? "Create" : mode === "fork" ? "Save to my templates" : "Save"}
           </button>
