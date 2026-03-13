@@ -58,7 +58,7 @@ export function AiPanel({
       <div className="flex flex-wrap items-center gap-3">
         <Input
           className="h-9 w-[280px] rounded-xl text-[0.88rem]"
-          placeholder="Optional angle, e.g. more premium / more direct"
+          placeholder="Style angle (optional)"
           value={stylePrompt}
           onChange={(e: ChangeEvent<HTMLInputElement>) => onStylePromptChange(e.target.value)}
         />
