@@ -121,18 +121,20 @@ async function handleLiveSearch(req: Request): Promise<Response> {
     query: parsed.data.query,
     targetLeadCount: parsed.data.targetLeadCount ?? SEARCH_TARGET,
   }));
+  let closed = false;
+  let latestSnapshot = createBootstrapSnapshot({
+    targetLeadCount: parsed.data.targetLeadCount,
+  });
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+
   const readable = new ReadableStream<Uint8Array>({
     start(controller) {
-      let latestSnapshot = createBootstrapSnapshot({
-        targetLeadCount: parsed.data.targetLeadCount,
-      });
-      let closed = false;
-
       const safeWriteEvent = async (event: unknown): Promise<void> => {
         if (closed) return;
         try {
           await writeEvent(controller, event);
         } catch (error) {
+          if (closed) return;
           closed = true;
           console.error("[multiagent-service][stream-write] error", JSON.stringify({
             userId: auth.sub,
@@ -146,16 +148,22 @@ async function handleLiveSearch(req: Request): Promise<Response> {
       const closeStream = () => {
         if (closed) return;
         closed = true;
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Ignore close races after client disconnects.
+        }
       };
 
-      const heartbeat = setInterval(() => {
+      heartbeat = setInterval(() => {
         void safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
       }, 10_000);
 
       void (async () => {
         try {
-          await safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
+          for (let index = 0; index < 8; index += 1) {
+            await safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
+          }
 
           const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
             onStep: (step) => safeWriteEvent({ type: "step", step }),
@@ -186,10 +194,10 @@ async function handleLiveSearch(req: Request): Promise<Response> {
           });
           closeStream();
         } finally {
-          clearInterval(heartbeat);
+          if (heartbeat) clearInterval(heartbeat);
         }
       })().catch((error) => {
-        clearInterval(heartbeat);
+        if (heartbeat) clearInterval(heartbeat);
         console.error("[multiagent-service][search-live][unhandled]", JSON.stringify({
           userId: auth.sub,
           query: parsed.data.query,
@@ -201,6 +209,8 @@ async function handleLiveSearch(req: Request): Promise<Response> {
       });
     },
     cancel(reason) {
+      closed = true;
+      if (heartbeat) clearInterval(heartbeat);
       console.warn("[multiagent-service][search-live] cancelled", JSON.stringify({
         userId: auth.sub,
         query: parsed.data.query,
