@@ -48,14 +48,16 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
           <div className="flex items-center justify-between">
             <div className="text-[0.95rem] font-semibold">{localTemplate.title}</div>
             {selected ? (
-              <CheckCircle2Icon className="size-4 shrink-0 text-[#e43420]" />
+              <span className="flex size-[26px] shrink-0 items-center justify-center">
+                <CheckCircle2Icon className="size-[18px] text-[#e43420]" />
+              </span>
             ) : (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
-                className="rounded p-1 hover:bg-muted"
+                className="flex size-[26px] shrink-0 items-center justify-center rounded hover:bg-muted"
               >
-                <EditIcon className="shrink-0 text-foreground" />
+                <EditIcon className="text-foreground" />
               </button>
             )}
           </div>
