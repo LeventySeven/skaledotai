@@ -68,7 +68,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete }:
             <p className="whitespace-pre-line">{localTemplate.body}</p>
           </div>
 
-          <div className="border-t border-border/70 pt-3 text-[0.82rem]">
+          <div className="flex justify-end border-t border-border/70 pt-3 text-[0.82rem]">
             <span className="font-medium">Reply rate {localTemplate.replyRate}</span>
           </div>
         </div>
