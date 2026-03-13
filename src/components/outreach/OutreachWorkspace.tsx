@@ -52,13 +52,14 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
 
   return (
     <div className="mx-auto max-w-[1700px] px-8 py-8">
-      <div className="mb-8 flex flex-col gap-5 border-b border-border/70 pb-6 xl:flex-row xl:items-start xl:justify-between">
-        <div>
+      <div className="flex w-full items-start justify-between pb-6">
+        <div className="flex flex-col">
           <div className="text-[18px] font-medium text-[#111111]/40">Campaign</div>
-          <h1 className="mt-1 text-[28px] font-medium tracking-[-0.04em]">Outreach</h1>
+          <h1 className="text-[28px] font-medium tracking-[-0.04em]">Outreach</h1>
         </div>
         <div />
       </div>
+      <div className="-mx-8 mb-8 border-b border-border/70" />
 
       {uiError ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[0.95rem] text-red-700">
@@ -67,7 +68,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
       ) : null}
 
       <div className="mb-8">
-        <div className="mb-1 text-[1rem] font-semibold">Choose a template to outreach</div>
+        <div className="mb-1 text-[18px] font-medium text-[#111111]">Choose a template to outreach</div>
         <div className="mb-5 text-[0.95rem] text-muted-foreground">
           You can select multiple templates to randomise the outreach.
         </div>
