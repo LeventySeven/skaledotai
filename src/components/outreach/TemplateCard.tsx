@@ -69,20 +69,19 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
             <p className="whitespace-pre-line">{localTemplate.body}</p>
           </div>
 
-          <div className="flex justify-end border-t border-border/70 pt-3 text-[0.82rem]">
+          <div className="flex items-center justify-between border-t border-border/70 pt-3 text-[0.82rem]">
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                className="flex size-[26px] items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-red-50 hover:text-red-500"
+              >
+                <Trash2Icon className="size-3.5" />
+              </button>
+            ) : <span />}
             <span className="font-medium">Reply rate {localTemplate.replyRate}</span>
           </div>
         </div>
-
-        {onDelete ? (
-          <button
-            type="button"
-            onClick={onDelete}
-            className="absolute right-2 top-2 rounded-lg p-1 text-muted-foreground hover:text-destructive"
-          >
-            <Trash2Icon className="size-3.5" />
-          </button>
-        ) : null}
       </div>
 
       {editOpen ? (
