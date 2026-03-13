@@ -402,6 +402,7 @@ export function SearchForm() {
         <div className="space-y-2">
           <label className="flex items-center gap-3 text-[1rem]">
             <Checkbox
+              id="search-followers-only"
               checked={searchFollowersOnly}
               onCheckedChange={(value) => setSearchFollowersOnly(Boolean(value))}
             />

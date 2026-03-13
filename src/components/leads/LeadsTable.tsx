@@ -80,7 +80,7 @@ export function LeadsTable({
           <TableHeader className="bg-muted/10 [&_tr]:border-b [&_tr]:border-border/55">
             <TableRow className="h-10 hover:bg-transparent">
               <TableHead className="w-[40px] border-r border-border/45 px-2 text-center">
-                <Checkbox checked={allVisibleSelected} onCheckedChange={(value) => onToggleAllSelection(Boolean(value))} />
+                <Checkbox id="select-all" checked={allVisibleSelected} onCheckedChange={(value) => onToggleAllSelection(Boolean(value))} />
               </TableHead>
               <TableHead className="min-w-[230px] border-r border-border/45">Name</TableHead>
               <TableHead className="w-[68px] border-r border-border/45 text-center">X</TableHead>
@@ -102,6 +102,7 @@ export function LeadsTable({
               >
                 <TableCell className="border-r border-border/45 px-2 text-center" onClick={(event) => event.stopPropagation()}>
                   <Checkbox
+                    id={`select-${lead.id}`}
                     checked={allFilteredSelected || selectedIds.includes(lead.id)}
                     onCheckedChange={(value) => onToggleRowSelection(lead.id, Boolean(value))}
                   />
@@ -140,6 +141,7 @@ export function LeadsTable({
                 </TableCell>
                 <TableCell className="border-r border-border/45 text-center" onClick={(event) => event.stopPropagation()}>
                   <Checkbox
+                    id={`dm-${lead.id}`}
                     checked={isDMed(lead)}
                     onCheckedChange={(value) => {
                       onPatch(lead.id, {
@@ -151,6 +153,7 @@ export function LeadsTable({
                 </TableCell>
                 <TableCell className="border-r border-border/45 text-center" onClick={(event) => event.stopPropagation()}>
                   <Checkbox
+                    id={`reply-${lead.id}`}
                     checked={isReplied(lead)}
                     onCheckedChange={(value) => {
                       onPatch(lead.id, {
