@@ -14,6 +14,7 @@ function chain(value: unknown): any {
 
 const discoverCandidatesMock = mock(async (_input?: unknown): Promise<any[]> => []);
 const lookupUsersByUsernamesMock = mock(async (_usernames?: unknown): Promise<any[]> => []);
+const lookupUsersByIdsMock = mock(async (_userIds?: unknown): Promise<any[]> => []);
 const getFollowersPageMock = mock(async (_input?: unknown): Promise<{ profiles: any[]; nextToken?: string }> => ({ profiles: [], nextToken: undefined }));
 const getFollowingPageMock = mock(async (_input?: unknown): Promise<{ profiles: any[]; nextToken?: string }> => ({ profiles: [], nextToken: undefined }));
 const searchRecentPostsMock = mock(async (_query?: unknown, _maxResults?: unknown, _nextToken?: unknown): Promise<{ tweets: any[]; users: any[]; nextToken?: string }> => ({ tweets: [], users: [], nextToken: undefined }));
@@ -24,6 +25,7 @@ const getXDataClientForCapabilityMock = mock((provider: string, capability: stri
     provider,
     searchUsers: discoverCandidatesMock,
     lookupUsersByUsernames: lookupUsersByUsernamesMock,
+    lookupUsersByIds: lookupUsersByIdsMock,
     getFollowersPage: getFollowersPageMock,
     getFollowingPage: getFollowingPageMock,
     searchRecentPosts: searchRecentPostsMock,
@@ -236,6 +238,7 @@ beforeEach(() => {
   insertMock.mockClear();
   discoverCandidatesMock.mockReset();
   lookupUsersByUsernamesMock.mockReset();
+  lookupUsersByIdsMock.mockReset();
   getFollowersPageMock.mockReset();
   getFollowingPageMock.mockReset();
   searchRecentPostsMock.mockReset();
@@ -251,6 +254,7 @@ beforeEach(() => {
 
   discoverCandidatesMock.mockResolvedValue([]);
   lookupUsersByUsernamesMock.mockResolvedValue([]);
+  lookupUsersByIdsMock.mockResolvedValue([]);
   getFollowersPageMock.mockResolvedValue({ profiles: [], nextToken: undefined });
   getFollowingPageMock.mockResolvedValue({ profiles: [], nextToken: undefined });
   searchRecentPostsMock.mockResolvedValue({ tweets: [], users: [], nextToken: undefined });

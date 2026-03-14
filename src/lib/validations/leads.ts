@@ -15,6 +15,7 @@ export const LeadSchema = z.object({
   name: z.string(),
   handle: z.string(),
   bio: z.string(),
+  location: z.string().optional(),
   platform: PlatformSchema,
   followers: z.number(),
   following: z.number().optional(),
@@ -34,6 +35,26 @@ export const LeadSchema = z.object({
   editable: z.boolean().optional(),
 });
 export type Lead = z.infer<typeof LeadSchema>;
+
+export const LeadReasoningSchema = z.object({
+  leadId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  summary: z.string(),
+  alignmentBullets: z.array(z.string()).min(1).max(5),
+  userGoals: z.array(z.string()).min(1).max(3),
+  confidence: z.number().int().min(0).max(100),
+  tools: z.array(z.string()).default([]),
+  subagents: z.array(z.string()).default([]),
+  generatedAt: z.string(),
+  updatedAt: z.string(),
+});
+export type LeadReasoning = z.infer<typeof LeadReasoningSchema>;
+
+export const GetLeadReasoningInputSchema = z.object({
+  leadId: z.string().uuid(),
+  projectId: z.string().uuid(),
+});
+export type GetLeadReasoningInput = z.infer<typeof GetLeadReasoningInputSchema>;
 
 export const LeadPatchSchema = z.object({
   stage: LeadStageSchema.optional(),

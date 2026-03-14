@@ -57,6 +57,7 @@ export type XLeadCandidate = {
     handle: string;
     name: string;
     bio: string;
+    location?: string;
     followers: number;
     following: number;
     isVerified?: boolean;
@@ -142,6 +143,7 @@ export interface XDataClient {
   provider: XDataProvider;
   searchUsers(query: string, maxResults?: number): Promise<XProfile[]>;
   lookupUsersByUsernames(usernames: string[]): Promise<XProfile[]>;
+  lookupUsersByIds(userIds: string[]): Promise<XProfile[]>;
   getFollowersPage(input: XUserReference & {
     paginationToken?: string;
     maxResults?: number;

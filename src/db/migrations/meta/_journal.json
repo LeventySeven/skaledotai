@@ -29,6 +29,13 @@
       "when": 1773421125206,
       "tag": "0003_gorgeous_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773500000000,
+      "tag": "0004_steady_hindsight",
+      "breakpoints": true
     }
   ]
 }

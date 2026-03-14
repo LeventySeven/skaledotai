@@ -10,9 +10,20 @@ export const MULTIAGENT_NODE_TITLES = {
   recovery: "Recovery",
 } as const;
 
+export const MULTIAGENT_SUBAGENT_TITLES = {
+  goal_interpreter: "Goal Interpreter",
+  dork_planner: "Dork Planner",
+  source_researcher: "Source Researcher",
+  profile_hydrator: "Profile Hydrator",
+  candidate_scorer: "Candidate Scorer",
+  validator: "Validator",
+  recovery: "Recovery",
+} as const;
+
 export const MULTIAGENT_MAX_QUERIES = 5;
 
 export type MultiAgentNodeName = keyof typeof MULTIAGENT_NODE_TITLES;
+export type MultiAgentSubagentName = keyof typeof MULTIAGENT_SUBAGENT_TITLES;
 export type MultiAgentRecoveryState = "low_yield" | "rate_limited" | "json_repair";
 export type MultiAgentStopReason = "goal_reached" | "max_attempts" | "query_exhausted";
 export type MultiAgentPlannerMode = "initial" | "expansion" | "repair" | "throttle";
@@ -42,6 +53,9 @@ export type PlannerResult = {
   queries: string[];
   plannerMode: MultiAgentPlannerMode;
   usedFallback: boolean;
+  userGoals: string[];
+  geoHints: string[];
+  antiGoals: string[];
   plannerError?: MultiAgentErrorRecord;
 };
 

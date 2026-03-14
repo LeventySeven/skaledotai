@@ -18,6 +18,7 @@ export const ProjectRunTraceStepSchema = z.object({
   title: z.string(),
   summary: z.string(),
   status: ProjectRunTraceStatusSchema,
+  subagent: z.string().optional(),
   provider: XDataProviderSchema.optional(),
   model: z.string().optional(),
   tools: z.array(z.string()).default([]),

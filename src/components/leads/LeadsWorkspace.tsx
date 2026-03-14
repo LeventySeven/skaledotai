@@ -189,6 +189,8 @@ export function LeadsWorkspace() {
         onOpenChange={workspace.setSheetOpen}
         onPatch={workspace.handlePatch}
         niche={workspace.currentProject?.query}
+        projectId={workspace.currentProject?.id}
+        enableReasoning={workspace.currentProject?.sourceProviders.includes("multiagent")}
       />
     </div>
   );

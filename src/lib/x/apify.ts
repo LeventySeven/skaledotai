@@ -302,6 +302,15 @@ export const apifyClient: XDataClient = {
     return collectProfiles(items);
   },
 
+  lookupUsersByIds() {
+    throw new XProviderRuntimeError({
+      provider: "apify",
+      capability: "lookup",
+      code: "CAPABILITY_UNSUPPORTED",
+      message: "Apify does not support direct lookup by X user ID.",
+    });
+  },
+
   getFollowersPage(input) {
     return getNetworkPage(input, "followers");
   },

@@ -2,8 +2,9 @@ import "@/lib/server-runtime";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { assertProject } from "@/server/services/projects";
+import { getLeadReasoning } from "@/server/services/lead-reasoning";
 import { deleteLead, enrichLeadEmails, listLeads, scanProjectEmails, updateLead, updateLeads } from "@/server/services/leads";
-import { LeadPatchSchema, ListLeadsInputSchema } from "@/lib/validations/leads";
+import { GetLeadReasoningInputSchema, LeadPatchSchema, ListLeadsInputSchema } from "@/lib/validations/leads";
 
 export const leadsRouter = router({
   list: protectedProcedure
@@ -12,6 +13,14 @@ export const leadsRouter = router({
       if (input.projectId) await assertProject(ctx.userId, input.projectId);
       return listLeads({ userId: ctx.userId, ...input });
     }),
+
+  getReasoning: protectedProcedure
+    .input(GetLeadReasoningInputSchema)
+    .query(({ ctx, input }) => getLeadReasoning({
+      userId: ctx.userId,
+      projectId: input.projectId,
+      leadId: input.leadId,
+    })),
 
   update: protectedProcedure
     .input(z.object({ crmId: z.string().uuid(), patch: LeadPatchSchema }))

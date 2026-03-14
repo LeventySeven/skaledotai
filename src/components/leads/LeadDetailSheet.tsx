@@ -26,6 +26,8 @@ interface LeadDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onPatch: (id: string, data: Partial<Lead>) => Promise<void>;
   niche?: string;
+  projectId?: string;
+  enableReasoning?: boolean;
 }
 
 function formatNumber(n: number): string {
@@ -38,7 +40,15 @@ function initials(name: string): string {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
 
-export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: LeadDetailSheetProps) {
+export function LeadDetailSheet({
+  lead,
+  open,
+  onOpenChange,
+  onPatch,
+  niche,
+  projectId,
+  enableReasoning,
+}: LeadDetailSheetProps) {
   const utils = trpc.useUtils();
   const [importing, setImporting] = useState(false);
   const statsQuery = trpc.stats.get.useQuery(
@@ -49,8 +59,18 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
   );
   const refreshStats = trpc.stats.refresh.useMutation();
   const importNetwork = trpc.search.importNetwork.useMutation();
+  const reasoningQuery = trpc.leads.getReasoning.useQuery(
+    {
+      leadId: lead?.id ?? "00000000-0000-0000-0000-000000000000",
+      projectId: projectId ?? "00000000-0000-0000-0000-000000000000",
+    },
+    {
+      enabled: open && Boolean(lead?.id) && Boolean(projectId) && Boolean(enableReasoning),
+    },
+  );
 
   const postStats = statsQuery.data ?? null;
+  const reasoning = reasoningQuery.data ?? null;
 
   async function handleImportFollowing() {
     if (!lead || lead.platform !== "twitter") return;
@@ -126,6 +146,12 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
           <div className="grid grid-cols-2 gap-y-2 text-sm">
             <span className="text-muted-foreground">Followers</span>
             <span className="font-medium">{formatNumber(lead.followers)}</span>
+            {lead.location ? (
+              <>
+                <span className="text-muted-foreground">Location</span>
+                <span className="font-medium">{lead.location}</span>
+              </>
+            ) : null}
             {lead.following !== undefined && (
               <>
                 <span className="text-muted-foreground">Following</span>
@@ -215,6 +241,45 @@ export function LeadDetailSheet({ lead, open, onOpenChange, onPatch, niche }: Le
           )}
 
           <Separator className="my-4" />
+
+          {enableReasoning && projectId ? (
+            <>
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Why this matched</p>
+                {reasoningQuery.isLoading || reasoningQuery.isFetching ? (
+                  <p className="text-xs text-muted-foreground">Generating project-specific reasoning...</p>
+                ) : reasoning ? (
+                  <div className="space-y-3 rounded-xl border border-border/70 bg-background/70 p-4">
+                    <p className="text-sm leading-6 text-foreground">{reasoning.summary}</p>
+                    <div className="space-y-2">
+                      {reasoning.alignmentBullets.map((bullet, index) => (
+                        <div key={`${lead.id}-reasoning-${index}`} className="text-sm text-muted-foreground">
+                          {bullet}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {reasoning.userGoals.map((goal, index) => (
+                        <Badge key={`${lead.id}-goal-${index}`} variant="outline">{goal}</Badge>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">Confidence {reasoning.confidence}</Badge>
+                      {reasoning.subagents.map((subagent, index) => (
+                        <Badge key={`${lead.id}-subagent-${index}`} variant="outline">{subagent}</Badge>
+                      ))}
+                      {reasoning.tools.map((tool, index) => (
+                        <Badge key={`${lead.id}-tool-${index}`} variant="outline">{tool}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No multi-agent reasoning is available for this lead yet.</p>
+                )}
+              </div>
+              <Separator className="my-4" />
+            </>
+          ) : null}
 
           {/* CRM Fields */}
           <div className="space-y-4">

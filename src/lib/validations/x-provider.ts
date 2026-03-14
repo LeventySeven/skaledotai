@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const XDataProviderSchema = z.enum([
   "x-api",
+  "twitterapi",
   "apify",
   "multiagent",
   "openrouter",

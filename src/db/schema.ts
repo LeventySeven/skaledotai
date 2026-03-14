@@ -74,6 +74,7 @@ export const leads = pgTable("leads", {
   name: text("name").notNull(),
   handle: text("handle").notNull().default(""),
   bio: text("bio").notNull().default(""),
+  location: text("location"),
   platform: text("platform").notNull(),
   followers: integer("followers").notNull().default(0),
   following: integer("following"),
@@ -118,6 +119,24 @@ export const projectLeads = pgTable("project_leads", {
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   primaryKey({ columns: [table.projectId, table.leadId] }),
+]);
+
+export const projectLeadInsights = pgTable("project_lead_insights", {
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  contextHash: text("context_hash").notNull(),
+  summary: text("summary").notNull(),
+  alignmentBullets: text("alignment_bullets").array().notNull().default([]),
+  userGoals: text("user_goals").array().notNull().default([]),
+  confidence: integer("confidence").notNull().default(0),
+  tools: text("tools").array().notNull().default([]),
+  subagents: text("subagents").array().notNull().default([]),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.projectId, table.leadId] }),
+  index("project_lead_insights_project_id_idx").on(table.projectId),
+  index("project_lead_insights_lead_id_idx").on(table.leadId),
 ]);
 
 export const projectRuns = pgTable("project_runs", {

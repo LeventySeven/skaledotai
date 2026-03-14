@@ -344,6 +344,9 @@ export const openRouterClient: XDataClient = {
   lookupUsersByUsernames() {
     unsupported("lookup");
   },
+  lookupUsersByIds() {
+    unsupported("lookup");
+  },
   getFollowersPage(): Promise<XProfilesPage> {
     unsupported("network");
   },

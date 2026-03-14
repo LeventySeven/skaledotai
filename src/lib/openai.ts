@@ -5,6 +5,7 @@ import type { ProjectAnalysisResult } from "@/lib/validations/projects";
 import type { Priority } from "@/lib/validations/shared";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
 import type { XProfile } from "@/lib/validations/search";
+import type { LeadReasoningResult } from "@/lib/validations/lead-reasoning";
 import type { InfluencerScore, XLeadCandidate } from "@/lib/x";
 import {
   DEFAULT_OPENAI_MODEL,
@@ -104,6 +105,15 @@ const OutreachTemplateSchema = z.object({
   subject: z.string(),
   body: z.string(),
   replyRate: z.string(),
+});
+
+const LeadReasoningSchema = z.object({
+  summary: z.string(),
+  alignmentBullets: z.array(z.string()).min(1).max(5),
+  userGoals: z.array(z.string()).min(1).max(3),
+  confidence: z.number().int().min(0).max(100),
+  tools: z.array(z.string()).default([]),
+  subagents: z.array(z.string()).default([]),
 });
 
 // ── Core AI wrapper ───────────────────────────────────────────────────────────
@@ -522,4 +532,63 @@ export async function generateOutreachTemplate(input: {
     fallback,
     maxOutputTokens: 260,
   });
+}
+
+export async function generateLeadReasoning(input: {
+  query: string;
+  lead: {
+    name: string;
+    handle: string;
+    bio: string;
+    location?: string;
+    followers: number;
+    following?: number;
+  };
+  stats?: {
+    postCount: number;
+    avgViews?: number;
+    avgLikes?: number;
+    avgReplies?: number;
+    avgReposts?: number;
+    topTopics?: string[];
+  } | null;
+  tools: string[];
+  subagents: string[];
+}): Promise<LeadReasoningResult> {
+  const fallback = {
+    summary: `${input.lead.name} looks aligned with ${input.query} based on their profile and audience signals.`,
+    alignmentBullets: [
+      input.lead.bio.trim().length > 0
+        ? "Their profile bio overlaps with the project query."
+        : "The profile still shows relevant audience and identity signals.",
+      input.lead.location
+        ? `Their profile exposes a location: ${input.lead.location}.`
+        : "No explicit location was surfaced from the profile.",
+      input.stats?.topTopics?.length
+        ? `Recent posting topics include ${input.stats.topTopics.slice(0, 2).join(" and ")}.`
+        : "Recent post analysis is limited, so the fit leans more on the profile itself.",
+    ],
+    userGoals: [
+      `Find leads aligned with ${input.query}.`,
+    ],
+    confidence: 72,
+    tools: input.tools,
+    subagents: input.subagents,
+  } satisfies LeadReasoningResult;
+
+  const result = await structuredResponse<LeadReasoningResult>({
+    schemaName: "lead_reasoning",
+    schema: LeadReasoningSchema,
+    instructions:
+      "Explain why this X/Twitter lead matches the user's original lead-search goals. Keep it concrete and grounded in the provided project query, profile bio, location, audience, and post topics. Return concise reasoning only, not outreach copy.",
+    input: JSON.stringify(input),
+    fallback,
+    maxOutputTokens: 300,
+  });
+
+  return {
+    ...result,
+    tools: result.tools.length > 0 ? result.tools : input.tools,
+    subagents: result.subagents.length > 0 ? result.subagents : input.subagents,
+  };
 }

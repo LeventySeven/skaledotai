@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { expandLeadSearchQueries } from "@/lib/openai";
+import type { XProfile } from "@/lib/validations/search";
 import type {
   XDataClient,
   XDiscoveryInput,
@@ -14,6 +15,8 @@ import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
 import { dedupeProfiles, normalizeHandle } from "./normalizers";
 import { mapWithConcurrency, requireUsername } from "./scraper-utils";
+import { lookupUsersByIds as lookupXUsersByIds } from "./api";
+import { lookupTwitterApiUsersByIds } from "./twitterapi";
 import {
   requireEnv,
   describeUpstreamError,
@@ -33,6 +36,7 @@ import {
   MULTIAGENT_NODE_TITLES,
   MULTIAGENT_MAX_QUERIES,
   type MultiAgentNodeName,
+  type MultiAgentSubagentName,
   type MultiAgentRecoveryState,
   type MultiAgentStopReason,
   type MultiAgentPlannerMode,
@@ -151,8 +155,32 @@ const MultiAgentState = Annotation.Root({
     reducer: (_left, right) => right,
     default: () => undefined,
   }),
+  activeSubagent: Annotation<MultiAgentSubagentName | string | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
   completedNodes: Annotation<MultiAgentNodeName[]>({
     reducer: (left, right) => mergeUniqueStrings(left, right) as MultiAgentNodeName[],
+    default: () => [],
+  }),
+  userGoals: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  roleTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  bioTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  geoHints: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  antiGoals: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
     default: () => [],
   }),
   plannedQueries: Annotation<string[]>({
@@ -211,6 +239,14 @@ const MultiAgentState = Annotation.Root({
     reducer: (_left, right) => right,
     default: () => [],
   }),
+  hydratedCount: Annotation<number>({
+    reducer: (_left, right) => right,
+    default: () => 0,
+  }),
+  hydrationTools: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
   recoveryNote: Annotation<string | undefined>({
     reducer: (_left, right) => right,
     default: () => undefined,
@@ -219,6 +255,14 @@ const MultiAgentState = Annotation.Root({
 
 const QueryPlanSchema = z.object({
   queries: z.array(z.string()).min(2).max(8),
+}).strict();
+
+const GoalInterpretationSchema = z.object({
+  roleTerms: z.array(z.string()).default([]),
+  bioTerms: z.array(z.string()).default([]),
+  geoHints: z.array(z.string()).default([]),
+  antiGoals: z.array(z.string()).default([]),
+  userGoals: z.array(z.string()).default([]),
 }).strict();
 
 function unsupported(capability: "network"): never {
@@ -258,6 +302,84 @@ function dedupeQueries(queries: string[]): string[] {
   }
 
   return result;
+}
+
+type GoalInterpretation = z.infer<typeof GoalInterpretationSchema>;
+
+function buildHeuristicGoalInterpretation(input: {
+  niche: string;
+  seedHandle?: string;
+}): GoalInterpretation {
+  const keywords = extractKeywords(input.niche);
+  const geoHints = input.niche.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
+    ?.map((match) => match.replace(/\b(?:in|from|based in|located in)\s+/i, "").trim())
+    .filter(Boolean) ?? [];
+
+  return {
+    roleTerms: keywords.slice(0, 5),
+    bioTerms: keywords.slice(0, 6),
+    geoHints,
+    antiGoals: ["support", "official", "newsroom", "brand account"],
+    userGoals: [
+      `Find individual X accounts aligned with ${input.niche}.`,
+      input.seedHandle ? `Prefer accounts adjacent to @${input.seedHandle.replace(/^@/, "")}.` : "",
+    ].filter(Boolean),
+  };
+}
+
+async function interpretLeadSearchGoals(input: {
+  niche: string;
+  seedHandle?: string;
+}): Promise<GoalInterpretation> {
+  const fallback = buildHeuristicGoalInterpretation(input);
+
+  try {
+    const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
+    const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
+      "Interpret this lead-search request for a multi-agent X discovery system.",
+      "Extract target role terms, useful bio terms, optional geo hints, anti-goals, and short user goals.",
+      "Favor individual creators, operators, founders, designers, engineers, and practitioners over brand/support/news accounts.",
+      JSON.stringify(input),
+    ].join("\n")));
+
+    return {
+      roleTerms: dedupeQueries(result.roleTerms ?? []),
+      bioTerms: dedupeQueries(result.bioTerms ?? []),
+      geoHints: dedupeQueries(result.geoHints ?? []),
+      antiGoals: dedupeQueries(result.antiGoals ?? []),
+      userGoals: dedupeQueries(result.userGoals ?? []),
+    };
+  } catch (error) {
+    console.warn("[x-provider][multiagent][goal-interpreter]", JSON.stringify({
+      message: describeUpstreamError(error),
+      usingHeuristicInterpretation: true,
+    }));
+    return fallback;
+  }
+}
+
+function buildGoogleDorkQueries(input: {
+  niche: string;
+  seedHandle?: string;
+  attempt: number;
+  queryBudget: number;
+  interpretation: GoalInterpretation;
+}): string[] {
+  const roleBlock = input.interpretation.roleTerms.slice(0, 3).join('" OR "');
+  const bioBlock = input.interpretation.bioTerms.slice(0, 4).join('" OR "');
+  const geoBlock = input.interpretation.geoHints[0]?.trim();
+  const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
+
+  return dedupeQueries([
+    `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""}`,
+    `site:twitter.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""}`,
+    roleBlock ? `site:x.com (${input.interpretation.roleTerms.slice(0, 3).join(" OR ")}) "${input.niche}"` : "",
+    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}"` : "",
+    cleanSeed ? `site:x.com "${input.niche}" ("@${cleanSeed}" OR "similar to @${cleanSeed}")` : "",
+    input.attempt >= 2 ? `site:x.com "${input.niche}" ("bio" OR "designer" OR "founder" OR "engineer")` : "",
+    input.attempt >= 3 ? `site:x.com "${input.niche}" ("shipping" OR "building" OR "threads")` : "",
+    input.attempt >= 4 ? `site:twitter.com "${input.niche}" ("creator" OR "operator" OR "maker")` : "",
+  ]).slice(0, input.queryBudget);
 }
 
 function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" | "targetLeadCount" | "limit">): number {
@@ -429,7 +551,14 @@ async function withTimeout<T>(
   }
 }
 
-async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerResult> {
+async function buildPlannerQueries(
+  input: PlannerAgentInput,
+  interpretationOverride?: GoalInterpretation,
+): Promise<PlannerResult> {
+  const interpretation = interpretationOverride ?? await interpretLeadSearchGoals({
+    niche: input.niche,
+    seedHandle: input.seedHandle,
+  });
   const heuristicQueries = buildMultiAgentHeuristicQueries({
     niche: input.niche,
     seedHandle: input.seedHandle,
@@ -437,12 +566,19 @@ async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerRes
     targetLeadCount: input.targetLeadCount,
     goalCount: input.goalCount,
   });
+  const dorkQueries = buildGoogleDorkQueries({
+    niche: input.niche,
+    seedHandle: input.seedHandle,
+    attempt: input.attempt,
+    queryBudget: input.queryBudget,
+    interpretation,
+  });
   const variants = buildAttemptVariantQueries(input.niche, input.seedHandle, input.attempt);
   const baseBudget = input.queryBudget;
 
   if (input.recoveryState === "json_repair") {
     const repairQueries = withNewQueries(
-      [...variants, ...heuristicQueries],
+      [...dorkQueries, ...variants, ...heuristicQueries],
       input.plannedQueries,
     ).slice(0, baseBudget);
 
@@ -450,9 +586,12 @@ async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerRes
       queries: repairQueries,
       plannerMode: "repair",
       usedFallback: true,
+      userGoals: interpretation.userGoals,
+      geoHints: interpretation.geoHints,
+      antiGoals: interpretation.antiGoals,
       plannerError: getPlannerFallbackError(
         input.attempt,
-        "Planner switched to heuristic repair queries after structured output drift.",
+        "Planner switched to deterministic dork queries after structured output drift.",
       ),
     };
   }
@@ -460,7 +599,7 @@ async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerRes
   if (input.recoveryState === "low_yield") {
     const expanded = await expandLeadSearchQueries(input.niche, input.seedHandle);
     const expansionQueries = withNewQueries(
-      [...expanded, ...variants, ...heuristicQueries],
+      [...expanded, ...dorkQueries, ...variants, ...heuristicQueries],
       input.plannedQueries,
     ).slice(0, Math.min(MULTIAGENT_MAX_QUERIES, baseBudget + 1));
 
@@ -468,12 +607,15 @@ async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerRes
       queries: expansionQueries,
       plannerMode: "expansion",
       usedFallback: false,
+      userGoals: interpretation.userGoals,
+      geoHints: interpretation.geoHints,
+      antiGoals: interpretation.antiGoals,
     };
   }
 
   if (input.recoveryState === "rate_limited") {
     const throttleQueries = withNewQueries(
-      [...heuristicQueries, ...variants],
+      [...dorkQueries, ...heuristicQueries, ...variants],
       input.plannedQueries,
     ).slice(0, Math.max(2, baseBudget - 1));
 
@@ -481,60 +623,23 @@ async function buildPlannerQueries(input: PlannerAgentInput): Promise<PlannerRes
       queries: throttleQueries,
       plannerMode: "throttle",
       usedFallback: false,
+      userGoals: interpretation.userGoals,
+      geoHints: interpretation.geoHints,
+      antiGoals: interpretation.antiGoals,
     };
   }
 
-  try {
-    const planner = getPlannerModel().withStructuredOutput(QueryPlanSchema, { name: "x_query_plan" });
-    const plannerTimeoutMs = resolveMultiAgentPlannerTimeoutMs();
-    const result = await withTimeout("OpenAI planner", plannerTimeoutMs, () => planner.invoke([
-      "Generate a bounded set of X lead discovery queries for a supervisor-style multi-agent workflow.",
-      "Keep the list compact, deduplicated, and focused on individual creators, founders, operators, and practitioners in the niche.",
-      "Prefer queries that surface profile pages, relevant threads, and seed-handle adjacency.",
-      JSON.stringify({
-        niche: input.niche,
-        seedHandle: input.seedHandle,
-        limit: input.limit,
-        targetLeadCount: input.targetLeadCount,
-        goalCount: input.goalCount,
-        queryBudget: baseBudget,
-        attempt: input.attempt,
-        maxAttempts: input.maxAttempts,
-      }),
-    ].join("\n")));
-
-    return {
-      queries: withNewQueries(
-        [...result.queries, ...heuristicQueries, ...variants],
-        input.plannedQueries,
-      ).slice(0, baseBudget),
-      plannerMode: "initial",
-      usedFallback: false,
-    };
-  } catch (error) {
-    if (error instanceof XProviderRuntimeError && error.code === "NOT_CONFIGURED") {
-      throw error;
-    }
-
-    console.warn("[x-provider][multiagent][planner]", JSON.stringify({
-      message: describeUpstreamError(error),
-      plannerTimeoutMs: resolveMultiAgentPlannerTimeoutMs(),
-      usingHeuristicQueries: true,
-    }));
-
-    return {
-      queries: withNewQueries(
-        [...heuristicQueries, ...variants],
-        input.plannedQueries,
-      ).slice(0, baseBudget),
-      plannerMode: "repair",
-      usedFallback: true,
-      plannerError: getPlannerFallbackError(
-        input.attempt,
-        `Planner fallback activated. ${describeUpstreamError(error)}`,
-      ),
-    };
-  }
+  return {
+    queries: withNewQueries(
+      [...dorkQueries, ...heuristicQueries, ...variants],
+      input.plannedQueries,
+    ).slice(0, baseBudget),
+    plannerMode: "initial",
+    usedFallback: false,
+    userGoals: interpretation.userGoals,
+    geoHints: interpretation.geoHints,
+    antiGoals: interpretation.antiGoals,
+  };
 }
 
 async function runSourceFanoutAgent(input: SourceFanoutAgentInput): Promise<{
@@ -638,6 +743,282 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
   return [...byHandle.values()].sort((left, right) => right.account.followers - left.account.followers);
 }
 
+function mergeCandidateWithProfile(candidate: XLeadCandidate, profile: XProfile): XLeadCandidate {
+  return {
+    ...candidate,
+    account: {
+      ...candidate.account,
+      handle: profile.username || candidate.account.handle,
+      name: profile.displayName || candidate.account.name,
+      bio: profile.bio.trim().length > 0 ? profile.bio : candidate.account.bio,
+      location: profile.location ?? candidate.account.location,
+      followers: Math.max(candidate.account.followers, profile.followersCount),
+      following: Math.max(candidate.account.following, profile.followingCount),
+      isVerified: profile.verified ?? candidate.account.isVerified,
+      avatarUrl: profile.avatarUrl ?? candidate.account.avatarUrl,
+      profileUrl: profile.profileUrl ?? candidate.account.profileUrl,
+      xUserId: profile.xUserId ?? candidate.account.xUserId,
+    },
+  };
+}
+
+async function hydrateCandidates(candidates: XLeadCandidate[]): Promise<{
+  candidates: XLeadCandidate[];
+  hydratedCount: number;
+  tools: string[];
+}> {
+  const ids = [...new Set(
+    candidates
+      .map((candidate) => candidate.account.xUserId?.trim())
+      .filter((value): value is string => Boolean(value)),
+  )];
+
+  if (ids.length === 0) {
+    return {
+      candidates,
+      hydratedCount: 0,
+      tools: ["AgentQL"],
+    };
+  }
+
+  let profiles: XProfile[] = [];
+  let tools = ["AgentQL"];
+
+  try {
+    profiles = await lookupTwitterApiUsersByIds(ids);
+    tools = [...tools, "TwitterAPI.io"];
+  } catch (error) {
+    if (
+      error instanceof XProviderRuntimeError
+      && (error.code === "NOT_CONFIGURED" || error.code === "UPSTREAM_REQUEST_FAILED" || error.code === "UPSTREAM_INVALID_RESPONSE")
+    ) {
+      try {
+        profiles = await lookupXUsersByIds(ids);
+        tools = [...tools, "X API"];
+      } catch {
+        profiles = [];
+      }
+    } else {
+      throw error;
+    }
+  }
+
+  const byId = new Map(profiles.map((profile) => [profile.xUserId, profile]));
+  const byHandle = new Map(profiles.map((profile) => [profile.username.toLowerCase(), profile]));
+  let hydratedCount = 0;
+
+  return {
+    candidates: candidates.map((candidate) => {
+      const profile = (
+        candidate.account.xUserId ? byId.get(candidate.account.xUserId) : undefined
+      ) ?? byHandle.get(candidate.account.handle.replace(/^@/, "").toLowerCase());
+
+      if (!profile) return candidate;
+      hydratedCount += 1;
+      return mergeCandidateWithProfile(candidate, profile);
+    }),
+    hydratedCount,
+    tools,
+  };
+}
+
+const PlannerSubgraphState = Annotation.Root({
+  niche: Annotation<string>,
+  seedHandle: Annotation<string | undefined>,
+  limit: Annotation<number>,
+  targetLeadCount: Annotation<number>,
+  goalCount: Annotation<number>,
+  attempt: Annotation<number>,
+  maxAttempts: Annotation<number>,
+  queryBudget: Annotation<number>,
+  recoveryState: Annotation<MultiAgentRecoveryState | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+  plannedQueries: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  currentQueries: Annotation<string[]>({
+    reducer: (_left, right) => right,
+    default: () => [],
+  }),
+  plannerMode: Annotation<MultiAgentPlannerMode>({
+    reducer: (_left, right) => right,
+    default: () => "initial",
+  }),
+  plannerFallbackUsed: Annotation<boolean>({
+    reducer: (_left, right) => right,
+    default: () => false,
+  }),
+  plannerError: Annotation<MultiAgentErrorRecord | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+  userGoals: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  roleTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  bioTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  geoHints: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  antiGoals: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  activeSubagent: Annotation<MultiAgentSubagentName | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+});
+
+const plannerSubgraph = new StateGraph(PlannerSubgraphState)
+  .addNode("goal_interpreter", async (state) => {
+    const interpretation = await interpretLeadSearchGoals({
+      niche: state.niche,
+      seedHandle: state.seedHandle,
+    });
+
+    return {
+      activeSubagent: "goal_interpreter" as const,
+      userGoals: interpretation.userGoals,
+      roleTerms: interpretation.roleTerms,
+      bioTerms: interpretation.bioTerms,
+      geoHints: interpretation.geoHints,
+      antiGoals: interpretation.antiGoals,
+    };
+  })
+  .addNode("dork_planner", async (state) => {
+    const plan = await buildPlannerQueries({
+      attempt: state.attempt,
+      currentQueries: state.currentQueries,
+      goalCount: state.goalCount,
+      limit: state.limit,
+      maxAttempts: state.maxAttempts,
+      niche: state.niche,
+      plannedQueries: state.plannedQueries,
+      queryBudget: state.queryBudget,
+      recoveryState: state.recoveryState,
+      seedHandle: state.seedHandle,
+      targetLeadCount: state.targetLeadCount,
+    }, {
+      roleTerms: state.roleTerms,
+      bioTerms: state.bioTerms,
+      geoHints: state.geoHints,
+      antiGoals: state.antiGoals,
+      userGoals: state.userGoals,
+    });
+
+    return {
+      activeSubagent: "dork_planner" as const,
+      currentQueries: plan.queries,
+      plannerMode: plan.plannerMode,
+      plannerFallbackUsed: plan.usedFallback,
+      plannerError: plan.plannerError,
+      userGoals: plan.userGoals,
+      geoHints: plan.geoHints,
+      antiGoals: plan.antiGoals,
+    };
+  })
+  .addEdge(START, "goal_interpreter")
+  .addEdge("goal_interpreter", "dork_planner")
+  .addEdge("dork_planner", END)
+  .compile();
+
+const SourceResearchSubgraphState = Annotation.Root({
+  attempt: Annotation<number>,
+  goalCount: Annotation<number>,
+  limit: Annotation<number>,
+  query: Annotation<string>,
+  candidateUrls: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  errors: Annotation<MultiAgentErrorRecord[]>({
+    reducer: (left, right) => [...left, ...right],
+    default: () => [],
+  }),
+  activeSubagent: Annotation<MultiAgentSubagentName | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+});
+
+const sourceResearchSubgraph = new StateGraph(SourceResearchSubgraphState)
+  .addNode("source_researcher", async (state) => {
+    const result = await runSourceFanoutAgent(state);
+    return {
+      activeSubagent: "source_researcher" as const,
+      candidateUrls: result.candidateUrls,
+      errors: result.errors,
+    };
+  })
+  .addEdge(START, "source_researcher")
+  .addEdge("source_researcher", END)
+  .compile();
+
+const HydrationScoringSubgraphState = Annotation.Root({
+  niche: Annotation<string>,
+  attempt: Annotation<number>,
+  candidates: Annotation<XLeadCandidate[]>({
+    reducer: mergeCandidates,
+    default: () => [],
+  }),
+  scored: Annotation<ScoredCandidate[]>({
+    reducer: mergeScoredCandidates,
+    default: () => [],
+  }),
+  hydratedCount: Annotation<number>({
+    reducer: (_left, right) => right,
+    default: () => 0,
+  }),
+  hydrationTools: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  activeSubagent: Annotation<MultiAgentSubagentName | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+});
+
+const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
+  .addNode("profile_hydrator", async (state) => {
+    const hydrated = await hydrateCandidates(state.candidates);
+
+    return {
+      activeSubagent: "profile_hydrator" as const,
+      candidates: hydrated.candidates,
+      hydratedCount: hydrated.hydratedCount,
+      hydrationTools: hydrated.tools,
+    };
+  })
+  .addNode("candidate_scorer", async (state) => ({
+    activeSubagent: "candidate_scorer" as const,
+    scored: state.candidates.map((candidate) => {
+      const heuristic = scoreCandidateHeuristically(state.niche, candidate);
+      return {
+        candidate,
+        score: heuristic.score,
+        reasons: heuristic.reasons,
+        attempt: state.attempt,
+      } satisfies ScoredCandidate;
+    }),
+  }))
+  .addEdge(START, "profile_hydrator")
+  .addEdge("profile_hydrator", "candidate_scorer")
+  .addEdge("candidate_scorer", END)
+  .compile();
+
 function resolveLowYieldThreshold(goalCount: number): number {
   return Math.max(6, Math.ceil(goalCount * 0.12));
 }
@@ -655,27 +1036,31 @@ function summarizeMultiAgentErrors(errors: MultiAgentErrorRecord[], limit = 3): 
 
 const graph = new StateGraph(MultiAgentState)
   .addNode("planner", async (state) => {
-    const plan = await buildPlannerQueries({
-      attempt: state.attempt,
-      currentQueries: state.currentQueries,
-      goalCount: state.goalCount,
-      limit: state.limit,
-      maxAttempts: state.maxAttempts,
+    const plan = await plannerSubgraph.invoke({
       niche: state.niche,
-      plannedQueries: state.plannedQueries,
+      seedHandle: state.seedHandle,
+      limit: state.limit,
+      targetLeadCount: state.targetLeadCount,
+      goalCount: state.goalCount,
+      attempt: state.attempt,
+      maxAttempts: state.maxAttempts,
       queryBudget: state.queryBudget,
       recoveryState: state.recoveryState,
-      seedHandle: state.seedHandle,
-      targetLeadCount: state.targetLeadCount,
+      plannedQueries: state.plannedQueries,
+      currentQueries: state.currentQueries,
     });
 
     return {
       activeNode: "planner" as const,
+      activeSubagent: plan.activeSubagent,
       completedNodes: ["planner" as const],
       plannerMode: plan.plannerMode,
-      currentQueries: plan.queries,
-      plannedQueries: plan.queries,
-      plannerFallbackUsed: plan.usedFallback,
+      currentQueries: plan.currentQueries,
+      plannedQueries: plan.currentQueries,
+      plannerFallbackUsed: plan.plannerFallbackUsed,
+      userGoals: plan.userGoals,
+      geoHints: plan.geoHints,
+      antiGoals: plan.antiGoals,
       errors: plan.plannerError ? [plan.plannerError] : [],
       traceQuery: undefined,
       traceBatchUrls: [],
@@ -683,10 +1068,11 @@ const graph = new StateGraph(MultiAgentState)
     };
   })
   .addNode("source_fanout", async (state: SourceFanoutAgentInput) => {
-    const result = await runSourceFanoutAgent(state);
+    const result = await sourceResearchSubgraph.invoke(state);
 
     return {
       activeNode: "source_fanout" as const,
+      activeSubagent: result.activeSubagent,
       completedNodes: ["source_fanout" as const],
       candidateUrls: result.candidateUrls,
       errors: result.errors,
@@ -695,6 +1081,7 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("scrape_router", async () => ({
     activeNode: "scraper" as const,
+    activeSubagent: "source_researcher" as const,
     traceQuery: undefined,
   }))
   .addNode("scraper", async (state: ScraperAgentInput) => {
@@ -702,6 +1089,7 @@ const graph = new StateGraph(MultiAgentState)
 
     return {
       activeNode: "scraper" as const,
+      activeSubagent: "source_researcher" as const,
       completedNodes: ["scraper" as const],
       processedUrls: result.processedUrls,
       scraped: result.scraped,
@@ -711,22 +1099,20 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("scorer", async (state) => {
     const knownHandles = new Set(state.scored.map((item) => item.candidate.account.handle.replace(/^@/, "").toLowerCase()));
-    const pendingScores = normalizeCandidatesFromScrapedState(state)
-      .filter((candidate) => !knownHandles.has(candidate.account.handle.replace(/^@/, "").toLowerCase()))
-      .map((candidate) => {
-        const heuristic = scoreCandidateHeuristically(state.niche, candidate);
-        return {
-          candidate,
-          score: heuristic.score,
-          reasons: heuristic.reasons,
-          attempt: state.attempt,
-        } satisfies ScoredCandidate;
-      });
+    const scoredSubgraph = await hydrationScoringSubgraph.invoke({
+      niche: state.niche,
+      attempt: state.attempt,
+      candidates: normalizeCandidatesFromScrapedState(state)
+        .filter((candidate) => !knownHandles.has(candidate.account.handle.replace(/^@/, "").toLowerCase())),
+    });
 
     return {
       activeNode: "scorer" as const,
+      activeSubagent: scoredSubgraph.activeSubagent,
       completedNodes: ["scorer" as const],
-      scored: pendingScores,
+      scored: scoredSubgraph.scored,
+      hydratedCount: scoredSubgraph.hydratedCount,
+      hydrationTools: scoredSubgraph.hydrationTools,
       traceBatchUrls: [],
       traceQuery: undefined,
     };
@@ -769,6 +1155,7 @@ const graph = new StateGraph(MultiAgentState)
 
     return {
       activeNode: "validator" as const,
+      activeSubagent: "validator" as const,
       completedNodes: ["validator" as const],
       candidates,
       stopReason,
@@ -796,6 +1183,7 @@ const graph = new StateGraph(MultiAgentState)
 
     return {
       activeNode: "recovery" as const,
+      activeSubagent: "recovery" as const,
       completedNodes: ["recovery" as const],
       attempt: nextAttempt,
       queryBudget: nextQueryBudget,
@@ -958,6 +1346,14 @@ export const multiAgentClient: XDataClient = {
         .filter((payload): payload is NonNullable<typeof payload> => payload !== null)
         .flatMap((payload) => normalizeProfilesFromPayload(payload)),
     );
+  },
+  lookupUsersByIds() {
+    throw new XProviderRuntimeError({
+      provider: "multiagent",
+      capability: "lookup",
+      code: "CAPABILITY_UNSUPPORTED",
+      message: "Multi-agent lookup does not support direct lookup by X user ID.",
+    });
   },
   getFollowersPage(): Promise<XProfilesPage> {
     unsupported("network");

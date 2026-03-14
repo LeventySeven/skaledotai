@@ -4,6 +4,7 @@ import {
   getFollowersPage as getXFollowersPage,
   getFollowingPage as getXFollowingPage,
   getUserTweets as getXUserTweets,
+  lookupUsersByIds as lookupXUsersByIds,
   lookupUsersByUsernames as lookupXUsersByUsernames,
   searchAllPosts as searchXAllPosts,
   searchRecentPosts as searchXRecentPosts,
@@ -54,6 +55,10 @@ export const xApiClient: XDataClient = {
 
   lookupUsersByUsernames(usernames) {
     return lookupXUsersByUsernames(usernames);
+  },
+
+  lookupUsersByIds(userIds) {
+    return lookupXUsersByIds(userIds);
   },
 
   async getFollowersPage(input) {

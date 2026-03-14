@@ -95,6 +95,7 @@ function logTraceStep(input: {
     userId: input.userId,
     query: input.query,
     title: input.step.title,
+    subagent: input.step.subagent,
     status: input.step.status,
     provider: input.step.provider,
     model: input.step.model,
@@ -108,6 +109,7 @@ function buildSnapshotKey(snapshot: SearchRunStreamSnapshot): string {
   return [
     snapshot.attempt,
     snapshot.activeNode ?? "none",
+    snapshot.activeSubagent ?? "none",
     snapshot.recoveryState ?? "steady",
     snapshot.stopReason ?? "continue",
     snapshot.candidates,
@@ -127,6 +129,7 @@ function logSnapshotMilestone(input: {
     attempt: input.snapshot.attempt,
     maxAttempts: input.snapshot.maxAttempts,
     activeNode: input.snapshot.activeNode,
+    activeSubagent: input.snapshot.activeSubagent,
     recoveryState: input.snapshot.recoveryState,
     stopReason: input.snapshot.stopReason,
     counts: {

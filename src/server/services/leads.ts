@@ -23,6 +23,7 @@ export function rowToLead(
     name: row.name,
     handle: row.handle,
     bio: row.bio,
+    location: row.location ?? undefined,
     platform: PlatformSchema.parse(row.platform),
     followers: row.followers,
     following: row.following ?? undefined,
@@ -184,6 +185,7 @@ export async function addProfilesToProject(input: {
     name: profile.displayName,
     handle: profile.username,
     bio: profile.bio,
+    location: profile.location,
     platform: "twitter" as const,
     followers: profile.followersCount,
     following: profile.followingCount,
@@ -201,6 +203,7 @@ export async function addProfilesToProject(input: {
       set: {
         name: sql`excluded.name`,
         bio: sql`excluded.bio`,
+        location: sql`excluded.location`,
         followers: sql`excluded.followers`,
         following: sql`excluded.following`,
         avatarUrl: sql`excluded.avatar_url`,

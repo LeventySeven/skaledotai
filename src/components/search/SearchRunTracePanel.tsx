@@ -170,6 +170,7 @@ export function SearchRunTracePanel({
           <Badge variant="outline">LangGraph</Badge>
           {trace ? <Badge variant="outline">{formatDuration(trace.durationMs)}</Badge> : null}
           {snapshot?.activeNode ? <Badge variant="outline">Node: {snapshot.activeNode}</Badge> : null}
+          {snapshot?.activeSubagent ? <Badge variant="outline">Subagent: {snapshot.activeSubagent}</Badge> : null}
           {snapshot?.recoveryState ? <Badge variant="outline">Recovery: {snapshot.recoveryState.replace(/_/g, " ")}</Badge> : null}
           {snapshot?.stopReason ? <Badge variant="outline">Stop: {snapshot.stopReason.replace(/_/g, " ")}</Badge> : null}
         </div>
@@ -290,8 +291,9 @@ export function SearchRunTracePanel({
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.summary}</p>
                       </div>
 
-                    <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {step.provider ? <Badge variant="outline">{step.provider}</Badge> : null}
+                        {step.subagent ? <Badge variant="outline">{step.subagent}</Badge> : null}
                         {step.model ? <Badge variant="secondary">{step.model}</Badge> : null}
                         <Badge variant={isActive ? "secondary" : "outline"}>
                           {isActive ? "Streaming" : step.status}

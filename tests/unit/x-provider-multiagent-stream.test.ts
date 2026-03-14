@@ -10,6 +10,7 @@ const {
 describe("multi-agent stream mapping", () => {
   test("maps planner updates into a stable trace step", () => {
     const step = buildMultiAgentTraceStep("planner", {
+      activeSubagent: "dork_planner",
       queries: [
         "founding engineers",
         "founding engineers founders builders engineers creators on x",
@@ -19,6 +20,7 @@ describe("multi-agent stream mapping", () => {
     expect(step.id).toBe("multiagent-1-planner");
     expect(step.title).toBe("Planner");
     expect(step.model).toBeDefined();
+    expect(step.subagent).toBe("dork_planner");
     expect(step.tools).toEqual(["OpenAI"]);
     expect(step.metrics).toEqual([
       { label: "Queries", value: 2 },
@@ -33,6 +35,7 @@ describe("multi-agent stream mapping", () => {
       attempt: 2,
       maxAttempts: 4,
       activeNode: "scraper",
+      activeSubagent: "source_researcher",
       completedNodes: ["planner", "source_fanout"],
       plannedQueries: ["one", "two"],
       candidateUrls: ["https://x.com/one"],
@@ -74,6 +77,7 @@ describe("multi-agent stream mapping", () => {
       attempt: 2,
       maxAttempts: 4,
       activeNode: "scraper",
+      activeSubagent: "source_researcher",
       recoveryState: undefined,
       stopReason: undefined,
       firstPassCount: undefined,

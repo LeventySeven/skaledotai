@@ -14,6 +14,7 @@ import {
   supportsXProviderCapability,
 } from "./provider";
 import { apifyClient } from "./apify";
+import { twitterApiClient } from "./twitterapi";
 import { xApiClient } from "./x-api";
 import { createSearchBackedDiscoveryProvider } from "./discovery";
 import { multiAgentClient, multiAgentDiscoveryProvider } from "./multiagent";
@@ -39,12 +40,14 @@ export type XProviderResolution = {
 
 const X_PROVIDER_ENV_REQUIREMENTS: Record<XDataProvider, string[]> = {
   "x-api": ["X_API_BEARER_TOKEN"],
+  twitterapi: ["TWITTERAPI_IO_KEY"],
   apify: ["APIFY_TOKEN"],
   multiagent: ["OPENAI_API_KEY", "TAVILY_API_KEY", "AGENTQL_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
 };
 
 const X_PROVIDER_CAPABILITY_FALLBACKS: Partial<Record<XProviderCapability, XDataProvider[]>> = {
+  discovery: ["x-api"],
   lookup: ["x-api"],
   network: ["x-api"],
   tweets: ["x-api"],
@@ -56,6 +59,9 @@ const PROVIDER_COST_ESTIMATES: Record<XDataProvider, Partial<Record<XProviderCap
     lookup: 0,
     network: 0,
     tweets: 0,
+  },
+  twitterapi: {
+    lookup: 0.001,
   },
   apify: {
     discovery: 0.012,
@@ -75,12 +81,13 @@ const PROVIDER_COST_ESTIMATES: Record<XDataProvider, Partial<Record<XProviderCap
 
 const RAW_X_DATA_CLIENTS: Record<XDataProvider, XDataClient> = {
   "x-api": xApiClient,
+  twitterapi: twitterApiClient,
   apify: apifyClient,
   multiagent: multiAgentClient,
   openrouter: openRouterClient,
 };
 
-const X_DISCOVERY_PROVIDERS: Record<XDataProvider, XDiscoveryProvider> = {
+const X_DISCOVERY_PROVIDERS: Partial<Record<XDataProvider, XDiscoveryProvider>> = {
   "x-api": createSearchBackedDiscoveryProvider("x-api", xApiClient),
   apify: createSearchBackedDiscoveryProvider("apify", apifyClient),
   multiagent: multiAgentDiscoveryProvider,
@@ -268,6 +275,18 @@ function instrumentClient(
           `${client.provider}.lookupUsersByUsernames`,
         ),
     ),
+    lookupUsersByIds: instrumentMethod(
+      "lookupUsersByIds",
+      resolution.requestedProvider,
+      resolution.effectiveProvider,
+      resolution.capability,
+      resolution.usedFallback,
+      async (...args) =>
+        ensureStrictXProfiles(
+          await client.lookupUsersByIds(...args),
+          `${client.provider}.lookupUsersByIds`,
+        ),
+    ),
     getFollowersPage: instrumentMethod(
       "getFollowersPage",
       resolution.requestedProvider,
@@ -426,17 +445,19 @@ export function getXDataClientForCapability(
 export function getXDiscoveryProvider(
   requestedProvider: XDataProvider,
 ): { provider: XDiscoveryProvider; resolution: XProviderResolution } {
-  assertConfigured(requestedProvider);
-
-  const resolution: XProviderResolution = {
-    requestedProvider,
-    effectiveProvider: requestedProvider,
-    capability: "discovery",
-    usedFallback: false,
-  };
+  const resolution = resolveXProviderForCapability(requestedProvider, "discovery");
+  const provider = X_DISCOVERY_PROVIDERS[resolution.effectiveProvider];
+  if (!provider) {
+    throw new XProviderRuntimeError({
+      provider: requestedProvider,
+      capability: "discovery",
+      code: "CAPABILITY_UNSUPPORTED",
+      message: `${getXDataProviderLabel(requestedProvider)} does not support discovery.`,
+    });
+  }
 
   return {
-    provider: instrumentDiscoveryProvider(X_DISCOVERY_PROVIDERS[requestedProvider], requestedProvider),
+    provider: instrumentDiscoveryProvider(provider, requestedProvider),
     resolution,
   };
 }

@@ -72,6 +72,7 @@ export const SearchRunStreamSnapshotSchema = z.object({
   attempt: z.number().int().positive(),
   maxAttempts: z.number().int().positive(),
   activeNode: z.string().optional(),
+  activeSubagent: z.string().optional(),
   recoveryState: SearchRunRecoveryStateSchema.optional(),
   stopReason: SearchRunStopReasonSchema.optional(),
   firstPassCount: z.number().int().nonnegative().optional(),

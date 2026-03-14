@@ -82,6 +82,7 @@ function aggregateDiscoverySnapshots(
     attempt: 1,
     maxAttempts: 1,
     activeNode: undefined as string | undefined,
+    activeSubagent: undefined as string | undefined,
     graphNodes: [],
   };
 
@@ -102,6 +103,7 @@ function aggregateDiscoverySnapshots(
     total.attempt = latest.attempt;
     total.maxAttempts = latest.maxAttempts;
     total.activeNode = latest.activeNode;
+    total.activeSubagent = latest.activeSubagent;
     total.graphNodes = latest.graphNodes;
   }
 
@@ -165,6 +167,7 @@ async function emitStep(
     title: string;
     summary: string;
     status: ProjectRunTraceStatus;
+    subagent?: string;
     provider?: XDataProvider;
     model?: string;
     tools?: string[];
@@ -177,6 +180,7 @@ async function emitStep(
     title: input.title,
     summary: input.summary,
     status: input.status,
+    subagent: input.subagent,
     provider: input.provider,
     model: input.model,
     tools: input.tools ?? [],
@@ -261,14 +265,31 @@ async function canonicalizeCandidates(
   try {
     const { client, resolution } = getXDataClientForCapability(provider, "lookup");
     const handles = [...new Set(candidates.map((candidate) => candidate.account.handle.replace(/^@/, "").trim()).filter(Boolean))];
-    const lookedUpProfiles = handles.length > 0 ? await client.lookupUsersByUsernames(handles) : [];
-    const profilesByHandle = new Map(
-      lookedUpProfiles.map((profile) => [profile.username.toLowerCase(), profile]),
-    );
+    const ids = [...new Set(candidates.map((candidate) => candidate.account.xUserId?.trim()).filter((value): value is string => Boolean(value)))];
+    let lookedUpProfiles: XProfile[] = [];
+
+    if (ids.length > 0) {
+      try {
+        lookedUpProfiles = await client.lookupUsersByIds(ids);
+      } catch (error) {
+        if (!(error instanceof XProviderRuntimeError) || error.code !== "CAPABILITY_UNSUPPORTED") {
+          throw error;
+        }
+      }
+    }
+
+    if (lookedUpProfiles.length === 0 && handles.length > 0) {
+      lookedUpProfiles = await client.lookupUsersByUsernames(handles);
+    }
+
+    const profilesByHandle = new Map(lookedUpProfiles.map((profile) => [profile.username.toLowerCase(), profile]));
+    const profilesById = new Map(lookedUpProfiles.map((profile) => [profile.xUserId, profile]));
 
     const profiles = candidates.map((candidate) => {
       const handle = candidate.account.handle.replace(/^@/, "").toLowerCase();
-      const canonical = profilesByHandle.get(handle);
+      const canonical = (
+        candidate.account.xUserId ? profilesById.get(candidate.account.xUserId) : undefined
+      ) ?? profilesByHandle.get(handle);
 
       return {
         ...(canonical ?? toXProfileFromCandidate(candidate)),

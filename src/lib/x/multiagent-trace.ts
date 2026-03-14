@@ -5,6 +5,7 @@ import {
   MULTIAGENT_NODE_TITLES,
   MULTIAGENT_MAX_QUERIES,
   type MultiAgentNodeName,
+  type MultiAgentSubagentName,
   type MultiAgentRecoveryState,
   type MultiAgentStopReason,
   type ScoredCandidate,
@@ -46,6 +47,7 @@ export type MultiAgentStateSnapshot = {
   attempt?: number;
   maxAttempts?: number;
   activeNode?: MultiAgentNodeName;
+  activeSubagent?: MultiAgentSubagentName | string;
   completedNodes?: MultiAgentNodeName[];
   recoveryState?: MultiAgentRecoveryState;
   stopReason?: MultiAgentStopReason;
@@ -59,11 +61,15 @@ export type MultiAgentStateSnapshot = {
   candidates?: XLeadCandidate[];
   scored?: ScoredCandidate[];
   plannerFallbackUsed?: boolean;
+  userGoals?: string[];
+  geoHints?: string[];
   traceQuery?: string;
   traceBatchUrls?: string[];
   recoveryNote?: string;
   errors?: MultiAgentErrorRecord[];
   lastAttemptYield?: number;
+  hydratedCount?: number;
+  hydrationTools?: string[];
 };
 
 export { isMultiAgentNodeName };
@@ -82,6 +88,10 @@ function resolveNodeTools(
 
   if (nodeName === "scraper") {
     return ["AgentQL"];
+  }
+
+  if (nodeName === "scorer" && update.hydrationTools && update.hydrationTools.length > 0) {
+    return update.hydrationTools;
   }
 
   return [];
@@ -105,6 +115,7 @@ export function toMultiAgentStreamSnapshot(state: MultiAgentStateSnapshot): Sear
     attempt: state.attempt ?? 1,
     maxAttempts: state.maxAttempts ?? 1,
     activeNode,
+    activeSubagent: state.activeSubagent,
     recoveryState: state.recoveryState,
     stopReason: state.stopReason,
     firstPassCount: state.firstPassCount,
@@ -125,6 +136,12 @@ export function buildMultiAgentTraceStep(
   if (nodeName === "planner") {
     const queries = update.currentQueries ?? update.plannedQueries ?? update.queries ?? [];
     const bullets = queries.slice(0, MULTIAGENT_MAX_QUERIES).map((query, queryIndex) => `Query ${queryIndex + 1}: ${query}`);
+    if ((update.userGoals?.length ?? 0) > 0) {
+      bullets.unshift(`User goals: ${update.userGoals?.slice(0, 2).join(" · ")}`);
+    }
+    if ((update.geoHints?.length ?? 0) > 0) {
+      bullets.unshift(`Geo hints: ${update.geoHints?.slice(0, 2).join(", ")}`);
+    }
     if (update.plannerFallbackUsed) {
       bullets.unshift("Planner entered JSON-repair mode and switched to heuristic queries.");
     }
@@ -134,6 +151,7 @@ export function buildMultiAgentTraceStep(
       title: MULTIAGENT_NODE_TITLES[nodeName],
       summary: `Prepared ${queries.length} discovery queries for the current supervisor pass.`,
       status: "success",
+      subagent: update.activeSubagent,
       provider: "multiagent",
       model: plannerModelName,
       tools,
@@ -157,6 +175,7 @@ export function buildMultiAgentTraceStep(
       title: MULTIAGENT_NODE_TITLES[nodeName],
       summary: `Resolved ${urls.length} candidate X profile URLs from one discovery branch.`,
       status: "success",
+      subagent: update.activeSubagent,
       provider: "multiagent",
       tools,
       bullets,
@@ -177,6 +196,7 @@ export function buildMultiAgentTraceStep(
       title: MULTIAGENT_NODE_TITLES[nodeName],
       summary: `Scraped ${payloads.length} payloads from ${batchUrls.length || payloads.length} routed URLs.`,
       status: failures > 0 ? "warning" : "success",
+      subagent: update.activeSubagent,
       provider: "multiagent",
       tools,
       bullets: [
@@ -198,14 +218,21 @@ export function buildMultiAgentTraceStep(
       title: MULTIAGENT_NODE_TITLES[nodeName],
       summary: `Scored ${scored.length} candidate accounts for relevance, authenticity, and quality.`,
       status: "success",
+      subagent: update.activeSubagent,
       provider: "multiagent",
       tools,
-      bullets: scored.slice(0, 3).map((item) =>
-        `${item.candidate.account.handle}: ${item.score}/100${item.reasons[0] ? ` · ${item.reasons[0]}` : ""}`,
-      ),
+      bullets: [
+        update.hydratedCount && update.hydratedCount > 0
+          ? `Profile hydrator enriched ${update.hydratedCount} candidates with canonical bio/location data.`
+          : "No additional profile hydration was applied before scoring.",
+        ...scored.slice(0, 3).map((item) =>
+          `${item.candidate.account.handle}: ${item.score}/100${item.reasons[0] ? ` · ${item.reasons[0]}` : ""}`,
+        ),
+      ],
       metrics: [
         ...attemptMetric,
         { label: "Scored", value: scored.length },
+        { label: "Hydrated", value: update.hydratedCount ?? 0 },
       ],
     };
   }
@@ -217,6 +244,7 @@ export function buildMultiAgentTraceStep(
       title: MULTIAGENT_NODE_TITLES[nodeName],
       summary: `Validator kept ${candidates.length} candidates and routed the graph via ${formatStopReason(update.stopReason)}.`,
       status: update.stopReason === "goal_reached" ? "success" : update.recoveryState ? "warning" : "success",
+      subagent: update.activeSubagent,
       provider: "multiagent",
       tools,
       bullets: [
@@ -242,6 +270,7 @@ export function buildMultiAgentTraceStep(
     title: MULTIAGENT_NODE_TITLES[nodeName],
     summary: `Recovery prepared the next attempt using ${formatRecoveryState(update.recoveryState)} safeguards.`,
     status: "warning",
+    subagent: update.activeSubagent,
     provider: "multiagent",
     tools,
     bullets: [
