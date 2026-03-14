@@ -129,7 +129,7 @@ export function SearchForm() {
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
   const [minFollowers, setMinFollowers] = useState(1_000);
-  const [targetLeadCount, setTargetLeadCount] = useState(100);
+  const [targetLeadCount, setTargetLeadCount] = useState("100");
   const [liveSearchPending, setLiveSearchPending] = useState(false);
   const [streamSteps, setStreamSteps] = useState<ProjectRunTraceStep[]>([]);
   const [streamSnapshot, setStreamSnapshot] = useState<SearchRunStreamSnapshot | null>(null);
@@ -277,7 +277,7 @@ export function SearchForm() {
       minFollowers,
       targetLeadCount: Math.max(
         LEAD_TARGET_BOUNDS.min,
-        Math.min(LEAD_TARGET_BOUNDS.max, targetLeadCount),
+        Math.min(LEAD_TARGET_BOUNDS.max, Number(targetLeadCount) || LEAD_TARGET_BOUNDS.min),
       ),
     };
 
@@ -354,11 +354,7 @@ export function SearchForm() {
               min={LEAD_TARGET_BOUNDS.min}
               max={LEAD_TARGET_BOUNDS.max}
               value={targetLeadCount}
-              onChange={(event) => {
-                const nextValue = Number(event.target.value);
-                if (Number.isNaN(nextValue)) return;
-                setTargetLeadCount(nextValue);
-              }}
+              onChange={(event) => setTargetLeadCount(event.target.value)}
             />
           </div>
         </div>
