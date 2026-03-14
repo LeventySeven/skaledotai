@@ -94,7 +94,7 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
   },
   {
     value: "multiagent",
-    label: "Multi-Agent",
+    label: "Agentic",
     badge: "Experimental",
     description: "LangGraph pipeline that plans discovery, finds X URLs, scrapes profiles, and aggregates candidates.",
     integration: "Bounded LangGraph workflow with Tavily discovery, AgentQL extraction, and GPT-5 orchestration.",

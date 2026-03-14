@@ -10,6 +10,7 @@ import { signOutAction } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { getXDataProviderLabel } from "@/lib/x";
+import { LangGraphIcon } from "@/components/ui/langgraph-icon";
 import { XLogoIcon } from "@/components/ui/x-icon";
 import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
 
@@ -89,11 +90,9 @@ function SidebarProviderBadge() {
     >
       <span className="flex items-center gap-1.5 text-[0.78rem] text-muted-foreground"><XLogoIcon className="size-3" /> source</span>
       <span className="flex items-center gap-1 truncate text-[0.78rem] font-medium">
-        {(() => {
-          const label = getXDataProviderLabel(provider);
-          if (label.startsWith("X ")) return <><XLogoIcon className="size-3" /> {label.slice(2)}</>;
-          return label;
-        })()}
+        {provider === "x-api" ? <><XLogoIcon className="size-3" /> API</> : null}
+        {provider === "multiagent" ? <><LangGraphIcon className="size-3.5" /> {getXDataProviderLabel(provider)}</> : null}
+        {provider !== "x-api" && provider !== "multiagent" ? getXDataProviderLabel(provider) : null}
       </span>
     </Link>
   );
