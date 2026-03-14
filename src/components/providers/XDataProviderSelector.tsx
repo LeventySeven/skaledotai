@@ -1,32 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { CheckCircle2Icon } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
   X_DATA_PROVIDER_OPTIONS,
 } from "@/lib/x";
+import type { XProviderRuntimeStatus } from "@/lib/x/registry";
 import { useXDataProviderPreference } from "./XDataProviderPreference";
 
 export function XDataProviderSelector({
   className,
+  initialStatuses,
 }: {
   className?: string;
+  initialStatuses?: XProviderRuntimeStatus[];
 }) {
   const { provider, setProvider } = useXDataProviderPreference();
-  const { data: runtimeStatuses = [] } = trpc.settings.xProviders.list.useQuery();
+  const { data: runtimeStatuses = [] } = trpc.settings.xProviders.list.useQuery(undefined, {
+    initialData: initialStatuses,
+  });
   const statusByProvider = new Map(runtimeStatuses.map((status) => [status.provider, status]));
-
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
 
   return (
     <div className={cn("grid grid-cols-[repeat(auto-fill,minmax(271px,1fr))] items-stretch gap-5", className)}>
       {X_DATA_PROVIDER_OPTIONS.map((option) => {
         const status = statusByProvider.get(option.value);
-        const disabled = hydrated && status ? !status.configured : false;
-        const active = hydrated && provider === option.value;
+        const disabled = status ? !status.configured : false;
+        const active = provider === option.value;
 
         return (
           <button

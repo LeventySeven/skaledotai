@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
+import type { XProviderRuntimeStatus } from "@/lib/x/registry";
 
 function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "Never";
@@ -18,12 +19,17 @@ function formatDate(value: Date | string | null | undefined): string {
   });
 }
 
-export function SettingsWorkspace() {
+interface SettingsWorkspaceProps {
+  initialApiKeys?: { id: string; name: string; prefix: string; createdAt: Date | string; lastUsed: Date | string | null }[];
+  initialXProviderStatuses?: XProviderRuntimeStatus[];
+}
+
+export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: SettingsWorkspaceProps) {
   const utils = trpc.useUtils();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState("");
   const [latestKey, setLatestKey] = useState<string | null>(null);
-  const listQuery = trpc.settings.apiKeys.list.useQuery();
+  const listQuery = trpc.settings.apiKeys.list.useQuery(undefined, { initialData: initialApiKeys });
   const createKey = trpc.settings.apiKeys.create.useMutation({
     onSuccess: async (result) => {
       setLatestKey(result.key);
@@ -70,7 +76,7 @@ export function SettingsWorkspace() {
             Choose the provider Skale uses for search, imports, stats, and AI analysis.
           </div>
         </div>
-        <XDataProviderSelector />
+        <XDataProviderSelector initialStatuses={initialXProviderStatuses} />
       </div>
 
       <div className="-mx-8 mb-8 border-b border-border/70" />
