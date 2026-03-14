@@ -60,12 +60,12 @@ export function SettingsWorkspace() {
         Manage your global X provider and API keys for programmatic access.
       </p>
 
-      <div className="mt-10 rounded-[1.75rem] border border-border bg-card p-6 shadow-xs/5">
-        <h2 className="text-[1.65rem] font-semibold tracking-[-0.03em]">X data source</h2>
+      <div className="mt-10">
+        <h2 className="text-[1.95rem] font-semibold tracking-[-0.03em]">X data source</h2>
         <p className="mt-2 text-[0.98rem] leading-7 text-muted-foreground">
           Choose the provider Skale uses for search, imports, stats, and AI analysis.
         </p>
-        <XDataProviderSelector className="mt-5" />
+        <XDataProviderSelector className="mt-6" />
       </div>
 
       <div className="my-12 h-px bg-border" />
