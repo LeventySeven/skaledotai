@@ -127,7 +127,6 @@ export function SearchForm() {
   const [query, setQuery] = useState("");
   const [projectMode, setProjectMode] = useState<"new" | "existing">("new");
   const [projectId, setProjectId] = useState("");
-  const [projectName, setProjectName] = useState("");
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
   const [minFollowers, setMinFollowers] = useState(1_000);
@@ -271,7 +270,7 @@ export function SearchForm() {
     const payload = {
       query: query.trim(),
       projectId: projectMode === "existing" ? projectId || undefined : undefined,
-      projectName: projectMode === "new" ? projectName.trim() || query.trim() : undefined,
+      projectName: projectMode === "new" ? query.trim() : undefined,
       followerUsername:
         searchFollowersOnly && followerUsername.trim()
           ? followerUsername.replace(/^@/, "").trim()
@@ -316,9 +315,7 @@ export function SearchForm() {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">
-            Project <span className="ml-2 font-normal text-muted-foreground">(optional)</span>
-          </label>
+          <label className="block text-[1.05rem] font-semibold">Project</label>
           <select
             className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
             value={projectMode}
@@ -327,16 +324,6 @@ export function SearchForm() {
             <option value="new">Create new project</option>
             <option value="existing">Use existing project</option>
           </select>
-          {projectMode === "new" ? (
-            <>
-              <Input
-                className="h-[42px] rounded-2xl text-[1rem]"
-                placeholder="e.g. Designers campaign"
-                value={projectName}
-                onChange={(event) => setProjectName(event.target.value)}
-              />
-            </>
-          ) : null}
         </div>
 
         {projectMode === "existing" ? (
