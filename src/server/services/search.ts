@@ -247,7 +247,7 @@ function toScreeningCandidate(candidate: XLeadCandidate): XProfile & { samplePos
 async function resolveProject(userId: string, input: SearchLeadInput): Promise<Project> {
   if (input.projectId) {
     const existing = await getProjectById(userId, input.projectId);
-    if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+    if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found." });
     return existing;
   }
 

@@ -35,7 +35,7 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
         <button
           onClick={() => setExpanded((v) => !v)}
           className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground"
-          aria-label={expanded ? "Collapse projects" : "Expand projects"}
+          aria-label={expanded ? "Collapse campaigns" : "Expand campaigns"}
         >
           <ChevronRightIcon className={cn("size-3.5 transition-transform", expanded && "rotate-90")} />
         </button>
@@ -47,7 +47,7 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
             pathname === "/projects" && "bg-accent text-foreground",
           )}
         >
-          Projects
+          Campaigns
         </Button>
       </div>
       {expanded && (

@@ -187,7 +187,7 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
 
   async function handleGenerateTemplate() {
     if (effectiveProjectIds.length === 0) {
-      toastManager.add({ type: "error", title: "Select at least one project to give AI context." });
+      toastManager.add({ type: "error", title: "Select at least one campaign to give AI context." });
       return;
     }
     await generateTemplate.mutateAsync({

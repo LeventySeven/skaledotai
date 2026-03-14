@@ -24,7 +24,7 @@ const NETWORK_REASONING_STEPS: LiveReasoningStep[] = [
   {
     id: "insert",
     title: "Spreadsheet insert",
-    summary: "Writing the imported network rows into the selected project sheet.",
+    summary: "Writing the imported network rows into the selected campaign sheet.",
   },
 ] as const;
 
@@ -105,13 +105,13 @@ export function ImportNetworkForm() {
             value={networkProjectMode}
             onChange={(event) => setNetworkProjectMode(event.target.value as "new" | "existing")}
           >
-            <option value="new">Create new project</option>
-            <option value="existing">Use existing project</option>
+            <option value="new">Create new campaign</option>
+            <option value="existing">Use existing campaign</option>
           </select>
           {networkProjectMode === "new" ? (
             <Input
               className="h-[42px] items-center rounded-[10px] text-[1rem]"
-              placeholder="Project name (optional)"
+              placeholder="Campaign name (optional)"
               value={networkProjectName}
               onChange={(event) => setNetworkProjectName(event.target.value)}
             />
@@ -122,7 +122,7 @@ export function ImportNetworkForm() {
               onChange={(event) => setNetworkProjectId(event.target.value)}
               required
             >
-              <option value="">Select project</option>
+              <option value="">Select campaign</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}

@@ -303,7 +303,7 @@ export function SearchForm() {
     <>
       {rerunProjectId ? (
         <div className="mt-8 mb-2 flex items-center justify-between rounded-[10px] border border-border px-3.5 py-2.5">
-          <span className="text-[0.88rem] text-muted-foreground">Re-running into existing project</span>
+          <span className="text-[0.88rem] text-muted-foreground">Re-running into existing campaign</span>
           <Button
             type="button"
             variant="outline"

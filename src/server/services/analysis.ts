@@ -192,7 +192,7 @@ export async function analyzeProjectsIntoNewProject(input: {
     const { client, resolution } = getXDataClientForCapability(requestedProvider, "tweets");
     const uniqueProjectIds = [...new Set(input.projectIds)];
     if (uniqueProjectIds.length === 0) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Select at least one project." });
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Select at least one campaign." });
     }
 
     const ownedProjects = await db
@@ -201,7 +201,7 @@ export async function analyzeProjectsIntoNewProject(input: {
       .where(and(eq(projects.userId, input.userId), inArray(projects.id, uniqueProjectIds)));
 
     if (ownedProjects.length !== uniqueProjectIds.length) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "One or more projects were not found." });
+      throw new TRPCError({ code: "NOT_FOUND", message: "One or more campaigns were not found." });
     }
 
     const candidateRows = await db
@@ -247,14 +247,14 @@ export async function analyzeProjectsIntoNewProject(input: {
       status: "success",
       provider: requestedProvider,
       metrics: [
-        { label: "Projects", value: uniqueProjectIds.length },
+        { label: "Campaigns", value: uniqueProjectIds.length },
         { label: "Rows scanned", value: candidateRows.length },
         { label: "Shortlisted", value: shortlisted.length },
       ],
     });
 
     if (shortlisted.length === 0) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "No leads available in the selected projects." });
+      throw new TRPCError({ code: "NOT_FOUND", message: "No leads available in the selected campaigns." });
     }
 
     const enrichedCandidates = await mapWithConcurrency(

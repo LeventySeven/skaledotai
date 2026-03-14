@@ -197,7 +197,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
               {leads.length === 0 ? (
                 <TableRow className="h-[130px] hover:bg-transparent">
                   <TableCell colSpan={5} className="text-center text-[0.98rem] text-muted-foreground">
-                    No leads in queue. Import a folder from your projects.
+                    No leads in queue. Import a folder from your campaigns.
                   </TableCell>
                 </TableRow>
               ) : (

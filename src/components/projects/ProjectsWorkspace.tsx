@@ -18,7 +18,7 @@ const ANALYSIS_REASONING_STEPS: LiveReasoningStep[] = [
   {
     id: "pool",
     title: "Candidate pool",
-    summary: "Merging selected projects, deduplicating leads, and ranking the strongest candidates.",
+    summary: "Merging selected campaigns, deduplicating leads, and ranking the strongest candidates.",
   },
   {
     id: "enrichment",
@@ -60,7 +60,7 @@ export function ProjectsWorkspace() {
       ]);
       toastManager.add({
         type: "success",
-        title: `Created ${result.project.name} from ${result.analyzedProjectIds.length} projects.`,
+        title: `Created ${result.project.name} from ${result.analyzedProjectIds.length} campaigns.`,
       });
     },
     onError: (error) => {
@@ -96,7 +96,7 @@ export function ProjectsWorkspace() {
 
   async function handleCreateAiProject() {
     if (selectedProjectIds.length === 0) {
-      setUiError("Select at least one project for AI analysis.");
+      setUiError("Select at least one campaign for AI analysis.");
       return;
     }
 
@@ -113,9 +113,9 @@ export function ProjectsWorkspace() {
     <div className="mx-auto max-w-[1660px] px-8 py-8">
       <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <h1 className="text-[2.9rem] font-semibold tracking-[-0.04em]">Projects</h1>
+          <h1 className="text-[2.9rem] font-semibold tracking-[-0.04em]">Campaigns</h1>
           <p className="mt-2 max-w-[720px] text-[1rem] text-muted-foreground">
-            Open any project to view its spreadsheet, or run AI analysis across multiple projects to generate a new shortlist sheet.
+            Open any campaign to view its spreadsheet, or run AI analysis across multiple campaigns to generate a new shortlist sheet.
           </p>
         </div>
 
@@ -131,7 +131,7 @@ export function ProjectsWorkspace() {
                 className="h-10 w-[230px] rounded-xl text-[0.95rem]"
                 value={newProjectName}
                 onChange={(event) => setNewProjectName(event.target.value)}
-                placeholder="New project name"
+                placeholder="New campaign name"
               />
               <Button
                 className="h-10 rounded-xl px-4 text-[0.95rem]"
@@ -141,7 +141,7 @@ export function ProjectsWorkspace() {
                 }}
               >
                 {analyzeMutation.isPending ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
-                Create AI Project
+                Create AI Campaign
               </Button>
               <Button
                 variant="outline"
@@ -165,7 +165,7 @@ export function ProjectsWorkspace() {
             {selectedCount} selected
           </Badge>
           <span className="text-muted-foreground">
-            All projects start selected. Click any card to remove or re-add it before analysis.
+            All campaigns start selected. Click any card to remove or re-add it before analysis.
           </span>
         </div>
       ) : null}
@@ -208,11 +208,11 @@ export function ProjectsWorkspace() {
       {isLoading ? (
         <div className="flex h-[260px] items-center justify-center text-muted-foreground">
           <Spinner className="size-4" />
-          <span className="ml-2">Loading projects...</span>
+          <span className="ml-2">Loading campaigns...</span>
         </div>
       ) : overviews.length === 0 ? (
         <div className="rounded-[1.2rem] border border-border bg-card px-6 py-10 text-center text-muted-foreground">
-          No projects yet. Run a search first to create one.
+          No campaigns yet. Run a search first to create one.
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">

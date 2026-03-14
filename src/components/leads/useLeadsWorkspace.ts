@@ -180,7 +180,7 @@ export function useLeadsWorkspace() {
       await utils.leads.list.invalidate();
       toastManager.add({
         type: "success",
-        title: `Enriched ${result.updated} emails in ${currentProject?.name ?? "project"}.`,
+        title: `Enriched ${result.updated} emails in ${currentProject?.name ?? "campaign"}.`,
       });
       return;
     }
@@ -188,7 +188,7 @@ export function useLeadsWorkspace() {
     if (selectedIds.length === 0) {
       toastManager.add({
         type: "info",
-        title: "Select leads or open a project first.",
+        title: "Select leads or open a campaign first.",
       });
       return;
     }
