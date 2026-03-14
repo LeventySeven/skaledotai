@@ -9,6 +9,7 @@ import { useXDataProviderPreference } from "@/components/providers/XDataProvider
 import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummaryCard";
 import { SearchRunTracePanel } from "./SearchRunTracePanel";
 import { Spinner } from "@/components/ui/spinner";
+import { XLogoIcon } from "@/components/ui/x-icon";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { ProjectRunTrace, ProjectRunTraceStep } from "@/lib/validations/project-runs";
@@ -360,7 +361,7 @@ export function SearchForm() {
 
         <div className="grid gap-5 md:grid-cols-[minmax(0,270px)_minmax(0,1fr)_minmax(0,180px)]">
           <div className="space-y-2">
-            <label className="block text-[1.05rem] font-semibold">X data source</label>
+            <label className="flex items-center gap-2 text-[1.05rem] font-semibold"><XLogoIcon className="size-4" /> data source</label>
             <XDataSourceSummaryCard />
           </div>
           <div className="space-y-2">

@@ -10,6 +10,7 @@ import { signOutAction } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { getXDataProviderLabel } from "@/lib/x";
+import { XLogoIcon } from "@/components/ui/x-icon";
 import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
 
 const navItems = [
@@ -86,7 +87,7 @@ function SidebarProviderBadge() {
       href="/settings"
       className="flex items-center justify-between border-t px-5 py-3 transition-colors hover:bg-accent/50"
     >
-      <span className="text-[0.78rem] text-muted-foreground">X source</span>
+      <span className="flex items-center gap-1.5 text-[0.78rem] text-muted-foreground"><XLogoIcon className="size-3" /> source</span>
       <span className="truncate text-[0.78rem] font-medium">{getXDataProviderLabel(provider)}</span>
     </Link>
   );
