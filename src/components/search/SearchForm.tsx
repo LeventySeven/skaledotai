@@ -303,15 +303,16 @@ export function SearchForm() {
   return (
     <>
       {rerunProjectId ? (
-        <div className="mt-8 mb-2 flex items-center gap-3 rounded-xl border border-border px-3.5 py-2 text-[0.85rem] text-muted-foreground">
-          <span>Re-running into existing project</span>
-          <button
+        <div className="mt-8 mb-2 flex items-center justify-between rounded-xl border border-border px-3.5 py-2.5">
+          <span className="text-[0.88rem] text-muted-foreground">Re-running into existing project</span>
+          <Button
             type="button"
-            className="ml-auto underline hover:text-foreground"
+            variant="outline"
+            className="h-8 rounded-lg px-3 text-[0.82rem]"
             onClick={() => router.replace("/search")}
           >
             Start fresh
-          </button>
+          </Button>
         </div>
       ) : null}
 
