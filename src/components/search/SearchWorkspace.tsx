@@ -5,13 +5,15 @@ import { ImportNetworkForm } from "./ImportNetworkForm";
 
 export function SearchWorkspace() {
   return (
-    <div className="mx-auto max-w-[1120px] px-8 py-6">
+    <div className="mx-auto max-w-[1700px] px-8 py-8">
+      <div className="flex w-full items-start justify-between pb-6">
+        <div className="flex flex-col">
+          <div className="text-[18px] font-medium text-[#111111]/40">Find</div>
+          <h1 className="text-[28px] font-medium tracking-[-0.04em]">Search</h1>
+        </div>
+      </div>
+      <div className="-mx-8 mb-5 border-b border-border/70" />
       <div className="max-w-[760px]">
-        <h1 className="text-[2.85rem] font-semibold tracking-[-0.04em]">Search</h1>
-        <p className="mt-2 text-[1rem] text-muted-foreground">
-          Find people in any niche on X/Twitter.
-        </p>
-
         <SearchForm />
 
         <div className="my-8 flex items-center gap-6 text-sm text-muted-foreground">
