@@ -91,7 +91,7 @@ function SidebarProviderBadge() {
       <span className="flex items-center gap-1.5 text-[0.78rem] text-muted-foreground"><XLogoIcon className="size-3" /> source</span>
       <span className="flex items-center gap-1 truncate text-[0.78rem] font-medium">
         {provider === "x-api" ? <><XLogoIcon className="size-3" /> API</> : null}
-        {provider === "multiagent" ? <><LangGraphIcon className="size-3.5" /> {getXDataProviderLabel(provider)}</> : null}
+        {provider === "multiagent" ? <><LangGraphIcon className="size-4.5" /> {getXDataProviderLabel(provider)}</> : null}
         {provider !== "x-api" && provider !== "multiagent" ? getXDataProviderLabel(provider) : null}
       </span>
     </Link>

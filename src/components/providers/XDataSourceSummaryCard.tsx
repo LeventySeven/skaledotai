@@ -56,7 +56,7 @@ export function XDataSourceSummaryCard({
           ) : null}
           <div className={cn("mt-3 flex items-center gap-1.5 text-[1.15rem] font-semibold tracking-[-0.02em]", compact && "mt-0 text-[1rem]")}>
             {provider === "x-api" ? <><XLogoIcon className="size-4" /> API</> : null}
-            {provider === "multiagent" ? <><LangGraphIcon className="size-[18px]" /> {option.label}</> : null}
+            {provider === "multiagent" ? <><LangGraphIcon className="size-[22px]" /> {option.label}</> : null}
             {provider !== "x-api" && provider !== "multiagent" ? option.label : null}
           </div>
           {!compact && (

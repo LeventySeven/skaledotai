@@ -51,7 +51,7 @@ export function XDataProviderSelector({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[0.95rem] font-semibold">
                 {option.value === "x-api" ? <><XLogoIcon className="size-3.5" /> API</> : null}
-                {option.value === "multiagent" ? <><LangGraphIcon className="size-4" /> {option.label}</> : null}
+                {option.value === "multiagent" ? <><LangGraphIcon className="size-5" /> {option.label}</> : null}
                 {option.value !== "x-api" && option.value !== "multiagent" ? option.label : null}
               </div>
               {active ? (
