@@ -47,23 +47,11 @@ export const X_PROVIDER_CAPABILITIES: Record<XDataProvider, XProviderCapabilitie
     network: false,
     tweets: false,
   },
-  apify: {
-    discovery: true,
-    lookup: true,
-    network: true,
-    tweets: true,
-  },
   multiagent: {
     discovery: true,
     lookup: true,
     network: false,
     tweets: true,
-  },
-  openrouter: {
-    discovery: true,
-    lookup: false,
-    network: false,
-    tweets: false,
   },
 };
 
@@ -105,32 +93,6 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
     ],
   },
   {
-    value: "apify",
-    label: "Apify",
-    badge: "Actors",
-    description: "Actor-based scraping for search, profiles, tweets, and network snapshots.",
-    integration: "Synchronous Actor runs that return dataset items which Skale normalizes into one adapter.",
-    capabilities: X_PROVIDER_CAPABILITIES.apify,
-    docs: [
-      {
-        label: "Actors overview",
-        href: "https://docs.apify.com/platform/actors",
-      },
-      {
-        label: "Run sync API",
-        href: "https://docs.apify.com/api/v2/act-run-sync-get-dataset-items-post",
-      },
-      {
-        label: "Advanced search actor",
-        href: "https://apify.com/api-ninja/x-twitter-advanced-search",
-      },
-      {
-        label: "User scraper actor",
-        href: "https://apify.com/apidojo/twitter-user-scraper/input-schema",
-      },
-    ],
-  },
-  {
     value: "multiagent",
     label: "Multi-Agent",
     badge: "Experimental",
@@ -154,25 +116,6 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
       {
         label: "AgentQL query_data",
         href: "https://docs.agentql.com/scraping/scraping-data-sdk",
-      },
-    ],
-  },
-  {
-    value: "openrouter",
-    label: "OpenRouter (Grok 4.1)",
-    badge: "Experimental",
-    description: "LLM-driven X lead discovery through OpenRouter web search and structured JSON extraction.",
-    integration: "OpenRouter web search constrained to X domains, then canonicalized through the shared lookup path.",
-    experimental: true,
-    capabilities: X_PROVIDER_CAPABILITIES.openrouter,
-    docs: [
-      {
-        label: "Web search plugin",
-        href: "https://openrouter.ai/docs/guides/features/plugins/web-search",
-      },
-      {
-        label: "Structured outputs",
-        href: "https://openrouter.ai/docs/guides/features/structured-outputs",
       },
     ],
   },

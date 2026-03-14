@@ -13,12 +13,10 @@ import {
   getXDataProviderOption,
   supportsXProviderCapability,
 } from "./provider";
-import { apifyClient } from "./apify";
 import { twitterApiClient } from "./twitterapi";
 import { xApiClient } from "./x-api";
 import { createSearchBackedDiscoveryProvider } from "./discovery";
 import { multiAgentClient, multiAgentDiscoveryProvider } from "./multiagent";
-import { openRouterClient, openRouterDiscoveryProvider } from "./openrouter";
 
 export type XProviderRuntimeStatus = {
   provider: XDataProvider;
@@ -41,9 +39,7 @@ export type XProviderResolution = {
 const X_PROVIDER_ENV_REQUIREMENTS: Record<XDataProvider, string[]> = {
   "x-api": ["X_API_BEARER_TOKEN"],
   twitterapi: ["TWITTERAPI_IO_KEY"],
-  apify: ["APIFY_TOKEN"],
   multiagent: ["OPENAI_API_KEY", "TAVILY_API_KEY", "AGENTQL_API_KEY"],
-  openrouter: ["OPENROUTER_API_KEY"],
 };
 
 const X_PROVIDER_CAPABILITY_FALLBACKS: Partial<Record<XProviderCapability, XDataProvider[]>> = {
@@ -63,35 +59,22 @@ const PROVIDER_COST_ESTIMATES: Record<XDataProvider, Partial<Record<XProviderCap
   twitterapi: {
     lookup: 0.001,
   },
-  apify: {
-    discovery: 0.012,
-    lookup: 0.004,
-    network: 0.012,
-    tweets: 0.004,
-  },
   multiagent: {
     discovery: 0.03,
     lookup: 0.014,
     tweets: 0.014,
-  },
-  openrouter: {
-    discovery: 0.02,
   },
 };
 
 const RAW_X_DATA_CLIENTS: Record<XDataProvider, XDataClient> = {
   "x-api": xApiClient,
   twitterapi: twitterApiClient,
-  apify: apifyClient,
   multiagent: multiAgentClient,
-  openrouter: openRouterClient,
 };
 
 const X_DISCOVERY_PROVIDERS: Partial<Record<XDataProvider, XDiscoveryProvider>> = {
   "x-api": createSearchBackedDiscoveryProvider("x-api", xApiClient),
-  apify: createSearchBackedDiscoveryProvider("apify", apifyClient),
   multiagent: multiAgentDiscoveryProvider,
-  openrouter: openRouterDiscoveryProvider,
 };
 
 function getMissingProviderEnv(provider: XDataProvider): string[] {
