@@ -6,10 +6,11 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon, LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummaryCard";
 import { signOutAction } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import { getXDataProviderLabel } from "@/lib/x";
+import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
 
 const navItems = [
   { href: "/search", label: "Search", icon: SearchIcon },
@@ -77,6 +78,20 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
   );
 }
 
+function SidebarProviderBadge() {
+  const { provider } = useXDataProviderPreference();
+
+  return (
+    <Link
+      href="/settings"
+      className="flex items-center justify-between border-t px-5 py-3 transition-colors hover:bg-accent/50"
+    >
+      <span className="text-[0.78rem] text-muted-foreground">X source</span>
+      <span className="truncate text-[0.78rem] font-medium">{getXDataProviderLabel(provider)}</span>
+    </Link>
+  );
+}
+
 function NavContent({ onNav }: { onNav?: () => void }) {
   const pathname = usePathname();
   return (
@@ -104,12 +119,7 @@ function NavContent({ onNav }: { onNav?: () => void }) {
         </div>
       </nav>
 
-      <div className="border-t px-4 py-4">
-        <div className="px-1 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          X Data Source
-        </div>
-        <XDataSourceSummaryCard className="mt-3" compact />
-      </div>
+      <SidebarProviderBadge />
 
       <form action={signOutAction} className="border-t px-3 pb-4 pt-3">
         <Button
