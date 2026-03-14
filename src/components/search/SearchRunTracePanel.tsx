@@ -43,9 +43,9 @@ function resolveGraphNodes(
 function getNodeTone(status: SearchRunGraphNode["status"]) {
   if (status === "active") {
     return {
-      card: "border-[#e43420]/35 bg-[#fff1ef]/90 text-[#7a1d13] shadow-[0_18px_50px_-32px_rgba(228,52,32,0.55)]",
-      dot: "bg-[#e43420] ring-4 ring-[#f7c6bf]/90",
-      edge: "bg-gradient-to-r from-[#ef7b6e] via-[#f3b0a7] to-border/35",
+      card: "border-[#e84393]/35 bg-[#fdf2f8]/90 text-[#831843] shadow-[0_18px_50px_-32px_rgba(232,67,147,0.45)]",
+      dot: "bg-[#e84393] ring-4 ring-[#f9a8d4]/90",
+      edge: "bg-gradient-to-r from-[#f472b6] via-[#f9a8d4] to-border/35",
       label: "Streaming",
     };
   }
@@ -272,7 +272,7 @@ export function SearchRunTracePanel({
                     className={cn(
                       "rounded-[22px] border px-4 py-4 transition-all duration-300",
                       isActive
-                        ? "trace-active-shimmer border-[#e43420]/35 bg-[#fff1ef]/90"
+                        ? "trace-active-shimmer border-[#e84393]/35 bg-[#fdf2f8]/90"
                         : "border-border/70 bg-background/80",
                     )}
                   >
@@ -282,7 +282,7 @@ export function SearchRunTracePanel({
                           <div
                             className={cn(
                               "size-2.5 rounded-full",
-                              isActive ? "bg-[#e43420]" : "bg-foreground/70",
+                              isActive ? "bg-[#e84393]" : "bg-foreground/70",
                             )}
                           />
                           <div className="text-sm font-semibold">{step.title}</div>

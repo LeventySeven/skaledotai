@@ -320,7 +320,7 @@ function buildHeuristicGoalInterpretation(input: {
     roleTerms: keywords.slice(0, 5),
     bioTerms: keywords.slice(0, 6),
     geoHints,
-    antiGoals: ["support", "official", "newsroom", "brand account"],
+    antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution"],
     userGoals: [
       `Find individual X accounts aligned with ${input.niche}.`,
       input.seedHandle ? `Prefer accounts adjacent to @${input.seedHandle.replace(/^@/, "")}.` : "",
@@ -338,8 +338,14 @@ async function interpretLeadSearchGoals(input: {
     const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
     const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
       "Interpret this lead-search request for a multi-agent X discovery system.",
+      "",
+      "WHAT IS A LEAD: A lead is a real person or small reachable company that you could actually DM or email for outreach. Think founders, indie hackers, solo creators, small startup teams, freelancers, consultants, engineers, designers, operators — people who would realistically read and respond to a cold message.",
+      "",
+      "NOT A LEAD: Large corporations (Apple, Google, Nike), celebrity/public-figure accounts with millions of followers, brand accounts, official support/news accounts, bots, parody accounts, media outlets, and institutions. These are NOT leads because they won't respond to outreach.",
+      "",
       "Extract target role terms, useful bio terms, optional geo hints, anti-goals, and short user goals.",
       "Favor individual creators, operators, founders, designers, engineers, and practitioners over brand/support/news accounts.",
+      "Add anti-goals for large companies, corporations, official brand accounts, and celebrity accounts.",
       JSON.stringify(input),
     ].join("\n")));
 
@@ -491,7 +497,8 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   const topicScore = Math.min(24, topicalHits * 6);
   const handlePenalty = /(support|official|news|updates|hq|team)/i.test(candidate.account.handle) ? 18 : 0;
   const brandPenalty = /\b(official|support|newsroom|company|inc|labs|hq)\b/i.test(candidate.account.bio) ? 14 : 0;
-  const score = clampScore(12 + followerScore + engagementScore + postSignal + topicScore - handlePenalty - brandPenalty);
+  const largeCorporatePenalty = candidate.account.followers >= 500_000 && !/(founder|ceo|cto|i build|i'm|my |engineer|designer)/i.test(candidate.account.bio) ? 30 : 0;
+  const score = clampScore(12 + followerScore + engagementScore + postSignal + topicScore - handlePenalty - brandPenalty - largeCorporatePenalty);
 
   const reasons: string[] = [];
   if (topicalHits > 0) reasons.push(`${topicalHits} niche keyword hits across bio/posts`);
@@ -499,6 +506,7 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   if (candidate.posts.length > 0) reasons.push(`${candidate.posts.length} recent sample posts`);
   if (engagementScore >= 16) reasons.push("Healthy engagement signals");
   if (handlePenalty > 0 || brandPenalty > 0) reasons.push("Brand or support-account penalty applied");
+  if (largeCorporatePenalty > 0) reasons.push("Large corporate account — unlikely to respond to outreach");
 
   return {
     score,
@@ -516,7 +524,7 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
     evidence.push({
       source: "name",
       snippet: candidate.account.name,
-      whyItAligns: `Display name contains niche terms: ${nameHits.join(", ")}.`,
+      whyItAligns: `Found "${nameHits.join('", "')}" in name, which aligns with "${niche}".`,
     });
   }
 
@@ -526,7 +534,7 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
     evidence.push({
       source: "handle",
       snippet: `@${candidate.account.handle.replace(/^@/, "")}`,
-      whyItAligns: `Handle references niche keywords: ${handleHits.join(", ")}.`,
+      whyItAligns: `Found "${handleHits.join('", "')}" in handle, which aligns with "${niche}".`,
     });
   }
 
@@ -540,7 +548,7 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
       evidence.push({
         source: "bio",
         snippet: bioSnippet,
-        whyItAligns: `Bio mentions ${bioHits.join(", ")}, signaling alignment with the search goal.`,
+        whyItAligns: `Found "${bioHits.join('", "')}" in bio, which aligns with "${niche}".`,
       });
     }
   }
@@ -557,7 +565,7 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
     evidence.push({
       source: "post",
       snippet: postSnippet,
-      whyItAligns: `Post references ${postHits.join(", ")}, showing active engagement with the topic.`,
+      whyItAligns: `Found "${postHits.join('", "')}" in post, which aligns with "${niche}".`,
     });
   }
 
@@ -566,7 +574,7 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
     evidence.push({
       source: "audience",
       snippet: `${candidate.account.followers.toLocaleString()} followers`,
-      whyItAligns: `Audience size suggests established presence and reach in the space.`,
+      whyItAligns: `Reachable audience size suggests this is someone worth contacting about "${niche}".`,
     });
   }
 

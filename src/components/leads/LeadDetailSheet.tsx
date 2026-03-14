@@ -260,13 +260,17 @@ export function LeadDetailSheet({
                     </div>
                     {reasoning.evidence && reasoning.evidence.length > 0 && (
                       <div className="space-y-2 pt-1">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidence</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What we found</p>
                         {reasoning.evidence.map((entry, index) => (
                           <div key={`${lead.id}-evidence-${index}`} className="rounded-lg border border-border/50 bg-muted/30 p-2.5 text-sm">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1.5">
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0">{entry.source}</Badge>
                             </div>
-                            <p className="text-foreground/90 text-xs italic">&ldquo;{entry.snippet}&rdquo;</p>
+                            <p className="text-foreground text-xs">
+                              <span className="text-muted-foreground">Found </span>
+                              <span className="font-medium">&ldquo;{entry.snippet}&rdquo;</span>
+                              <span className="text-muted-foreground"> in {entry.source}</span>
+                            </p>
                             <p className="text-muted-foreground text-xs mt-1">{entry.whyItAligns}</p>
                           </div>
                         ))}
