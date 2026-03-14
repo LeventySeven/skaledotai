@@ -1,6 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { TRPCError } from "@trpc/server";
-import { SearchLeadInputSchema, SearchRunStreamEventSchema } from "../../src/lib/validations/search";
+import type { ProjectRunTraceStep } from "../../src/lib/validations/project-runs";
+import {
+  SearchLeadInputSchema,
+  SearchRunStreamEventSchema,
+  type SearchRunStreamSnapshot,
+} from "../../src/lib/validations/search";
 import { verifyMultiAgentServiceToken, isAllowedMultiAgentOrigin } from "../../src/lib/multiagent-service-auth";
 import { searchAndAddLeads } from "../../src/server/services/search";
 import { toXProviderTrpcError } from "../../src/lib/x/error-handling";
@@ -77,6 +82,62 @@ function writeStreamEvent(res: ServerResponse, event: unknown): void {
   res.write(`${JSON.stringify(payload)}\n`);
 }
 
+function metricsToRecord(metrics: ProjectRunTraceStep["metrics"]): Record<string, string | number> {
+  return Object.fromEntries(metrics.map((metric) => [metric.label, metric.value]));
+}
+
+function logTraceStep(input: {
+  userId: string;
+  query: string;
+  step: ProjectRunTraceStep;
+}): void {
+  console.info("[multiagent-service][trace-step]", JSON.stringify({
+    userId: input.userId,
+    query: input.query,
+    title: input.step.title,
+    status: input.step.status,
+    provider: input.step.provider,
+    model: input.step.model,
+    tools: input.step.tools,
+    summary: input.step.summary,
+    metrics: metricsToRecord(input.step.metrics),
+  }));
+}
+
+function buildSnapshotKey(snapshot: SearchRunStreamSnapshot): string {
+  return [
+    snapshot.attempt,
+    snapshot.activeNode ?? "none",
+    snapshot.recoveryState ?? "steady",
+    snapshot.stopReason ?? "continue",
+    snapshot.candidates,
+    snapshot.scraped,
+    snapshot.urls,
+  ].join(":");
+}
+
+function logSnapshotMilestone(input: {
+  userId: string;
+  query: string;
+  snapshot: SearchRunStreamSnapshot;
+}): void {
+  console.info("[multiagent-service][trace-snapshot]", JSON.stringify({
+    userId: input.userId,
+    query: input.query,
+    attempt: input.snapshot.attempt,
+    maxAttempts: input.snapshot.maxAttempts,
+    activeNode: input.snapshot.activeNode,
+    recoveryState: input.snapshot.recoveryState,
+    stopReason: input.snapshot.stopReason,
+    counts: {
+      queries: input.snapshot.queries,
+      urls: input.snapshot.urls,
+      scraped: input.snapshot.scraped,
+      candidates: input.snapshot.candidates,
+    },
+  }));
+}
+
 async function handleLiveSearch(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const origin = req.headers.origin ?? null;
   if (!isAllowedMultiAgentOrigin(origin)) {
@@ -132,6 +193,7 @@ async function handleLiveSearch(req: IncomingMessage, res: ServerResponse): Prom
   }));
 
   let cancelled = false;
+  let lastSnapshotKey = "";
   req.on("close", () => {
     cancelled = true;
     console.warn("[multiagent-service][search-live] cancelled", JSON.stringify({
@@ -156,9 +218,23 @@ async function handleLiveSearch(req: IncomingMessage, res: ServerResponse): Prom
   try {
     const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
       onStep: (step) => {
+        logTraceStep({
+          userId: auth.sub,
+          query: parsed.data.query,
+          step,
+        });
         safeWriteEvent({ type: "step", step });
       },
       onSnapshot: (snapshot) => {
+        const snapshotKey = buildSnapshotKey(snapshot);
+        if (snapshotKey !== lastSnapshotKey) {
+          lastSnapshotKey = snapshotKey;
+          logSnapshotMilestone({
+            userId: auth.sub,
+            query: parsed.data.query,
+            snapshot,
+          });
+        }
         safeWriteEvent({ type: "snapshot", snapshot });
       },
     });
@@ -168,6 +244,9 @@ async function handleLiveSearch(req: IncomingMessage, res: ServerResponse): Prom
       query: parsed.data.query,
       leads: result.leads.length,
       projectId: result.project.id,
+      traceSummary: result.trace.summary,
+      traceStatus: result.trace.status,
+      traceSteps: result.trace.steps.length,
     }));
     safeWriteEvent({ type: "complete", result });
   } catch (error) {

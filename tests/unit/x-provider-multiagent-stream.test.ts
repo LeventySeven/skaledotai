@@ -19,6 +19,7 @@ describe("multi-agent stream mapping", () => {
     expect(step.id).toBe("multiagent-1-planner");
     expect(step.title).toBe("Planner");
     expect(step.model).toBeDefined();
+    expect(step.tools).toEqual(["OpenAI"]);
     expect(step.metrics).toEqual([
       { label: "Queries", value: 2 },
     ]);

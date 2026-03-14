@@ -7,8 +7,9 @@ import type {
   ProjectRunTraceStep,
 } from "@/lib/validations/project-runs";
 
-type TraceStepInput = Omit<ProjectRunTraceStep, "id" | "bullets" | "metrics"> & {
+type TraceStepInput = Omit<ProjectRunTraceStep, "id" | "tools" | "bullets" | "metrics"> & {
   id?: string;
+  tools?: string[];
   bullets?: string[];
   metrics?: ProjectRunTraceMetric[];
 };
@@ -26,10 +27,11 @@ export function createProjectRunTraceBuilder(input: {
     addStep(step: TraceStepInput): void {
       index += 1;
       steps.push({
+        ...step,
         id: step.id ?? `step-${index}`,
+        tools: step.tools ?? [],
         bullets: step.bullets ?? [],
         metrics: step.metrics ?? [],
-        ...step,
       });
     },
 

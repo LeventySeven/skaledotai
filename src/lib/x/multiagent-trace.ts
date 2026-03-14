@@ -68,6 +68,25 @@ export type MultiAgentStateSnapshot = {
 
 export { isMultiAgentNodeName };
 
+function resolveNodeTools(
+  nodeName: MultiAgentNodeName,
+  update: MultiAgentStateSnapshot,
+): string[] {
+  if (nodeName === "planner") {
+    return update.plannerFallbackUsed ? ["OpenAI", "Heuristic query fallback"] : ["OpenAI"];
+  }
+
+  if (nodeName === "source_fanout") {
+    return ["Tavily"];
+  }
+
+  if (nodeName === "scraper") {
+    return ["AgentQL"];
+  }
+
+  return [];
+}
+
 export function toMultiAgentStreamSnapshot(state: MultiAgentStateSnapshot): SearchRunStreamSnapshot {
   const activeNode = state.activeNode && isMultiAgentNodeName(state.activeNode)
     ? state.activeNode
@@ -101,6 +120,7 @@ export function buildMultiAgentTraceStep(
   plannerModelName: string,
 ): ProjectRunTraceStep {
   const attemptMetric = update.attempt ? [{ label: "Attempt", value: `${update.attempt}` }] : [];
+  const tools = resolveNodeTools(nodeName, update);
 
   if (nodeName === "planner") {
     const queries = update.currentQueries ?? update.plannedQueries ?? update.queries ?? [];
@@ -116,6 +136,7 @@ export function buildMultiAgentTraceStep(
       status: "success",
       provider: "multiagent",
       model: plannerModelName,
+      tools,
       bullets,
       metrics: [
         ...attemptMetric,
@@ -137,6 +158,7 @@ export function buildMultiAgentTraceStep(
       summary: `Resolved ${urls.length} candidate X profile URLs from one discovery branch.`,
       status: "success",
       provider: "multiagent",
+      tools,
       bullets,
       metrics: [
         ...attemptMetric,
@@ -156,6 +178,7 @@ export function buildMultiAgentTraceStep(
       summary: `Scraped ${payloads.length} payloads from ${batchUrls.length || payloads.length} routed URLs.`,
       status: failures > 0 ? "warning" : "success",
       provider: "multiagent",
+      tools,
       bullets: [
         batchUrls.length > 0 ? `Batch: ${batchUrls.join(", ")}` : "Batch completed.",
         failures > 0 ? `${failures} URLs were handed to recovery after scrape failures.` : "No scrape failures in this batch.",
@@ -176,6 +199,7 @@ export function buildMultiAgentTraceStep(
       summary: `Scored ${scored.length} candidate accounts for relevance, authenticity, and quality.`,
       status: "success",
       provider: "multiagent",
+      tools,
       bullets: scored.slice(0, 3).map((item) =>
         `${item.candidate.account.handle}: ${item.score}/100${item.reasons[0] ? ` · ${item.reasons[0]}` : ""}`,
       ),
@@ -194,6 +218,7 @@ export function buildMultiAgentTraceStep(
       summary: `Validator kept ${candidates.length} candidates and routed the graph via ${formatStopReason(update.stopReason)}.`,
       status: update.stopReason === "goal_reached" ? "success" : update.recoveryState ? "warning" : "success",
       provider: "multiagent",
+      tools,
       bullets: [
         update.stopReason === "goal_reached"
           ? "Target candidate goal reached, so the graph terminated proactively."
@@ -218,6 +243,7 @@ export function buildMultiAgentTraceStep(
     summary: `Recovery prepared the next attempt using ${formatRecoveryState(update.recoveryState)} safeguards.`,
     status: "warning",
     provider: "multiagent",
+    tools,
     bullets: [
       update.recoveryNote ?? "The supervisor lowered risk and prepared a bounded retry.",
     ],

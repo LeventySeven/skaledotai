@@ -20,6 +20,7 @@ export const ProjectRunTraceStepSchema = z.object({
   status: ProjectRunTraceStatusSchema,
   provider: XDataProviderSchema.optional(),
   model: z.string().optional(),
+  tools: z.array(z.string()).default([]),
   bullets: z.array(z.string()).default([]),
   metrics: z.array(ProjectRunTraceMetricSchema).default([]),
 });

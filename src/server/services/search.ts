@@ -167,6 +167,7 @@ async function emitStep(
     status: ProjectRunTraceStatus;
     provider?: XDataProvider;
     model?: string;
+    tools?: string[];
     bullets?: string[];
     metrics?: ProjectRunTraceMetric[];
   },
@@ -178,6 +179,7 @@ async function emitStep(
     status: input.status,
     provider: input.provider,
     model: input.model,
+    tools: input.tools ?? [],
     bullets: input.bullets ?? [],
     metrics: input.metrics ?? [],
   };
@@ -578,6 +580,9 @@ export async function searchAndAddLeads(
         { label: "First pass", value: discoveryResult.firstPassCount },
         { label: "Final candidates", value: discoveredCandidates.length },
       ],
+      tools: discoveryProvider.provider === "multiagent"
+        ? ["OpenAI", "Tavily", "AgentQL"]
+        : [],
     }));
 
     if (discoveredCandidates.length === 0) {
@@ -630,6 +635,7 @@ export async function searchAndAddLeads(
         { label: "Pool", value: screeningPool.length },
         { label: "Selected", value: screenedCandidates.length },
       ],
+      tools: ["OpenAI"],
     }));
 
     if (screenedCandidates.length === 0) {
@@ -654,6 +660,7 @@ export async function searchAndAddLeads(
       metrics: [
         { label: "Rows", value: profiles.length },
       ],
+      tools: lookupResolution.effectiveProvider === "multiagent" ? ["AgentQL"] : [],
     }));
     const leadsList = await addProfilesToProject({
       userId,
@@ -675,6 +682,7 @@ export async function searchAndAddLeads(
       metrics: [
         { label: "Inserted", value: leadsList.length },
       ],
+      tools: [],
     }));
 
     const operationProviders = resolveSearchOperationProviders(provider, lookupResolution.effectiveProvider);

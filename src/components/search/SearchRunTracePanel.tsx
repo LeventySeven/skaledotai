@@ -6,6 +6,7 @@ import {
   GitBranchPlusIcon,
   NetworkIcon,
   SparklesIcon,
+  WrenchIcon,
   TargetIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -289,7 +290,7 @@ export function SearchRunTracePanel({
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.summary}</p>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                         {step.provider ? <Badge variant="outline">{step.provider}</Badge> : null}
                         {step.model ? <Badge variant="secondary">{step.model}</Badge> : null}
                         <Badge variant={isActive ? "secondary" : "outline"}>
@@ -305,6 +306,22 @@ export function SearchRunTracePanel({
                             {metric.label}: {metric.value}
                           </Badge>
                         ))}
+                      </div>
+                    ) : null}
+
+                    {step.tools.length > 0 ? (
+                      <div className="mt-3">
+                        <div className="mb-2 flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          <WrenchIcon className="size-3.5" />
+                          <span>Tools used</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {step.tools.map((tool, i) => (
+                            <Badge key={`${step.id}-tool-${i}`} variant="secondary" className="rounded-full">
+                              {tool}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     ) : null}
 
