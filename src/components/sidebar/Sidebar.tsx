@@ -138,7 +138,9 @@ export function MobileHeader({ initialProjects }: { initialProjects?: Project[] 
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Open menu">
           <MenuIcon className="size-5" />
         </Button>
-        <span className="ml-3 text-[1.1rem] font-semibold tracking-tight">Dashboard</span>
+        <Link href="/search" className="ml-3">
+          <Image src="/Skale.ai.svg" alt="Skale.ai" width={76} height={24} priority />
+        </Link>
       </header>
 
       {/* Drawer backdrop */}
@@ -157,7 +159,9 @@ export function MobileHeader({ initialProjects }: { initialProjects?: Project[] 
         )}
       >
         <div className="flex h-[74px] items-center justify-between border-b px-7">
-          <Image src="/Skale.ai.svg" alt="Skale.ai" width={76} height={24} priority />
+          <Link href="/search">
+            <Image src="/Skale.ai.svg" alt="Skale.ai" width={76} height={24} priority />
+          </Link>
           <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close menu">
             <XIcon className="size-4" />
           </Button>
@@ -172,7 +176,9 @@ export function Sidebar({ initialProjects }: { initialProjects?: Project[] }) {
   return (
     <aside className="hidden h-screen w-[228px] shrink-0 flex-col border-r bg-background md:flex">
       <div className="flex h-[74px] items-center px-7 shrink-0">
-        <Image src="/Skale.ai.svg" alt="Skale.ai" width={76} height={24} priority />
+        <Link href="/search">
+          <Image src="/Skale.ai.svg" alt="Skale.ai" width={76} height={24} priority />
+        </Link>
       </div>
 
       <Separator />
