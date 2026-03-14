@@ -1,6 +1,6 @@
 import "@/lib/server-runtime";
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { leads, postStats, projectLeadInsights, projectLeads } from "@/db/schema";
@@ -18,6 +18,13 @@ const DEFAULT_REASONING_SUBAGENTS = [
   "validator",
   "recovery",
 ];
+
+function isMissingRelationOrColumnError(error: unknown, name: string): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { code?: string; message?: string };
+  return (record.code === "42P01" || record.code === "42703")
+    && record.message?.includes(name) === true;
+}
 
 function buildContextHash(input: {
   query?: string;
@@ -74,21 +81,106 @@ export async function getLeadReasoning(input: {
     return null;
   }
 
-  const [row] = await db
-    .select({
-      lead: leads,
-      stats: postStats,
-      insight: projectLeadInsights,
-    })
-    .from(projectLeads)
-    .innerJoin(leads, and(eq(leads.id, projectLeads.leadId), eq(leads.userId, input.userId)))
-    .leftJoin(postStats, eq(postStats.leadId, leads.id))
-    .leftJoin(projectLeadInsights, and(
-      eq(projectLeadInsights.projectId, projectLeads.projectId),
-      eq(projectLeadInsights.leadId, projectLeads.leadId),
-    ))
-    .where(and(eq(projectLeads.projectId, input.projectId), eq(projectLeads.leadId, input.leadId)))
-    .limit(1);
+  let row:
+    | {
+      lead: typeof leads.$inferSelect;
+      stats: typeof postStats.$inferSelect | null;
+      insight: typeof projectLeadInsights.$inferSelect | null;
+    }
+    | {
+      lead: {
+        id: string;
+        userId: string;
+        xUserId: string | null;
+        name: string;
+        handle: string;
+        bio: string;
+        platform: string;
+        followers: number;
+        following: number | null;
+        avatarUrl: string | null;
+        profileUrl: string | null;
+        email: string | null;
+        budget: string | null;
+        stage: string | null;
+        priority: string | null;
+        dmComfort: boolean;
+        theAsk: string;
+        inOutreach: boolean;
+        discoverySource: string | null;
+        discoveryQuery: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        location?: string | null;
+      };
+      stats: typeof postStats.$inferSelect | null;
+      insight: null;
+    }
+    | undefined;
+
+  let canPersistInsight = true;
+
+  try {
+    [row] = await db
+      .select({
+        lead: leads,
+        stats: postStats,
+        insight: projectLeadInsights,
+      })
+      .from(projectLeads)
+      .innerJoin(leads, and(eq(leads.id, projectLeads.leadId), eq(leads.userId, input.userId)))
+      .leftJoin(postStats, eq(postStats.leadId, leads.id))
+      .leftJoin(projectLeadInsights, and(
+        eq(projectLeadInsights.projectId, projectLeads.projectId),
+        eq(projectLeadInsights.leadId, projectLeads.leadId),
+      ))
+      .where(and(eq(projectLeads.projectId, input.projectId), eq(projectLeads.leadId, input.leadId)))
+      .limit(1);
+  } catch (error) {
+    const missingLocation = isMissingRelationOrColumnError(error, "location");
+    const missingInsightsTable = isMissingRelationOrColumnError(error, "project_lead_insights");
+
+    if (!missingLocation && !missingInsightsTable) {
+      throw error;
+    }
+
+    canPersistInsight = !missingInsightsTable;
+
+    [row] = await db
+      .select({
+        lead: {
+          id: leads.id,
+          userId: leads.userId,
+          xUserId: leads.xUserId,
+          name: leads.name,
+          handle: leads.handle,
+          bio: leads.bio,
+          platform: leads.platform,
+          followers: leads.followers,
+          following: leads.following,
+          avatarUrl: leads.avatarUrl,
+          profileUrl: leads.profileUrl,
+          email: leads.email,
+          budget: leads.budget,
+          stage: leads.stage,
+          priority: leads.priority,
+          dmComfort: leads.dmComfort,
+          theAsk: leads.theAsk,
+          inOutreach: leads.inOutreach,
+          discoverySource: leads.discoverySource,
+          discoveryQuery: leads.discoveryQuery,
+          createdAt: leads.createdAt,
+          updatedAt: leads.updatedAt,
+        },
+        stats: postStats,
+        insight: sql<null>`null`,
+      })
+      .from(projectLeads)
+      .innerJoin(leads, and(eq(leads.id, projectLeads.leadId), eq(leads.userId, input.userId)))
+      .leftJoin(postStats, eq(postStats.leadId, leads.id))
+      .where(and(eq(projectLeads.projectId, input.projectId), eq(projectLeads.leadId, input.leadId)))
+      .limit(1);
+  }
 
   if (!row) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found in this project." });
@@ -135,6 +227,22 @@ export async function getLeadReasoning(input: {
   });
 
   const now = new Date();
+
+  if (!canPersistInsight) {
+    return {
+      leadId: input.leadId,
+      projectId: input.projectId,
+      summary: generated.summary,
+      alignmentBullets: generated.alignmentBullets,
+      userGoals: generated.userGoals,
+      confidence: generated.confidence,
+      tools: generated.tools,
+      subagents: generated.subagents,
+      generatedAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+  }
+
   const [upserted] = await db
     .insert(projectLeadInsights)
     .values({

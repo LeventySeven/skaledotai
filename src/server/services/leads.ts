@@ -9,8 +9,65 @@ import type { DiscoverySource } from "@/lib/validations/shared";
 import type { XProfile } from "@/lib/validations/search";
 import { ensureStrictLeadImportProfiles } from "@/lib/x/contracts";
 
+type LeadRowShape = {
+  id: string;
+  userId: string;
+  xUserId: string | null;
+  name: string;
+  handle: string;
+  bio: string;
+  location?: string | null;
+  platform: string;
+  followers: number;
+  following: number | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  email: string | null;
+  budget: string | null;
+  stage: string | null;
+  priority: string | null;
+  dmComfort: boolean;
+  theAsk: string;
+  inOutreach: boolean;
+  discoverySource: string | null;
+  discoveryQuery: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const LEGACY_LEAD_SELECTION = {
+  id: leads.id,
+  userId: leads.userId,
+  xUserId: leads.xUserId,
+  name: leads.name,
+  handle: leads.handle,
+  bio: leads.bio,
+  platform: leads.platform,
+  followers: leads.followers,
+  following: leads.following,
+  avatarUrl: leads.avatarUrl,
+  profileUrl: leads.profileUrl,
+  email: leads.email,
+  budget: leads.budget,
+  stage: leads.stage,
+  priority: leads.priority,
+  dmComfort: leads.dmComfort,
+  theAsk: leads.theAsk,
+  inOutreach: leads.inOutreach,
+  discoverySource: leads.discoverySource,
+  discoveryQuery: leads.discoveryQuery,
+  createdAt: leads.createdAt,
+  updatedAt: leads.updatedAt,
+};
+
+function isMissingLocationColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { code?: string; message?: string };
+  return record.code === "42703" && record.message?.includes("location") === true;
+}
+
 export function rowToLead(
-  row: typeof leads.$inferSelect,
+  row: LeadRowShape,
   projectId?: string,
   projectName?: string,
 ): Lead {
@@ -56,47 +113,93 @@ export async function listLeads(input: ListLeadsInput & { userId: string }): Pro
     : sort === "followers-asc" ? leads.followers
     : leads.name;
 
-  let rows: Array<{ lead: typeof leads.$inferSelect; resolvedProjectId: string | null }>;
+  let rows: Array<{ lead: LeadRowShape; resolvedProjectId: string | null }>;
   let count: number;
 
-  if (projectId) {
-    rows = await db
-      .select({ lead: leads, resolvedProjectId: projectLeads.projectId })
-      .from(leads)
-      .innerJoin(
-        projectLeads,
-        and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
-      )
-      .where(and(...conditions))
-      .orderBy(orderCol)
-      .limit(pageSize)
-      .offset((page - 1) * pageSize);
+  try {
+    if (projectId) {
+      rows = await db
+        .select({ lead: leads, resolvedProjectId: projectLeads.projectId })
+        .from(leads)
+        .innerJoin(
+          projectLeads,
+          and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
+        )
+        .where(and(...conditions))
+        .orderBy(orderCol)
+        .limit(pageSize)
+        .offset((page - 1) * pageSize);
 
-    const [countRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(leads)
-      .innerJoin(
-        projectLeads,
-        and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
-      )
-      .where(and(...conditions));
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .innerJoin(
+          projectLeads,
+          and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
+        )
+        .where(and(...conditions));
 
-    count = countRow?.count ?? 0;
-  } else {
-    rows = await db
-      .select({ lead: leads, resolvedProjectId: sql<string | null>`null` })
-      .from(leads)
-      .where(and(...conditions))
-      .orderBy(orderCol)
-      .limit(pageSize)
-      .offset((page - 1) * pageSize);
+      count = countRow?.count ?? 0;
+    } else {
+      rows = await db
+        .select({ lead: leads, resolvedProjectId: sql<string | null>`null` })
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(orderCol)
+        .limit(pageSize)
+        .offset((page - 1) * pageSize);
 
-    const [countRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(leads)
-      .where(and(...conditions));
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(...conditions));
 
-    count = countRow?.count ?? 0;
+      count = countRow?.count ?? 0;
+    }
+  } catch (error) {
+    if (!isMissingLocationColumnError(error)) {
+      throw error;
+    }
+
+    if (projectId) {
+      rows = await db
+        .select({ lead: LEGACY_LEAD_SELECTION, resolvedProjectId: projectLeads.projectId })
+        .from(leads)
+        .innerJoin(
+          projectLeads,
+          and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
+        )
+        .where(and(...conditions))
+        .orderBy(orderCol)
+        .limit(pageSize)
+        .offset((page - 1) * pageSize) as Array<{ lead: LeadRowShape; resolvedProjectId: string | null }>;
+
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .innerJoin(
+          projectLeads,
+          and(eq(projectLeads.leadId, leads.id), eq(projectLeads.projectId, projectId)),
+        )
+        .where(and(...conditions));
+
+      count = countRow?.count ?? 0;
+    } else {
+      rows = await db
+        .select({ lead: LEGACY_LEAD_SELECTION, resolvedProjectId: sql<string | null>`null` })
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(orderCol)
+        .limit(pageSize)
+        .offset((page - 1) * pageSize) as Array<{ lead: LeadRowShape; resolvedProjectId: string | null }>;
+
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(...conditions));
+
+      count = countRow?.count ?? 0;
+    }
   }
 
   return {
@@ -106,11 +209,26 @@ export async function listLeads(input: ListLeadsInput & { userId: string }): Pro
 }
 
 export async function getLeadById(userId: string, leadId: string): Promise<Lead | null> {
-  const [row] = await db
-    .select()
-    .from(leads)
-    .where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
-    .limit(1);
+  let row: LeadRowShape | undefined;
+
+  try {
+    [row] = await db
+      .select()
+      .from(leads)
+      .where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
+      .limit(1);
+  } catch (error) {
+    if (!isMissingLocationColumnError(error)) {
+      throw error;
+    }
+
+    [row] = await db
+      .select(LEGACY_LEAD_SELECTION)
+      .from(leads)
+      .where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
+      .limit(1) as LeadRowShape[];
+  }
+
   return row ? rowToLead(row) : null;
 }
 
@@ -195,26 +313,55 @@ export async function addProfilesToProject(input: {
     discoveryQuery: input.discoveryQuery,
   }));
 
-  const upsertedLeads = await db
-    .insert(leads)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [leads.userId, leads.handle, leads.platform],
-      set: {
-        name: sql`excluded.name`,
-        bio: sql`excluded.bio`,
-        location: sql`excluded.location`,
-        followers: sql`excluded.followers`,
-        following: sql`excluded.following`,
-        avatarUrl: sql`excluded.avatar_url`,
-        profileUrl: sql`excluded.profile_url`,
-        xUserId: sql`excluded.x_user_id`,
-        discoverySource: sql`excluded.discovery_source`,
-        discoveryQuery: sql`excluded.discovery_query`,
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
+  let upsertedLeads: LeadRowShape[];
+
+  try {
+    upsertedLeads = await db
+      .insert(leads)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [leads.userId, leads.handle, leads.platform],
+        set: {
+          name: sql`excluded.name`,
+          bio: sql`excluded.bio`,
+          location: sql`excluded.location`,
+          followers: sql`excluded.followers`,
+          following: sql`excluded.following`,
+          avatarUrl: sql`excluded.avatar_url`,
+          profileUrl: sql`excluded.profile_url`,
+          xUserId: sql`excluded.x_user_id`,
+          discoverySource: sql`excluded.discovery_source`,
+          discoveryQuery: sql`excluded.discovery_query`,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+  } catch (error) {
+    if (!isMissingLocationColumnError(error)) {
+      throw error;
+    }
+
+    const legacyValues = values.map(({ location: _location, ...value }) => value);
+    upsertedLeads = await db
+      .insert(leads)
+      .values(legacyValues)
+      .onConflictDoUpdate({
+        target: [leads.userId, leads.handle, leads.platform],
+        set: {
+          name: sql`excluded.name`,
+          bio: sql`excluded.bio`,
+          followers: sql`excluded.followers`,
+          following: sql`excluded.following`,
+          avatarUrl: sql`excluded.avatar_url`,
+          profileUrl: sql`excluded.profile_url`,
+          xUserId: sql`excluded.x_user_id`,
+          discoverySource: sql`excluded.discovery_source`,
+          discoveryQuery: sql`excluded.discovery_query`,
+          updatedAt: new Date(),
+        },
+      })
+      .returning(LEGACY_LEAD_SELECTION) as LeadRowShape[];
+  }
 
   if (upsertedLeads.length > 0) {
     await db
