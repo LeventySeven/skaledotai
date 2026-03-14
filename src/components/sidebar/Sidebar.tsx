@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, FolderIcon, ChevronRightIcon, LogOutIcon } from "lucide-react";
+import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { signOutAction } from "@/app/(auth)/actions";
@@ -14,15 +15,21 @@ import { LangGraphIcon } from "@/components/ui/langgraph-icon";
 import { XLogoIcon } from "@/components/ui/x-icon";
 import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
 
+function CampaignsIcon({ className }: { className?: string }) {
+  return (
+    <Image src="/campaigns.svg" alt="" width={16} height={16} className={className} />
+  );
+}
+
 const navItems = [
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/leads", label: "Leads", icon: UsersIcon },
   { href: "/outreach", label: "Outreach", icon: SendIcon },
+  { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-function ProjectsList({ onNav }: { onNav?: () => void }) {
-  const [expanded, setExpanded] = useState(true);
+function CampaignsList({ onNav }: { onNav?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { data: projects = [] } = trpc.projects.list.useQuery();
@@ -30,52 +37,28 @@ function ProjectsList({ onNav }: { onNav?: () => void }) {
   if (projects.length === 0) return null;
 
   return (
-    <div className="mt-2">
-      <div className="flex items-center px-5 py-1">
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground"
-          aria-label={expanded ? "Collapse campaigns" : "Expand campaigns"}
-        >
-          <ChevronRightIcon className={cn("size-3.5 transition-transform", expanded && "rotate-90")} />
-        </button>
-        <Button
-          render={<Link href="/projects" onClick={onNav} />}
-          variant="ghost"
-          className={cn(
-            "h-9 flex-1 justify-start rounded-xl px-2 text-[1rem] font-medium text-muted-foreground hover:bg-accent/70 hover:text-foreground",
-            pathname === "/projects" && "bg-accent text-foreground",
-          )}
-        >
-          Campaigns
-        </Button>
-      </div>
-      {expanded && (
-        <div className="mt-1 flex flex-col gap-1">
-          {projects.map((p) => {
-            const href = `/leads?project=${p.id}`;
-            const active =
-              pathname === "/leads" && searchParams.get("project") === p.id;
-            return (
-              <Button
-                key={p.id}
-                render={<Link href={href} onClick={onNav} />}
-                variant="ghost"
-                className={cn(
-                  "h-11 w-full justify-start gap-2.5 rounded-2xl px-10 text-[0.96rem] font-normal text-muted-foreground hover:bg-accent/70 hover:text-foreground",
-                  active && "bg-accent text-foreground font-medium",
-                )}
-              >
-                <FolderIcon className="size-4 shrink-0" />
-                <span className="truncate">{p.name}</span>
-                {p.leadCount !== undefined && (
-                  <span className="ml-auto text-[0.92rem] text-muted-foreground/70">{p.leadCount}</span>
-                )}
-              </Button>
-            );
-          })}
-        </div>
-      )}
+    <div className="mt-1 flex flex-col gap-0.5 px-4">
+      {projects.map((p) => {
+        const href = `/leads?project=${p.id}`;
+        const active =
+          pathname === "/leads" && searchParams.get("project") === p.id;
+        return (
+          <Link
+            key={p.id}
+            href={href}
+            onClick={onNav}
+            className={cn(
+              "flex items-center justify-between rounded-lg px-3 py-2 text-[0.88rem] text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground",
+              active && "bg-accent text-foreground font-medium",
+            )}
+          >
+            <span className="truncate">{p.name}</span>
+            {p.leadCount !== undefined && (
+              <span className="ml-2 shrink-0 text-[0.82rem] text-muted-foreground/70">{p.leadCount}</span>
+            )}
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -121,8 +104,11 @@ function NavContent({ onNav }: { onNav?: () => void }) {
               </Button>
             );
           })}
-          <ProjectsList onNav={onNav} />
         </div>
+
+        <div className="my-3 border-t border-border/70" />
+
+        <CampaignsList onNav={onNav} />
       </nav>
 
       <SidebarProviderBadge />
