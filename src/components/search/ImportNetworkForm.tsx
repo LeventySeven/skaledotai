@@ -91,7 +91,7 @@ export function ImportNetworkForm() {
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">Twitter handle</label>
           <Input
-            className="h-[42px] rounded-[10px] text-[1rem]"
+            className="h-[42px] items-center rounded-[10px] text-[1rem]"
             placeholder="@MarkKnd"
             value={networkUsername}
             onChange={(event) => setNetworkUsername(event.target.value)}
@@ -110,7 +110,7 @@ export function ImportNetworkForm() {
           </select>
           {networkProjectMode === "new" ? (
             <Input
-              className="h-[42px] rounded-[10px] text-[1rem]"
+              className="h-[42px] items-center rounded-[10px] text-[1rem]"
               placeholder="Project name (optional)"
               value={networkProjectName}
               onChange={(event) => setNetworkProjectName(event.target.value)}

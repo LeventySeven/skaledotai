@@ -32,7 +32,6 @@ const FOLLOWER_FLOOR_OPTIONS = [
 const LEAD_TARGET_BOUNDS = {
   min: 20,
   max: 180,
-  step: 10,
 } as const;
 
 function mergeTraceSteps(
@@ -320,7 +319,7 @@ export function SearchForm() {
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">What are you looking for?</label>
           <Input
-            className="h-[42px] rounded-[10px] text-[1rem]"
+            className="h-[42px] items-center rounded-[10px] text-[1rem]"
             placeholder="e.g. best product designers"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -350,11 +349,10 @@ export function SearchForm() {
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Approximate leads</label>
             <Input
-              className="h-[42px] rounded-[10px] text-[1rem]"
+              className="h-[42px] items-center rounded-[10px] text-[1rem]"
               type="number"
               min={LEAD_TARGET_BOUNDS.min}
               max={LEAD_TARGET_BOUNDS.max}
-              step={LEAD_TARGET_BOUNDS.step}
               value={targetLeadCount}
               onChange={(event) => {
                 const nextValue = Number(event.target.value);
@@ -375,7 +373,7 @@ export function SearchForm() {
           </label>
           {searchFollowersOnly && (
             <Input
-              className="h-[42px] rounded-[10px] text-[1rem]"
+              className="h-[42px] items-center rounded-[10px] text-[1rem]"
               placeholder="@markknd"
               value={followerUsername}
               onChange={(event) => setFollowerUsername(event.target.value)}
