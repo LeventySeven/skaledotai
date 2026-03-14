@@ -88,7 +88,7 @@ function SidebarProviderBadge() {
       href="/settings"
       className="flex items-center justify-between border-t px-5 py-3 transition-colors hover:bg-accent/50"
     >
-      <span className="flex items-center gap-1.5 text-[0.78rem] text-muted-foreground"><XLogoIcon className="size-3" /> source</span>
+      <span className="text-[0.78rem] text-muted-foreground">Data source</span>
       <span className="flex items-center gap-1 truncate text-[0.78rem] font-medium">
         {provider === "x-api" ? <><XLogoIcon className="size-3" /> API</> : null}
         {provider === "multiagent" ? <LangGraphIcon className="size-4.5" /> : null}

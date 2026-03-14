@@ -3,7 +3,6 @@
 import { type FormEvent, useState } from "react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { XLogoIcon } from "@/components/ui/x-icon";
 import { XDataProviderSelector } from "@/components/providers/XDataProviderSelector";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -72,7 +71,7 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
 
       <div className="mb-8">
         <div className="mb-5">
-          <div className="mb-1 flex items-center gap-2 text-[18px] font-medium text-[#111111]"><XLogoIcon className="size-[18px]" /> data source</div>
+          <div className="mb-1 text-[18px] font-medium text-[#111111]">Data source</div>
           <div className="text-[16px] font-normal text-muted-foreground">
             Choose the provider Skale uses for search, imports, stats, and AI analysis.
           </div>
