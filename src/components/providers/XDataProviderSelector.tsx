@@ -1,7 +1,6 @@
 "use client";
 
-import { CheckIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle2Icon } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
@@ -19,7 +18,7 @@ export function XDataProviderSelector({
   const statusByProvider = new Map(runtimeStatuses.map((status) => [status.provider, status]));
 
   return (
-    <div className={cn("grid gap-4 sm:grid-cols-3", className)}>
+    <div className={cn("grid grid-cols-[repeat(auto-fill,minmax(271px,1fr))] items-stretch gap-5", className)}>
       {X_DATA_PROVIDER_OPTIONS.map((option) => {
         const status = statusByProvider.get(option.value);
         const disabled = status ? !status.configured : false;
@@ -33,47 +32,42 @@ export function XDataProviderSelector({
               if (!disabled) setProvider(option.value);
             }}
             className={cn(
-              "relative rounded-[1.25rem] border p-5 text-left transition-colors",
+              "flex flex-col gap-3 rounded-[10px] border bg-card p-4 text-left shadow-sm transition-colors",
               active
-                ? "border-foreground bg-foreground text-background"
-                : "border-border bg-card text-foreground hover:border-foreground/30",
+                ? "border-[#e43420]"
+                : "border-border/70 hover:border-foreground/20",
               disabled && "cursor-not-allowed opacity-50",
             )}
             aria-pressed={active}
             disabled={disabled}
           >
-            {active ? (
-              <span className="absolute right-4 top-4 inline-flex size-5 items-center justify-center rounded-full bg-background/15">
-                <CheckIcon className="size-3 text-background" />
-              </span>
-            ) : null}
-
-            <div className="flex items-center gap-2">
-              <span className="text-[1.05rem] font-semibold">{option.label}</span>
-              <Badge
-                size="sm"
-                variant={active ? "secondary" : "outline"}
-                className={cn(active && "bg-background/12 text-background")}
-              >
-                {disabled ? "Not configured" : option.badge}
-              </Badge>
+            <div className="flex items-center justify-between">
+              <div className="text-[0.95rem] font-semibold">{option.label}</div>
+              {active ? (
+                <span className="flex size-[26px] shrink-0 items-center justify-center">
+                  <CheckCircle2Icon className="size-[18px] text-[#e43420]" />
+                </span>
+              ) : (
+                <span className="flex size-[26px] shrink-0 items-center justify-center rounded-full border border-border/70" />
+              )}
             </div>
 
-            <p className={cn(
-              "mt-2 text-[0.85rem] leading-5",
-              active ? "text-background/70" : "text-muted-foreground",
-            )}>
-              {option.description}
-            </p>
+            <div className="h-px bg-border/70" />
 
-            {disabled && status?.missingEnv.length ? (
-              <p className={cn(
-                "mt-3 text-xs",
-                active ? "text-background/60" : "text-muted-foreground/70",
-              )}>
-                Missing: {status.missingEnv.join(", ")}
-              </p>
-            ) : null}
+            <div className="min-h-0 flex-1 text-[0.85rem] leading-[1.6] text-muted-foreground">
+              {option.description}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border/70 pt-3 text-[0.82rem]">
+              <span className="rounded-md bg-muted/60 px-2 py-0.5 text-[0.8rem] font-medium text-muted-foreground">
+                {disabled ? "Not configured" : option.badge}
+              </span>
+              {disabled && status?.missingEnv.length ? (
+                <span className="text-[0.78rem] text-muted-foreground/60">
+                  Missing: {status.missingEnv.join(", ")}
+                </span>
+              ) : null}
+            </div>
           </button>
         );
       })}

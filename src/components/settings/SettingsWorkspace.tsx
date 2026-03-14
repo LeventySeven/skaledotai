@@ -54,21 +54,26 @@ export function SettingsWorkspace() {
   const keys = listQuery.data ?? [];
 
   return (
-    <div className="mx-auto max-w-[980px] px-8 py-12">
-      <h1 className="text-[3rem] font-semibold tracking-[-0.04em]">Settings</h1>
-      <p className="mt-2 text-[1.05rem] text-muted-foreground">
-        Manage your global X provider and API keys for programmatic access.
-      </p>
+    <div className="mx-auto max-w-[1700px] px-8 py-8">
+      <div className="flex w-full items-start justify-between pb-6">
+        <div className="flex flex-col">
+          <div className="text-[18px] font-medium text-[#111111]/40">Global</div>
+          <h1 className="text-[28px] font-medium tracking-[-0.04em]">Settings</h1>
+        </div>
+      </div>
+      <div className="-mx-8 mb-5 border-b border-border/70" />
 
-      <div className="mt-10">
-        <h2 className="text-[1.95rem] font-semibold tracking-[-0.03em]">X data source</h2>
-        <p className="mt-2 text-[0.98rem] leading-7 text-muted-foreground">
-          Choose the provider Skale uses for search, imports, stats, and AI analysis.
-        </p>
-        <XDataProviderSelector className="mt-6" />
+      <div className="mb-8">
+        <div className="mb-5">
+          <div className="mb-1 text-[18px] font-medium text-[#111111]">X data source</div>
+          <div className="text-[16px] font-normal text-muted-foreground">
+            Choose the provider Skale uses for search, imports, stats, and AI analysis.
+          </div>
+        </div>
+        <XDataProviderSelector />
       </div>
 
-      <div className="my-12 h-px bg-border" />
+      <div className="-mx-8 mb-8 border-b border-border/70" />
 
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-[1.95rem] font-semibold tracking-[-0.03em]">API Keys</h2>
