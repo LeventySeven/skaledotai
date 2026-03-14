@@ -315,16 +315,16 @@ export function SearchForm() {
         </div>
 
         {rerunProjectId ? (
-          <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3 text-[0.95rem] text-muted-foreground">
-            Adding leads to existing project.{" "}
+          <p className="text-[0.88rem] text-muted-foreground">
+            Adding to existing project.{" "}
             <button
               type="button"
               className="underline hover:text-foreground"
               onClick={() => router.replace("/search")}
             >
-              Start fresh instead
+              Start fresh
             </button>
-          </div>
+          </p>
         ) : null}
 
         <div className="grid gap-5 md:grid-cols-3">
