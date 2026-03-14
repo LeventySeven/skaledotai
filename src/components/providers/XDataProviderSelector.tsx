@@ -39,7 +39,7 @@ export function XDataProviderSelector({
               if (!disabled) setProvider(option.value);
             }}
             className={cn(
-              "flex flex-col gap-3 rounded-[10px] border bg-card p-4 text-left shadow-sm transition-colors",
+              "flex items-center justify-between rounded-[10px] border bg-card px-4 py-3 text-left shadow-sm transition-colors",
               active
                 ? "border-[#e43420]"
                 : "border-border/70 hover:border-foreground/20",
@@ -48,32 +48,16 @@ export function XDataProviderSelector({
             aria-pressed={active}
             disabled={disabled}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[0.95rem] font-semibold">
-                {option.value === "x-api" ? <><XLogoIcon className="size-3.5" /> API</> : null}
-                {option.value === "multiagent" ? <><LangGraphIcon className="size-5" /> {option.label}</> : null}
-                {option.value !== "x-api" && option.value !== "multiagent" ? option.label : null}
-              </div>
-              {active ? (
-                <span className="flex size-[26px] shrink-0 items-center justify-center">
-                  <CheckCircle2Icon className="size-[18px] text-[#e43420]" />
-                </span>
-              ) : (
-                <span className="flex size-[26px] shrink-0 items-center justify-center rounded-full border border-border/70" />
-              )}
+            <div className="flex items-center gap-1.5 text-[0.95rem] font-semibold">
+              {option.value === "x-api" ? <><XLogoIcon className="size-3.5" /> API</> : null}
+              {option.value === "multiagent" ? <><LangGraphIcon className="size-5" /> {option.label}</> : null}
+              {option.value !== "x-api" && option.value !== "multiagent" ? option.label : null}
             </div>
-
-            <div className="h-px bg-border/70" />
-
-            <div className="min-h-0 flex-1 text-[0.85rem] leading-[1.6] text-muted-foreground">
-              {option.description}
-            </div>
-
-            {disabled && status?.missingEnv.length ? (
-              <div className="border-t border-border/70 pt-3 text-[0.78rem] text-muted-foreground/60">
-                Missing: {status.missingEnv.join(", ")}
-              </div>
-            ) : null}
+            {active ? (
+              <CheckCircle2Icon className="size-[18px] shrink-0 text-[#e43420]" />
+            ) : (
+              <span className="size-[18px] shrink-0 rounded-full border border-border/70" />
+            )}
           </button>
         );
       })}
