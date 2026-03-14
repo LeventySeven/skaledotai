@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -121,12 +121,12 @@ async function getLiveMultiAgentStreamTarget(provider: XDataProvider): Promise<{
 
 export function SearchForm() {
   const router = useRouter();
-  const { data: projects = [] } = trpc.projects.list.useQuery();
+  const searchParams = useSearchParams();
+  const rerunProjectId = searchParams.get("project");
+  const rerunQuery = searchParams.get("query");
   const utils = trpc.useUtils();
   const { provider } = useXDataProviderPreference();
-  const [query, setQuery] = useState("");
-  const [projectMode, setProjectMode] = useState<"new" | "existing">("new");
-  const [projectId, setProjectId] = useState("");
+  const [query, setQuery] = useState(rerunQuery ?? "");
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
   const [minFollowers, setMinFollowers] = useState(1_000);
@@ -269,8 +269,8 @@ export function SearchForm() {
 
     const payload = {
       query: query.trim(),
-      projectId: projectMode === "existing" ? projectId || undefined : undefined,
-      projectName: projectMode === "new" ? query.trim() : undefined,
+      projectId: rerunProjectId ?? undefined,
+      projectName: rerunProjectId ? undefined : query.trim(),
       followerUsername:
         searchFollowersOnly && followerUsername.trim()
           ? followerUsername.replace(/^@/, "").trim()
@@ -314,32 +314,17 @@ export function SearchForm() {
           />
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">Project</label>
-          <select
-            className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
-            value={projectMode}
-            onChange={(event) => setProjectMode(event.target.value as "new" | "existing")}
-          >
-            <option value="new">Create new project</option>
-            <option value="existing">Use existing project</option>
-          </select>
-        </div>
-
-        {projectMode === "existing" ? (
-          <select
-            className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            required
-          >
-            <option value="">Select project</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
+        {rerunProjectId ? (
+          <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3 text-[0.95rem] text-muted-foreground">
+            Adding leads to existing project.{" "}
+            <button
+              type="button"
+              className="underline hover:text-foreground"
+              onClick={() => router.replace("/search")}
+            >
+              Start fresh instead
+            </button>
+          </div>
         ) : null}
 
         <div className="grid gap-5 md:grid-cols-3">

@@ -2,7 +2,7 @@
 
 import { startTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckIcon, FolderOpenIcon } from "lucide-react";
+import { CheckIcon, FolderOpenIcon, RotateCwIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,19 +83,37 @@ export function ProjectCard({
         </div>
 
         {!analysisMode ? (
-          <Button
-            variant="outline"
-            className="h-9 rounded-xl px-3 text-[0.88rem]"
-            onClick={(event) => {
-              event.stopPropagation();
-              startTransition(() => {
-                router.push(`/leads?project=${project.id}`);
-              });
-            }}
-          >
-            <FolderOpenIcon className="size-4" />
-            Open
-          </Button>
+          <div className="flex items-center gap-2">
+            {project.query ? (
+              <Button
+                variant="ghost"
+                className="h-9 rounded-xl px-3 text-[0.88rem]"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const params = new URLSearchParams({ project: project.id, query: project.query! });
+                  startTransition(() => {
+                    router.push(`/search?${params.toString()}`);
+                  });
+                }}
+              >
+                <RotateCwIcon className="size-3.5" />
+                Re-run
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="h-9 rounded-xl px-3 text-[0.88rem]"
+              onClick={(event) => {
+                event.stopPropagation();
+                startTransition(() => {
+                  router.push(`/leads?project=${project.id}`);
+                });
+              }}
+            >
+              <FolderOpenIcon className="size-4" />
+              Open
+            </Button>
+          </div>
         ) : null}
       </div>
 
