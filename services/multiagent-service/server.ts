@@ -1,16 +1,10 @@
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { TRPCError } from "@trpc/server";
-import { SEARCH_TARGET } from "../../src/lib/constants";
-import {
-  SearchLeadInputSchema,
-  SearchRunStreamEventSchema,
-  type SearchRunStreamSnapshot,
-} from "../../src/lib/validations/search";
-import { MULTIAGENT_NODE_TITLES } from "../../src/lib/x/multiagent-types";
+import { SearchLeadInputSchema, SearchRunStreamEventSchema } from "../../src/lib/validations/search";
 import { verifyMultiAgentServiceToken, isAllowedMultiAgentOrigin } from "../../src/lib/multiagent-service-auth";
 import { searchAndAddLeads } from "../../src/server/services/search";
 import { toXProviderTrpcError } from "../../src/lib/x/error-handling";
 
-const encoder = new TextEncoder();
 const port = Number(process.env.PORT ?? 10_000);
 
 function buildCorsHeaders(origin: string | null | undefined): Record<string, string> {
@@ -25,30 +19,41 @@ function buildCorsHeaders(origin: string | null | undefined): Record<string, str
   };
 }
 
-function jsonError(status: number, message: string, origin: string | null | undefined): Response {
-  return Response.json(
+function writeJson(
+  res: ServerResponse,
+  status: number,
+  payload: unknown,
+  origin: string | null | undefined,
+): void {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, {
+    ...buildCorsHeaders(origin),
+    "content-type": "application/json; charset=utf-8",
+    "content-length": Buffer.byteLength(body).toString(),
+  });
+  res.end(body);
+}
+
+function jsonError(
+  res: ServerResponse,
+  status: number,
+  message: string,
+  origin: string | null | undefined,
+): void {
+  writeJson(
+    res,
+    status,
     {
       error: {
         message,
       },
     },
-    {
-      status,
-      headers: buildCorsHeaders(origin),
-    },
+    origin,
   );
 }
 
-function writeEvent(
-  controller: ReadableStreamDefaultController<Uint8Array>,
-  event: unknown,
-): void {
-  const payload = SearchRunStreamEventSchema.parse(event);
-  controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
-}
-
-function extractBearerToken(req: Request): string | null {
-  const header = req.headers.get("authorization");
+function extractBearerToken(req: IncomingMessage): string | null {
+  const header = req.headers.authorization;
   if (!header) return null;
 
   const [scheme, token] = header.split(" ");
@@ -56,188 +61,137 @@ function extractBearerToken(req: Request): string | null {
   return token;
 }
 
-function createBootstrapSnapshot(input: {
-  targetLeadCount?: number;
-  maxAttempts?: number;
-}): SearchRunStreamSnapshot {
-  const targetLeadCount = input.targetLeadCount ?? SEARCH_TARGET;
-  const maxAttempts = input.maxAttempts ?? 1;
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
 
-  return {
-    queries: 0,
-    urls: 0,
-    scraped: 0,
-    candidates: 0,
-    targetLeadCount,
-    goalCount: targetLeadCount,
-    attempt: 1,
-    maxAttempts,
-    activeNode: "planner",
-    graphNodes: Object.entries(MULTIAGENT_NODE_TITLES).map(([id, title]) => ({
-      id,
-      title,
-      status: id === "planner" ? "active" : "idle",
-    })),
-  };
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  const body = Buffer.concat(chunks).toString("utf8");
+  return body.length > 0 ? JSON.parse(body) : {};
 }
 
-async function handleLiveSearch(req: Request): Promise<Response> {
-  const origin = req.headers.get("origin");
+function writeStreamEvent(res: ServerResponse, event: unknown): void {
+  const payload = SearchRunStreamEventSchema.parse(event);
+  res.write(`${JSON.stringify(payload)}\n`);
+}
+
+async function handleLiveSearch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const origin = req.headers.origin ?? null;
   if (!isAllowedMultiAgentOrigin(origin)) {
-    return jsonError(403, "Origin not allowed.", origin);
+    jsonError(res, 403, "Origin not allowed.", origin);
+    return;
   }
 
   const token = extractBearerToken(req);
   if (!token) {
-    return jsonError(401, "Missing multi-agent service token.", origin);
+    jsonError(res, 401, "Missing multi-agent service token.", origin);
+    return;
   }
 
   let auth: ReturnType<typeof verifyMultiAgentServiceToken>;
   try {
     auth = verifyMultiAgentServiceToken(token);
   } catch (error) {
-    return jsonError(
+    jsonError(
+      res,
       401,
       error instanceof Error && error.message.trim().length > 0
         ? error.message
         : "Invalid multi-agent service token.",
       origin,
     );
+    return;
   }
 
   if (auth.origin && origin && auth.origin !== origin) {
-    return jsonError(403, "Origin mismatch for multi-agent service token.", origin);
+    jsonError(res, 403, "Origin mismatch for multi-agent service token.", origin);
+    return;
   }
 
   let body: unknown;
   try {
-    body = await req.json();
+    body = await readJsonBody(req);
   } catch {
-    return jsonError(400, "Invalid JSON body.", origin);
+    jsonError(res, 400, "Invalid JSON body.", origin);
+    return;
   }
 
   const parsed = SearchLeadInputSchema.safeParse(body);
   if (!parsed.success) {
-    return jsonError(400, "Invalid live search payload.", origin);
+    jsonError(res, 400, "Invalid live search payload.", origin);
+    return;
   }
 
   console.info("[multiagent-service][search-live] accepted", JSON.stringify({
     origin,
     userId: auth.sub,
     query: parsed.data.query,
-    targetLeadCount: parsed.data.targetLeadCount ?? SEARCH_TARGET,
+    targetLeadCount: parsed.data.targetLeadCount ?? null,
   }));
-  let closed = false;
-  let latestSnapshot = createBootstrapSnapshot({
-    targetLeadCount: parsed.data.targetLeadCount,
-  });
-  let heartbeat: ReturnType<typeof setInterval> | undefined;
 
-  const readable = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const safeWriteEvent = async (event: unknown): Promise<void> => {
-        if (closed) return;
-        try {
-          writeEvent(controller, event);
-        } catch (error) {
-          if (closed) return;
-          closed = true;
-          console.error("[multiagent-service][stream-write] error", JSON.stringify({
-            userId: auth.sub,
-            query: parsed.data.query,
-            message: error instanceof Error ? error.message : String(error),
-          }));
-          controller.error(error);
-        }
-      };
-
-      const closeStream = () => {
-        if (closed) return;
-        closed = true;
-        try {
-          controller.close();
-        } catch {
-          // Ignore close races after client disconnects.
-        }
-      };
-
-      heartbeat = setInterval(() => {
-        void safeWriteEvent({ type: "snapshot", snapshot: latestSnapshot });
-      }, 10_000);
-
-      for (let index = 0; index < 12; index += 1) {
-        writeEvent(controller, { type: "snapshot", snapshot: latestSnapshot });
-      }
-
-      void (async () => {
-        try {
-          const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
-            onStep: (step) => safeWriteEvent({ type: "step", step }),
-            onSnapshot: (snapshot) => {
-              latestSnapshot = snapshot;
-              return safeWriteEvent({ type: "snapshot", snapshot });
-            },
-          });
-
-          console.info("[multiagent-service][search-live] complete", JSON.stringify({
-            userId: auth.sub,
-            query: parsed.data.query,
-            leads: result.leads.length,
-            projectId: result.project.id,
-          }));
-          await safeWriteEvent({ type: "complete", result });
-          closeStream();
-        } catch (error) {
-          const normalized = error instanceof TRPCError ? error : toXProviderTrpcError(error);
-          console.error("[multiagent-service][search-live] error", JSON.stringify({
-            userId: auth.sub,
-            query: parsed.data.query,
-            message: normalized.message,
-          }));
-          await safeWriteEvent({
-            type: "error",
-            message: normalized.message,
-          });
-          closeStream();
-        } finally {
-          if (heartbeat) clearInterval(heartbeat);
-        }
-      })().catch((error) => {
-        if (heartbeat) clearInterval(heartbeat);
-        console.error("[multiagent-service][search-live][unhandled]", JSON.stringify({
-          userId: auth.sub,
-          query: parsed.data.query,
-          message: error instanceof Error ? error.message : String(error),
-        }));
-        if (!closed) {
-          controller.error(error);
-        }
-      });
-    },
-    cancel(reason) {
-      closed = true;
-      if (heartbeat) clearInterval(heartbeat);
-      console.warn("[multiagent-service][search-live] cancelled", JSON.stringify({
-        userId: auth.sub,
-        query: parsed.data.query,
-        reason: reason instanceof Error ? reason.message : String(reason),
-      }));
-    },
+  let cancelled = false;
+  req.on("close", () => {
+    cancelled = true;
+    console.warn("[multiagent-service][search-live] cancelled", JSON.stringify({
+      userId: auth.sub,
+      query: parsed.data.query,
+    }));
   });
 
-  return new Response(readable, {
-    headers: {
-      ...buildCorsHeaders(origin),
-      "content-type": "application/x-ndjson; charset=utf-8",
-      "cache-control": "no-cache, no-transform",
-      "x-accel-buffering": "no",
-    },
+  res.writeHead(200, {
+    ...buildCorsHeaders(origin),
+    "content-type": "application/x-ndjson; charset=utf-8",
+    "cache-control": "no-cache, no-transform",
+    "x-accel-buffering": "no",
+    connection: "keep-alive",
   });
+
+  const safeWriteEvent = (event: unknown): void => {
+    if (cancelled || res.destroyed || res.writableEnded) return;
+    writeStreamEvent(res, event);
+  };
+
+  try {
+    const result = await searchAndAddLeads(auth.sub, parsed.data, "multiagent", {
+      onStep: (step) => {
+        safeWriteEvent({ type: "step", step });
+      },
+      onSnapshot: (snapshot) => {
+        safeWriteEvent({ type: "snapshot", snapshot });
+      },
+    });
+
+    console.info("[multiagent-service][search-live] complete", JSON.stringify({
+      userId: auth.sub,
+      query: parsed.data.query,
+      leads: result.leads.length,
+      projectId: result.project.id,
+    }));
+    safeWriteEvent({ type: "complete", result });
+  } catch (error) {
+    const normalized = error instanceof TRPCError ? error : toXProviderTrpcError(error);
+    console.error("[multiagent-service][search-live] error", JSON.stringify({
+      userId: auth.sub,
+      query: parsed.data.query,
+      message: normalized.message,
+    }));
+    safeWriteEvent({
+      type: "error",
+      message: normalized.message,
+    });
+  } finally {
+    if (!cancelled && !res.writableEnded) {
+      res.end();
+    }
+  }
 }
 
-export async function multiAgentServiceFetch(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const origin = req.headers.get("origin");
+const server = createServer(async (req, res) => {
+  const origin = req.headers.origin ?? null;
+  const url = new URL(req.url ?? "/", "http://localhost");
+
   console.info("[multiagent-service][request]", JSON.stringify({
     method: req.method,
     pathname: url.pathname,
@@ -245,39 +199,24 @@ export async function multiAgentServiceFetch(req: Request): Promise<Response> {
   }));
 
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: buildCorsHeaders(origin),
-    });
+    res.writeHead(204, buildCorsHeaders(origin));
+    res.end();
+    return;
   }
 
   if (req.method === "GET" && url.pathname === "/healthz") {
-    return Response.json(
-      {
-        ok: true,
-        service: "multiagent",
-      },
-      {
-        headers: buildCorsHeaders(origin),
-      },
-    );
+    writeJson(res, 200, { ok: true, service: "multiagent" }, origin);
+    return;
   }
 
   if (req.method === "POST" && url.pathname === "/search/live") {
-    return handleLiveSearch(req);
+    await handleLiveSearch(req, res);
+    return;
   }
 
-  return jsonError(404, "Not found.", origin);
-}
+  jsonError(res, 404, "Not found.", origin);
+});
 
-export function startMultiAgentServiceServer() {
-  return Bun.serve({
-    port,
-    fetch: multiAgentServiceFetch,
-  });
-}
-
-if (import.meta.main) {
-  startMultiAgentServiceServer();
+server.listen(port, () => {
   console.info(`[multiagent-service] listening on :${port}`);
-}
+});

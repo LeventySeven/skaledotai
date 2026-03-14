@@ -64,9 +64,9 @@ const MULTIAGENT_MIN_URLS = 12;
 const MULTIAGENT_MAX_URLS = 36;
 const MULTIAGENT_MIN_BATCH_SIZE = 3;
 const MULTIAGENT_MAX_BATCH_SIZE = 8;
-const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 20_000;
+const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 45_000;
 const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
-const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 60_000;
+const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 120_000;
 
 const mergeUniqueStrings = (left: string[], right: string[]): string[] => {
   const merged = [...left];
@@ -236,6 +236,9 @@ function getPlannerModel(): ChatOpenAI {
   return new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5",
+    reasoning: {
+      effort: "medium",
+    },
   });
 }
 

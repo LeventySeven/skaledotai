@@ -169,8 +169,8 @@ Render worker env:
 
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL` or `MULTIAGENT_PLANNER_MODEL`
-- `MULTIAGENT_PLANNER_TIMEOUT_MS` (recommended on Render, default `20000`)
+- `OPENAI_MODEL` or `MULTIAGENT_PLANNER_MODEL` (keep this on `gpt-5` for the planner path)
+- `MULTIAGENT_PLANNER_TIMEOUT_MS` (recommended on Render, default `45000`)
 - `TAVILY_API_KEY`
 - `AGENTQL_API_KEY`
 - `MULTIAGENT_SERVICE_SHARED_SECRET`
