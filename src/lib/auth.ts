@@ -5,11 +5,22 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { nextCookies } from "better-auth/next-js";
 
+function readEnv(name: string): string | undefined {
+    const value = process.env[name]?.trim();
+    return value ? value : undefined;
+}
+
+const betterAuthUrl = readEnv("BETTER_AUTH_URL");
+const publicAppUrl = readEnv("NEXT_PUBLIC_APP_URL");
+const googleClientId = readEnv("GOOGLE_CLIENT_ID");
+const googleClientSecret = readEnv("GOOGLE_CLIENT_SECRET");
+
 export const auth = betterAuth({
-    trustedOrigins: [
-        process.env.BETTER_AUTH_URL!,
-        ...(process.env.NODE_ENV === 'development' ? ["http://localhost:3000"] : []),
-    ].filter(Boolean),
+    trustedOrigins: Array.from(new Set([
+        betterAuthUrl,
+        publicAppUrl,
+        ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
+    ].filter((value): value is string => Boolean(value)))),
     database: drizzleAdapter(db, {
         provider: "pg",
         schema,
@@ -25,13 +36,13 @@ export const auth = betterAuth({
         enabled: true,
         requireEmailVerification: false,
     },
-    socialProviders: {
+    socialProviders: googleClientId && googleClientSecret ? {
         google: {
-            clientId: process.env.GOOGLE_CLIENT_ID as string,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
             accessType: "offline",
             prompt: "select_account consent",
         },
-    },
+    } : {},
     plugins: [nextCookies()],
 });
