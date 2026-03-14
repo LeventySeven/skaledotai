@@ -3,6 +3,7 @@
 import { CheckCircle2Icon } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { XLogoIcon } from "@/components/ui/x-icon";
 import {
   X_DATA_PROVIDER_OPTIONS,
 } from "@/lib/x";
@@ -47,7 +48,9 @@ export function XDataProviderSelector({
             disabled={disabled}
           >
             <div className="flex items-center justify-between">
-              <div className="text-[0.95rem] font-semibold">{option.label}</div>
+              <div className="flex items-center gap-1.5 text-[0.95rem] font-semibold">
+                {option.label.startsWith("X ") ? <><XLogoIcon className="size-3.5" /> {option.label.slice(2)}</> : option.label}
+              </div>
               {active ? (
                 <span className="flex size-[26px] shrink-0 items-center justify-center">
                   <CheckCircle2Icon className="size-[18px] text-[#e43420]" />

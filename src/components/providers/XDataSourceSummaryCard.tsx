@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowUpRightIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { XLogoIcon } from "@/components/ui/x-icon";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
@@ -52,8 +53,8 @@ export function XDataSourceSummaryCard({
               {option.experimental ? <Badge size="sm" variant="outline">Experimental</Badge> : null}
             </div>
           ) : null}
-          <div className={cn("mt-3 text-[1.15rem] font-semibold tracking-[-0.02em]", compact && "mt-0 text-[1rem]")}>
-            {option.label}
+          <div className={cn("mt-3 flex items-center gap-1.5 text-[1.15rem] font-semibold tracking-[-0.02em]", compact && "mt-0 text-[1rem]")}>
+            {option.label.startsWith("X ") ? <><XLogoIcon className="size-4" /> {option.label.slice(2)}</> : option.label}
           </div>
           {!compact && (
             <p className="mt-1 text-sm leading-6 text-muted-foreground">

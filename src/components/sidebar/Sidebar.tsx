@@ -88,7 +88,13 @@ function SidebarProviderBadge() {
       className="flex items-center justify-between border-t px-5 py-3 transition-colors hover:bg-accent/50"
     >
       <span className="flex items-center gap-1.5 text-[0.78rem] text-muted-foreground"><XLogoIcon className="size-3" /> source</span>
-      <span className="truncate text-[0.78rem] font-medium">{getXDataProviderLabel(provider)}</span>
+      <span className="flex items-center gap-1 truncate text-[0.78rem] font-medium">
+        {(() => {
+          const label = getXDataProviderLabel(provider);
+          if (label.startsWith("X ")) return <><XLogoIcon className="size-3" /> {label.slice(2)}</>;
+          return label;
+        })()}
+      </span>
     </Link>
   );
 }
