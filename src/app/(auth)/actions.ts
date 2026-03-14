@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getRequestSession } from "@/lib/auth-session";
 import { SignUpSchema, LoginSchema } from "@/lib/validations/auth";
 import { validatedAction } from "@/lib/action-helpers";
 import { getErrorMessage } from "@/lib/utils";
@@ -71,13 +72,5 @@ export const signOutAction = async () => {
 };
 
 export const getCurrentSession = async () => {
-  try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    return session;
-  } catch (error: unknown) {
-    console.error("Error getting session:", error);
-    return null;
-  }
+  return getRequestSession();
 };

@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { createMultiAgentServiceToken, getMultiAgentServiceUrl } from "@/lib/multiagent-service-auth";
 import { MultiAgentServiceSessionSchema } from "@/lib/validations/multiagent-service";
+import { getRequestSession } from "@/lib/auth-session";
 
 export const runtime = "nodejs";
 
@@ -17,7 +16,7 @@ function jsonError(status: number, message: string): Response {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getRequestSession();
   if (!session?.user?.id) {
     return jsonError(401, "Unauthorized.");
   }
