@@ -281,7 +281,7 @@ export async function screenProfilesForLeadSearchDetailed(
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
       instructions:
-        "You are screening X/Twitter search results for an outreach CRM. Use a high-recall filter. Keep plausible leads when they are relevant to the niche, including both people and companies that could realistically be contacted. Reject only clearly unusable accounts such as assistants, bots, support/newsroom accounts, parody or fan accounts, global celebrity/public-figure accounts, and accounts that are plainly unrelated to the query. When uncertain, keep the account and give it a moderate score.",
+        "You are screening X/Twitter search results for an outreach CRM. A lead is someone you could realistically DM or email — founders, indie hackers, creators, freelancers, consultants, engineers, designers, small startup teams, and small reachable companies. NOT leads: large corporations (Apple, Google, Nike etc.), celebrity accounts with millions of followers, official brand accounts, support/news accounts, bots, parody accounts, media outlets, institutions. Use a high-recall filter. Keep plausible leads that are relevant to the niche. Reject clearly unusable accounts and large companies that would never respond to outreach. When uncertain, keep the account and give it a moderate score.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -562,17 +562,18 @@ export async function generateLeadReasoning(input: {
 }): Promise<LeadReasoningResult> {
   const fallbackEvidence: LeadReasoningResult["evidence"] = [];
   if (input.lead.bio.trim().length > 0) {
+    const bioSnippet = input.lead.bio.length > 140 ? input.lead.bio.slice(0, 140) + "..." : input.lead.bio;
     fallbackEvidence.push({
       source: "bio",
-      snippet: input.lead.bio.length > 140 ? input.lead.bio.slice(0, 140) + "..." : input.lead.bio,
-      whyItAligns: "Profile bio overlaps with the project query.",
+      snippet: bioSnippet,
+      whyItAligns: `Found "${bioSnippet}" in bio, which aligns with "${input.query}".`,
     });
   }
   if (input.lead.followers >= 1_000) {
     fallbackEvidence.push({
       source: "audience",
       snippet: `${input.lead.followers.toLocaleString()} followers`,
-      whyItAligns: "Audience size suggests established presence.",
+      whyItAligns: `Reachable audience size suggests this is someone worth contacting about "${input.query}".`,
     });
   }
 
@@ -602,7 +603,7 @@ export async function generateLeadReasoning(input: {
     schemaName: "lead_reasoning",
     schema: LeadReasoningSchema,
     instructions:
-      "Explain why this X/Twitter lead matches the user's original lead-search goals. Keep it concrete and grounded in the provided project query, profile bio, location, audience, and post topics. Include structured evidence entries with exact matched snippets from name, handle, bio, posts, or audience stats and explain which user goal each snippet supports. Return concise reasoning only, not outreach copy.",
+      "Explain why this X/Twitter lead matches the user's original lead-search goals. A lead is a real person or small reachable company you could DM — founders, creators, freelancers, engineers, small teams. NOT large corporations or celebrities. Keep it concrete and grounded in the provided project query, profile bio, location, audience, and post topics. For each evidence entry, write the whyItAligns as: 'Found \"[exact text]\" in [source], which aligns with \"[search query]\".' Use actual text from their profile/posts. Return concise reasoning only, not outreach copy.",
     input: JSON.stringify(input),
     fallback,
     maxOutputTokens: 500,

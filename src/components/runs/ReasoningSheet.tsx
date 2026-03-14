@@ -77,9 +77,9 @@ function toTraceDisplaySteps(trace: ProjectRunTrace): DisplayStep[] {
 function getStepTone(status: StepStatus) {
   if (status === "active") {
     return {
-      node: "border-[#e43420]/35 bg-[#fff1ef] text-[#7a1d13] shadow-[0_18px_40px_-26px_rgba(228,52,32,0.55)]",
-      dot: "bg-[#e43420] ring-4 ring-[#f7c6bf]/80",
-      line: "from-[#ef7b6e] via-[#f3b0a7] to-border/40",
+      node: "border-[#e84393]/35 bg-[#fdf2f8] text-[#831843] shadow-[0_18px_40px_-26px_rgba(232,67,147,0.45)]",
+      dot: "bg-[#e84393] ring-4 ring-[#f9a8d4]/80",
+      line: "from-[#f472b6] via-[#f9a8d4] to-border/40",
       label: "Active",
     };
   }
