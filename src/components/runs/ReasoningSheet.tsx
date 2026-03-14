@@ -77,9 +77,9 @@ function toTraceDisplaySteps(trace: ProjectRunTrace): DisplayStep[] {
 function getStepTone(status: StepStatus) {
   if (status === "active") {
     return {
-      node: "border-emerald-300 bg-emerald-50 text-emerald-950 shadow-[0_18px_40px_-26px_rgba(16,185,129,0.9)]",
-      dot: "bg-emerald-500 ring-4 ring-emerald-200/80",
-      line: "from-emerald-300 via-emerald-200 to-border/40",
+      node: "border-[#e43420]/35 bg-[#fff1ef] text-[#7a1d13] shadow-[0_18px_40px_-26px_rgba(228,52,32,0.55)]",
+      dot: "bg-[#e43420] ring-4 ring-[#f7c6bf]/80",
+      line: "from-[#ef7b6e] via-[#f3b0a7] to-border/40",
       label: "Active",
     };
   }
@@ -103,7 +103,7 @@ function getStepTone(status: StepStatus) {
 
 function GraphLane({ steps }: { steps: DisplayStep[] }) {
   return (
-    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,250,252,0.95))] p-4 dark:bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(15,23,42,0.96))]">
+    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(228,52,32,0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,250,252,0.95))] p-4 dark:bg-[radial-gradient(circle_at_top_left,rgba(228,52,32,0.16),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(15,23,42,0.96))]">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">

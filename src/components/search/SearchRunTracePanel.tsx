@@ -43,9 +43,9 @@ function resolveGraphNodes(
 function getNodeTone(status: SearchRunGraphNode["status"]) {
   if (status === "active") {
     return {
-      card: "border-emerald-300 bg-emerald-50/80 text-emerald-950 shadow-[0_18px_50px_-32px_rgba(16,185,129,0.9)]",
-      dot: "bg-emerald-500 ring-4 ring-emerald-200/90",
-      edge: "bg-gradient-to-r from-emerald-300 via-emerald-200 to-border/35",
+      card: "border-[#e43420]/35 bg-[#fff1ef]/90 text-[#7a1d13] shadow-[0_18px_50px_-32px_rgba(228,52,32,0.55)]",
+      dot: "bg-[#e43420] ring-4 ring-[#f7c6bf]/90",
+      edge: "bg-gradient-to-r from-[#ef7b6e] via-[#f3b0a7] to-border/35",
       label: "Streaming",
     };
   }
@@ -75,7 +75,7 @@ function GraphLane({
   snapshot?: SearchRunStreamSnapshot | null;
 }) {
   return (
-    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.96))] p-4 dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.96))]">
+    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(228,52,32,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.96))] p-4 dark:bg-[radial-gradient(circle_at_top_left,_rgba(228,52,32,0.18),_transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.96))]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -271,7 +271,7 @@ export function SearchRunTracePanel({
                     className={cn(
                       "rounded-[22px] border px-4 py-4 transition-all duration-300",
                       isActive
-                        ? "trace-active-shimmer border-emerald-300 bg-emerald-50/80"
+                        ? "trace-active-shimmer border-[#e43420]/35 bg-[#fff1ef]/90"
                         : "border-border/70 bg-background/80",
                     )}
                   >
@@ -281,7 +281,7 @@ export function SearchRunTracePanel({
                           <div
                             className={cn(
                               "size-2.5 rounded-full",
-                              isActive ? "bg-emerald-500" : "bg-foreground/70",
+                              isActive ? "bg-[#e43420]" : "bg-foreground/70",
                             )}
                           />
                           <div className="text-sm font-semibold">{step.title}</div>
