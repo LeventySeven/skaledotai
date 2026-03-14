@@ -29,7 +29,12 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState("");
   const [latestKey, setLatestKey] = useState<string | null>(null);
-  const listQuery = trpc.settings.apiKeys.list.useQuery(undefined, { initialData: initialApiKeys });
+  const normalizedInitialApiKeys = initialApiKeys?.map((k) => ({
+    ...k,
+    createdAt: new Date(k.createdAt),
+    lastUsed: k.lastUsed ? new Date(k.lastUsed) : null,
+  }));
+  const listQuery = trpc.settings.apiKeys.list.useQuery(undefined, { initialData: normalizedInitialApiKeys });
   const createKey = trpc.settings.apiKeys.create.useMutation({
     onSuccess: async (result) => {
       setLatestKey(result.key);
