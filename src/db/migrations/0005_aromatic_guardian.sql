@@ -1,0 +1,1 @@
+ALTER TABLE "project_lead_insights" ADD COLUMN "evidence" jsonb DEFAULT '[]'::jsonb NOT NULL;

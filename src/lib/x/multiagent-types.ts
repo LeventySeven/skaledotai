@@ -16,11 +16,14 @@ export const MULTIAGENT_SUBAGENT_TITLES = {
   source_researcher: "Source Researcher",
   profile_hydrator: "Profile Hydrator",
   candidate_scorer: "Candidate Scorer",
+  profile_signal_extractor: "Profile Signal Extractor",
+  post_signal_extractor: "Post Signal Extractor",
+  lead_selector: "Lead Selector",
   validator: "Validator",
   recovery: "Recovery",
 } as const;
 
-export const MULTIAGENT_MAX_QUERIES = 5;
+export const MULTIAGENT_MAX_QUERIES = 8;
 
 export type MultiAgentNodeName = keyof typeof MULTIAGENT_NODE_TITLES;
 export type MultiAgentSubagentName = keyof typeof MULTIAGENT_SUBAGENT_TITLES;
@@ -42,11 +45,18 @@ export type ScrapedPayload = {
   payload: unknown;
 };
 
+export type SelectionEvidence = {
+  source: "name" | "handle" | "bio" | "post" | "audience";
+  snippet: string;
+  whyItAligns: string;
+};
+
 export type ScoredCandidate = {
   candidate: XLeadCandidate;
   score: number;
   reasons: string[];
   attempt: number;
+  evidence?: SelectionEvidence[];
 };
 
 export type PlannerResult = {

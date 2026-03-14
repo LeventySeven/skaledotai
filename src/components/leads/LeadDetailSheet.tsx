@@ -258,6 +258,20 @@ export function LeadDetailSheet({
                         </div>
                       ))}
                     </div>
+                    {reasoning.evidence && reasoning.evidence.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidence</p>
+                        {reasoning.evidence.map((entry, index) => (
+                          <div key={`${lead.id}-evidence-${index}`} className="rounded-lg border border-border/50 bg-muted/30 p-2.5 text-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">{entry.source}</Badge>
+                            </div>
+                            <p className="text-foreground/90 text-xs italic">&ldquo;{entry.snippet}&rdquo;</p>
+                            <p className="text-muted-foreground text-xs mt-1">{entry.whyItAligns}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       {reasoning.userGoals.map((goal, index) => (
                         <Badge key={`${lead.id}-goal-${index}`} variant="outline">{goal}</Badge>

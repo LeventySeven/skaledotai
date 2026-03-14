@@ -43,6 +43,7 @@ import {
   type MultiAgentErrorRecord,
   type ScrapedPayload,
   type ScoredCandidate,
+  type SelectionEvidence,
   type PlannerResult,
   type PlannerAgentInput,
   type SourceFanoutAgentInput,
@@ -65,9 +66,9 @@ export { buildAgentQlQueryRequest } from "./agentql";
 
 const MULTIAGENT_MIN_QUERIES = 3;
 const MULTIAGENT_MIN_URLS = 12;
-const MULTIAGENT_MAX_URLS = 36;
+const MULTIAGENT_MAX_URLS = 96;
 const MULTIAGENT_MIN_BATCH_SIZE = 3;
-const MULTIAGENT_MAX_BATCH_SIZE = 8;
+const MULTIAGENT_MAX_BATCH_SIZE = 12;
 const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 45_000;
 const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
 const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 120_000;
@@ -384,8 +385,9 @@ function buildGoogleDorkQueries(input: {
 
 function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" | "targetLeadCount" | "limit">): number {
   const requestedCount = input.goalCount ?? input.targetLeadCount ?? input.limit;
-  if (requestedCount >= 140) return 5;
-  if (requestedCount >= 80) return 4;
+  if (requestedCount >= 220) return 8;
+  if (requestedCount >= 120) return 6;
+  if (requestedCount >= 60) return 4;
   return MULTIAGENT_MIN_QUERIES;
 }
 
@@ -419,14 +421,14 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
 
 function resolveMultiAgentUrlLimit(limit: number, goalCount?: number): number {
   const requested = Math.max(limit, goalCount ?? 0);
-  return Math.max(MULTIAGENT_MIN_URLS, Math.min(requested, MULTIAGENT_MAX_URLS));
+  return Math.max(MULTIAGENT_MIN_URLS, Math.min(MULTIAGENT_MAX_URLS, Math.ceil(requested * 0.22)));
 }
 
 function resolveMultiAgentScrapeBatchSize(limit: number, goalCount?: number): number {
   const urlBudget = resolveMultiAgentUrlLimit(limit, goalCount);
   return Math.max(
     MULTIAGENT_MIN_BATCH_SIZE,
-    Math.min(MULTIAGENT_MAX_BATCH_SIZE, Math.ceil(urlBudget / 4)),
+    Math.min(MULTIAGENT_MAX_BATCH_SIZE, Math.ceil(urlBudget / 6)),
   );
 }
 
@@ -502,6 +504,73 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
     score,
     reasons: reasons.length > 0 ? reasons : ["Baseline creator-fit heuristic score"],
   };
+}
+
+function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): SelectionEvidence[] {
+  const keywords = extractKeywords(niche);
+  const evidence: SelectionEvidence[] = [];
+
+  // Profile signal extraction: name
+  const nameHits = keywords.filter((kw) => normalizeText(candidate.account.name).includes(kw));
+  if (nameHits.length > 0) {
+    evidence.push({
+      source: "name",
+      snippet: candidate.account.name,
+      whyItAligns: `Display name contains niche terms: ${nameHits.join(", ")}.`,
+    });
+  }
+
+  // Handle signal
+  const handleHits = keywords.filter((kw) => normalizeText(candidate.account.handle).includes(kw));
+  if (handleHits.length > 0) {
+    evidence.push({
+      source: "handle",
+      snippet: `@${candidate.account.handle.replace(/^@/, "")}`,
+      whyItAligns: `Handle references niche keywords: ${handleHits.join(", ")}.`,
+    });
+  }
+
+  // Bio signal
+  if (candidate.account.bio.trim().length > 0) {
+    const bioHits = keywords.filter((kw) => normalizeText(candidate.account.bio).includes(kw));
+    if (bioHits.length > 0) {
+      const bioSnippet = candidate.account.bio.length > 140
+        ? candidate.account.bio.slice(0, 140) + "..."
+        : candidate.account.bio;
+      evidence.push({
+        source: "bio",
+        snippet: bioSnippet,
+        whyItAligns: `Bio mentions ${bioHits.join(", ")}, signaling alignment with the search goal.`,
+      });
+    }
+  }
+
+  // Post signal extraction: up to 2 posts
+  const matchingPosts = candidate.posts
+    .filter((post) => keywords.some((kw) => normalizeText(post.text).includes(kw)))
+    .slice(0, 2);
+  for (const post of matchingPosts) {
+    const postSnippet = post.text.length > 160
+      ? post.text.slice(0, 160) + "..."
+      : post.text;
+    const postHits = keywords.filter((kw) => normalizeText(post.text).includes(kw));
+    evidence.push({
+      source: "post",
+      snippet: postSnippet,
+      whyItAligns: `Post references ${postHits.join(", ")}, showing active engagement with the topic.`,
+    });
+  }
+
+  // Audience signal
+  if (candidate.account.followers >= 1_000) {
+    evidence.push({
+      source: "audience",
+      snippet: `${candidate.account.followers.toLocaleString()} followers`,
+      whyItAligns: `Audience size suggests established presence and reach in the space.`,
+    });
+  }
+
+  return evidence;
 }
 
 function sortScoredCandidates(items: ScoredCandidate[]): ScoredCandidate[] {
@@ -1006,11 +1075,13 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
     activeSubagent: "candidate_scorer" as const,
     scored: state.candidates.map((candidate) => {
       const heuristic = scoreCandidateHeuristically(state.niche, candidate);
+      const evidence = extractSelectionEvidence(state.niche, candidate);
       return {
         candidate,
         score: heuristic.score,
         reasons: heuristic.reasons,
         attempt: state.attempt,
+        evidence,
       } satisfies ScoredCandidate;
     }),
   }))

@@ -6,6 +6,7 @@ import {
   uuid,
   integer,
   numeric,
+  jsonb,
   uniqueIndex,
   index,
   primaryKey,
@@ -131,6 +132,7 @@ export const projectLeadInsights = pgTable("project_lead_insights", {
   confidence: integer("confidence").notNull().default(0),
   tools: text("tools").array().notNull().default([]),
   subagents: text("subagents").array().notNull().default([]),
+  evidence: jsonb("evidence").notNull().default([]),
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

@@ -30,9 +30,9 @@ const FOLLOWER_FLOOR_OPTIONS = [
 ] as const;
 
 const LEAD_TARGET_BOUNDS = {
-  min: 20,
-  max: 180,
-  step: 10,
+  min: 1,
+  max: 300,
+  step: 1,
 } as const;
 
 function mergeTraceSteps(
@@ -375,7 +375,7 @@ export function SearchForm() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="block text-[1.05rem] font-semibold">Approximate leads</label>
+            <label className="block text-[1.05rem] font-semibold">Approximate leads <span className="font-normal text-muted-foreground text-sm">(soft target)</span></label>
             <Input
               className="h-[42px] rounded-2xl text-[1rem]"
               type="number"
