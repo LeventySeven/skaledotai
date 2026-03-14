@@ -140,7 +140,7 @@ function createDiscoveryProgressHandlers(
           ],
           metrics: [
             { label: "Attempt", value: `${input.attempt} / ${input.maxAttempts}` },
-            { label: "Lead goal", value: `~${input.targetLeadCount}` },
+            { label: "Lead target (approx)", value: `~${input.targetLeadCount}` },
             { label: "Candidate goal", value: input.goalCount },
             ...step.metrics,
           ],
@@ -215,7 +215,10 @@ function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
 }
 
 function buildScreeningPool(candidates: XLeadCandidate[], targetLeadCount: number): XLeadCandidate[] {
-  const headCount = Math.min(candidates.length, Math.max(targetLeadCount, Math.ceil(targetLeadCount * 1.4)));
+  // Soft target: allow overrun up to requested + max(5, ceil(requested * 0.15))
+  const overrunBuffer = Math.max(5, Math.ceil(targetLeadCount * 0.15));
+  const softCeiling = targetLeadCount + overrunBuffer;
+  const headCount = Math.min(candidates.length, Math.max(softCeiling, Math.ceil(targetLeadCount * 1.4)));
   const seen = new Set<string>();
   const pool: XLeadCandidate[] = [];
 
@@ -594,7 +597,7 @@ export async function searchAndAddLeads(
         describeDiscoveryStopReason(discoveryResult.stopReason),
       ],
       metrics: [
-        { label: "Lead target", value: `~${targetLeadCount}` },
+        { label: "Lead target (approx)", value: `~${targetLeadCount}` },
         { label: "Candidate goal", value: discoveryResult.goalCount },
         { label: "Attempts", value: `${discoveryResult.attempts} / ${discoveryResult.maxAttempts}` },
         { label: "Parse pool", value: parseAccountsTarget },
@@ -649,8 +652,8 @@ export async function searchAndAddLeads(
           `Batch ${index + 1}: reviewed ${batch.candidateCount}, kept ${batch.includedCount}${batch.usedFallback ? " using fallback heuristics" : ""}.`,
         ),
         screenedCandidates.length >= targetLeadCount
-          ? `Reached the requested lead target of ~${targetLeadCount}.`
-          : `Requested ~${targetLeadCount} leads; the bounded search retained ${screenedCandidates.length}.`,
+          ? `Met the approximate target of ~${targetLeadCount} (soft target; the result may exceed the request).`
+          : `Approximate target was ~${targetLeadCount}; the bounded search retained ${screenedCandidates.length}. The target is approximate and results may vary.`,
       ],
       metrics: [
         { label: "Pool", value: screeningPool.length },

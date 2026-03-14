@@ -1,9 +1,9 @@
 // Search tuning
-export const SEARCH_TARGET_MIN = 20;
+export const SEARCH_TARGET_MIN = 1;
 export const SEARCH_TARGET = 100;
-export const SEARCH_TARGET_MAX = 180;
+export const SEARCH_TARGET_MAX = 300;
 export const SEARCH_CANDIDATE_OVERFETCH_FACTOR = 2;
-export const SEARCH_CANDIDATE_POOL_LIMIT = 360;
+export const SEARCH_CANDIDATE_POOL_LIMIT = 720;
 export const SEARCH_POST_SEARCH_PAGE_LIMIT = 2;
 export const SEARCH_AI_BATCH_SIZE = 40;
 export const SEARCH_DISCOVERY_METADATA = {

@@ -45,6 +45,11 @@ export const LeadReasoningSchema = z.object({
   confidence: z.number().int().min(0).max(100),
   tools: z.array(z.string()).default([]),
   subagents: z.array(z.string()).default([]),
+  evidence: z.array(z.object({
+    source: z.enum(["name", "handle", "bio", "post", "audience"]),
+    snippet: z.string(),
+    whyItAligns: z.string(),
+  })).default([]),
   generatedAt: z.string(),
   updatedAt: z.string(),
 });

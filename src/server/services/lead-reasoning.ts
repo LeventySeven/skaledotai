@@ -56,6 +56,23 @@ function buildContextHash(input: {
     .digest("hex");
 }
 
+type EvidenceEntry = { source: "name" | "handle" | "bio" | "post" | "audience"; snippet: string; whyItAligns: string };
+
+const EVIDENCE_SOURCES = new Set(["name", "handle", "bio", "post", "audience"]);
+
+function parseEvidence(raw: unknown): EvidenceEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (entry): entry is EvidenceEntry =>
+      entry !== null
+      && typeof entry === "object"
+      && typeof (entry as Record<string, unknown>).source === "string"
+      && EVIDENCE_SOURCES.has((entry as Record<string, unknown>).source as string)
+      && typeof (entry as Record<string, unknown>).snippet === "string"
+      && typeof (entry as Record<string, unknown>).whyItAligns === "string",
+  );
+}
+
 function rowToLeadReasoning(row: typeof projectLeadInsights.$inferSelect): LeadReasoning {
   return {
     leadId: row.leadId,
@@ -66,6 +83,7 @@ function rowToLeadReasoning(row: typeof projectLeadInsights.$inferSelect): LeadR
     confidence: row.confidence,
     tools: row.tools ?? [],
     subagents: row.subagents ?? [],
+    evidence: parseEvidence(row.evidence),
     generatedAt: row.generatedAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -238,6 +256,7 @@ export async function getLeadReasoning(input: {
       confidence: generated.confidence,
       tools: generated.tools,
       subagents: generated.subagents,
+      evidence: generated.evidence ?? [],
       generatedAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -255,6 +274,7 @@ export async function getLeadReasoning(input: {
       confidence: generated.confidence,
       tools: generated.tools,
       subagents: generated.subagents,
+      evidence: generated.evidence ?? [],
       generatedAt: now,
       updatedAt: now,
     })
@@ -268,6 +288,7 @@ export async function getLeadReasoning(input: {
         confidence: generated.confidence,
         tools: generated.tools,
         subagents: generated.subagents,
+        evidence: generated.evidence ?? [],
         generatedAt: now,
         updatedAt: now,
       },

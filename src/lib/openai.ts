@@ -114,6 +114,11 @@ const LeadReasoningSchema = z.object({
   confidence: z.number().int().min(0).max(100),
   tools: z.array(z.string()).default([]),
   subagents: z.array(z.string()).default([]),
+  evidence: z.array(z.object({
+    source: z.enum(["name", "handle", "bio", "post", "audience"]),
+    snippet: z.string(),
+    whyItAligns: z.string(),
+  })).default([]),
 });
 
 // ── Core AI wrapper ───────────────────────────────────────────────────────────
@@ -555,6 +560,22 @@ export async function generateLeadReasoning(input: {
   tools: string[];
   subagents: string[];
 }): Promise<LeadReasoningResult> {
+  const fallbackEvidence: LeadReasoningResult["evidence"] = [];
+  if (input.lead.bio.trim().length > 0) {
+    fallbackEvidence.push({
+      source: "bio",
+      snippet: input.lead.bio.length > 140 ? input.lead.bio.slice(0, 140) + "..." : input.lead.bio,
+      whyItAligns: "Profile bio overlaps with the project query.",
+    });
+  }
+  if (input.lead.followers >= 1_000) {
+    fallbackEvidence.push({
+      source: "audience",
+      snippet: `${input.lead.followers.toLocaleString()} followers`,
+      whyItAligns: "Audience size suggests established presence.",
+    });
+  }
+
   const fallback = {
     summary: `${input.lead.name} looks aligned with ${input.query} based on their profile and audience signals.`,
     alignmentBullets: [
@@ -574,21 +595,23 @@ export async function generateLeadReasoning(input: {
     confidence: 72,
     tools: input.tools,
     subagents: input.subagents,
+    evidence: fallbackEvidence,
   } satisfies LeadReasoningResult;
 
   const result = await structuredResponse<LeadReasoningResult>({
     schemaName: "lead_reasoning",
     schema: LeadReasoningSchema,
     instructions:
-      "Explain why this X/Twitter lead matches the user's original lead-search goals. Keep it concrete and grounded in the provided project query, profile bio, location, audience, and post topics. Return concise reasoning only, not outreach copy.",
+      "Explain why this X/Twitter lead matches the user's original lead-search goals. Keep it concrete and grounded in the provided project query, profile bio, location, audience, and post topics. Include structured evidence entries with exact matched snippets from name, handle, bio, posts, or audience stats and explain which user goal each snippet supports. Return concise reasoning only, not outreach copy.",
     input: JSON.stringify(input),
     fallback,
-    maxOutputTokens: 300,
+    maxOutputTokens: 500,
   });
 
   return {
     ...result,
     tools: result.tools.length > 0 ? result.tools : input.tools,
     subagents: result.subagents.length > 0 ? result.subagents : input.subagents,
+    evidence: result.evidence.length > 0 ? result.evidence : fallbackEvidence,
   };
 }
