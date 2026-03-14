@@ -6,6 +6,15 @@ import { useRouter } from "next/navigation";
 import { ArrowRightIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogPopup,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ReasoningSheet, type LiveReasoningStep } from "@/components/runs/ReasoningSheet";
 import { Spinner } from "@/components/ui/spinner";
@@ -47,6 +56,22 @@ export function ProjectsWorkspace() {
   const [uiError, setUiError] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<ProjectAnalysisResult | null>(null);
   const [reasoningOpen, setReasoningOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const deleteMutation = trpc.projects.delete.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.projects.list.invalidate(),
+        utils.projects.overviews.invalidate(),
+        utils.leads.list.invalidate(),
+      ]);
+      toastManager.add({ type: "success", title: "Campaign deleted." });
+    },
+    onError: (error) => {
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
 
   const analyzeMutation = trpc.projects.analyze.useMutation({
     onSuccess: async (result) => {
@@ -91,6 +116,20 @@ export function ProjectsWorkspace() {
       current.includes(projectId)
         ? current.filter((id) => id !== projectId)
         : [...current, projectId],
+    );
+  }
+
+  function handleDelete(projectId: string) {
+    const overview = overviews.find((o) => o.id === projectId);
+    setDeleteTarget({ id: projectId, name: overview?.name ?? "" });
+    setDeleteConfirmText("");
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(
+      { projectId: deleteTarget.id },
+      { onSettled: () => setDeleteTarget(null) },
     );
   }
 
@@ -223,6 +262,7 @@ export function ProjectsWorkspace() {
               analysisMode={analysisMode}
               selected={selectedProjectIds.includes(project.id)}
               onToggle={toggleProject}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -237,6 +277,40 @@ export function ProjectsWorkspace() {
         liveSteps={ANALYSIS_REASONING_STEPS}
         trace={analysisResult?.trace}
       />
+
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogPopup showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete campaign</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Type <span className="font-semibold text-foreground">{deleteTarget?.name}</span> to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-2">
+            <Input
+              className="h-[42px] rounded-[10px] text-[0.95rem]"
+              placeholder={deleteTarget?.name}
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" className="h-9 rounded-xl px-4 text-[0.88rem]" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              className="h-9 rounded-xl px-4 text-[0.88rem]"
+              disabled={deleteConfirmText !== deleteTarget?.name || deleteMutation.isPending}
+              onClick={confirmDelete}
+            >
+              {deleteMutation.isPending ? <Spinner className="size-3.5" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
     </div>
   );
 }

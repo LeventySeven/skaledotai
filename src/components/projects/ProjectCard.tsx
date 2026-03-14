@@ -2,7 +2,7 @@
 
 import { startTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckIcon, FolderOpenIcon, RotateCwIcon } from "lucide-react";
+import { CheckIcon, FolderOpenIcon, RotateCwIcon, Trash2Icon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,11 +34,13 @@ export function ProjectCard({
   analysisMode,
   selected,
   onToggle,
+  onDelete,
 }: {
   project: ProjectOverview;
   analysisMode: boolean;
   selected: boolean;
   onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const router = useRouter();
 
@@ -121,6 +123,16 @@ export function ProjectCard({
             >
               <FolderOpenIcon className="size-4" />
               Open
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-9 w-9 rounded-xl px-0 text-muted-foreground hover:text-red-600"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(project.id);
+              }}
+            >
+              <Trash2Icon className="size-3.5" />
             </Button>
           </div>
         ) : null}
