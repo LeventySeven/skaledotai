@@ -3,7 +3,7 @@
 import { startTransition, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRightIcon, Loader2Icon, SparklesIcon } from "lucide-react";
+import { ArrowRightIcon, CopyIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -283,8 +283,23 @@ export function ProjectsWorkspace() {
           <DialogHeader>
             <DialogTitle>Delete campaign</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Type <span className="font-semibold text-foreground">{deleteTarget?.name}</span> to confirm.
+              This action cannot be undone. Type the campaign name to confirm.
             </DialogDescription>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="text-[0.95rem] font-semibold text-foreground">{deleteTarget?.name}</span>
+              <button
+                type="button"
+                className="inline-flex items-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  if (deleteTarget?.name) {
+                    navigator.clipboard.writeText(deleteTarget.name);
+                    toastManager.add({ type: "success", title: "Copied to clipboard." });
+                  }
+                }}
+              >
+                <CopyIcon className="size-3.5" />
+              </button>
+            </div>
           </DialogHeader>
           <div className="px-6 pb-2">
             <Input
@@ -301,7 +316,7 @@ export function ProjectsWorkspace() {
             </DialogClose>
             <Button
               variant="destructive"
-              className="h-9 rounded-xl px-4 text-[0.88rem]"
+              className="h-9 rounded-xl px-4 text-[0.88rem] disabled:opacity-40"
               disabled={deleteConfirmText !== deleteTarget?.name || deleteMutation.isPending}
               onClick={confirmDelete}
             >
