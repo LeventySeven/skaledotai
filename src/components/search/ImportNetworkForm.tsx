@@ -91,7 +91,7 @@ export function ImportNetworkForm() {
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">Twitter handle</label>
           <Input
-            className="h-[42px] rounded-2xl text-[1rem]"
+            className="h-[42px] rounded-[10px] text-[1rem]"
             placeholder="@MarkKnd"
             value={networkUsername}
             onChange={(event) => setNetworkUsername(event.target.value)}
@@ -101,7 +101,7 @@ export function ImportNetworkForm() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <select
-            className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+            className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 text-[1rem] shadow-xs/5"
             value={networkProjectMode}
             onChange={(event) => setNetworkProjectMode(event.target.value as "new" | "existing")}
           >
@@ -110,14 +110,14 @@ export function ImportNetworkForm() {
           </select>
           {networkProjectMode === "new" ? (
             <Input
-              className="h-[42px] rounded-2xl text-[1rem]"
+              className="h-[42px] rounded-[10px] text-[1rem]"
               placeholder="Project name (optional)"
               value={networkProjectName}
               onChange={(event) => setNetworkProjectName(event.target.value)}
             />
           ) : (
             <select
-              className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 text-[1rem] shadow-xs/5"
               value={networkProjectId}
               onChange={(event) => setNetworkProjectId(event.target.value)}
               required
@@ -135,7 +135,7 @@ export function ImportNetworkForm() {
         <Button
           type="submit"
           variant="outline"
-          className="h-[42px] w-full rounded-2xl text-[1rem] font-medium"
+          className="h-[42px] w-full rounded-[10px] text-[1rem] font-medium"
           disabled={importMutation.isPending}
         >
           {importMutation.isPending ? <Spinner className="size-4" /> : null}

@@ -303,7 +303,7 @@ export function SearchForm() {
   return (
     <>
       {rerunProjectId ? (
-        <div className="mt-8 mb-2 flex items-center justify-between rounded-xl border border-border px-3.5 py-2.5">
+        <div className="mt-8 mb-2 flex items-center justify-between rounded-[10px] border border-border px-3.5 py-2.5">
           <span className="text-[0.88rem] text-muted-foreground">Re-running into existing project</span>
           <Button
             type="button"
@@ -320,7 +320,7 @@ export function SearchForm() {
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">What are you looking for?</label>
           <Input
-            className="h-[42px] rounded-2xl text-[1rem]"
+            className="h-[42px] rounded-[10px] text-[1rem]"
             placeholder="e.g. best product designers"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -336,7 +336,7 @@ export function SearchForm() {
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Minimum followers</label>
             <select
-              className="flex h-[42px] w-full rounded-2xl border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 text-[1rem] shadow-xs/5"
               value={minFollowers}
               onChange={(event) => setMinFollowers(Number(event.target.value))}
             >
@@ -350,7 +350,7 @@ export function SearchForm() {
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Approximate leads</label>
             <Input
-              className="h-[42px] rounded-2xl text-[1rem]"
+              className="h-[42px] rounded-[10px] text-[1rem]"
               type="number"
               min={LEAD_TARGET_BOUNDS.min}
               max={LEAD_TARGET_BOUNDS.max}
@@ -375,7 +375,7 @@ export function SearchForm() {
           </label>
           {searchFollowersOnly && (
             <Input
-              className="h-[42px] rounded-2xl text-[1rem]"
+              className="h-[42px] rounded-[10px] text-[1rem]"
               placeholder="@markknd"
               value={followerUsername}
               onChange={(event) => setFollowerUsername(event.target.value)}
@@ -385,7 +385,7 @@ export function SearchForm() {
 
         <Button
           type="submit"
-          className="h-[42px] w-full rounded-2xl text-[1rem] font-medium"
+          className="h-[42px] w-full rounded-[10px] text-[1rem] font-medium"
           disabled={searchMutation.isPending || liveSearchPending}
         >
           {searchMutation.isPending || liveSearchPending ? <Spinner className="size-4" /> : null}
