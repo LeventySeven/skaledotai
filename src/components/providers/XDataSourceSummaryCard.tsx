@@ -64,7 +64,7 @@ export function XDataSourceSummaryCard({
 
         {showButton ? (
           <Button
-            render={<Link href="/settings/x-data-source" />}
+            render={<Link href="/settings" />}
             variant="outline"
             size="sm"
             className={cn("shrink-0 rounded-xl", compact && "h-8 px-3 text-[0.85rem]")}

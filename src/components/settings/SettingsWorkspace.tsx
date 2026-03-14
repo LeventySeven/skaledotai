@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { type FormEvent, useState } from "react";
-import { ArrowUpRightIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummaryCard";
+import { XDataProviderSelector } from "@/components/providers/XDataProviderSelector";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toastManager } from "@/components/ui/toast";
@@ -62,24 +61,11 @@ export function SettingsWorkspace() {
       </p>
 
       <div className="mt-10 rounded-[1.75rem] border border-border bg-card p-6 shadow-xs/5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-[620px]">
-            <h2 className="text-[1.65rem] font-semibold tracking-[-0.03em]">X data source</h2>
-            <p className="mt-2 text-[0.98rem] leading-7 text-muted-foreground">
-              Configure the global X provider in one place and keep search, imports, stats, and AI analysis aligned.
-            </p>
-          </div>
-          <Button
-            render={<Link href="/settings/x-data-source" />}
-            variant="outline"
-            className="h-[40px] rounded-2xl px-4 text-[0.98rem]"
-          >
-            Open X data source
-            <ArrowUpRightIcon className="size-4" />
-          </Button>
-        </div>
-
-        <XDataSourceSummaryCard className="mt-5" showButton={false} />
+        <h2 className="text-[1.65rem] font-semibold tracking-[-0.03em]">X data source</h2>
+        <p className="mt-2 text-[0.98rem] leading-7 text-muted-foreground">
+          Choose the provider Skale uses for search, imports, stats, and AI analysis.
+        </p>
+        <XDataProviderSelector className="mt-5" />
       </div>
 
       <div className="my-12 h-px bg-border" />
