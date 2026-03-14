@@ -157,7 +157,7 @@ export function MobileHeader({ initialProjects }: { initialProjects?: Project[] 
         )}
       >
         <div className="flex h-[74px] items-center justify-between border-b px-7">
-          <span className="text-[1.1rem] font-semibold tracking-tight">Dashboard</span>
+          <Image src="/Skale.ai.svg" alt="Skale.ai" width={76} height={24} priority />
           <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close menu">
             <XIcon className="size-4" />
           </Button>
@@ -172,7 +172,7 @@ export function Sidebar({ initialProjects }: { initialProjects?: Project[] }) {
   return (
     <aside className="hidden h-screen w-[228px] shrink-0 flex-col border-r bg-background md:flex">
       <div className="flex h-[74px] items-center px-7 shrink-0">
-        <span className="text-[1.1rem] font-semibold tracking-tight">Dashboard</span>
+        <Image src="/Skale.ai.svg" alt="Skale.ai" width={76} height={24} priority />
       </div>
 
       <Separator />
