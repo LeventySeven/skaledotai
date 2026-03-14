@@ -2,82 +2,12 @@ import { describe, expect, mock, test } from "bun:test";
 
 mock.module("server-only", () => ({}));
 
-const { buildApifyAdvancedSearchInput, buildApifyUserScraperInput, buildApifyDiscoveryQueries } = await import("@/lib/x/apify");
-const { buildOpenRouterDiscoveryRequest, parseOpenRouterContent } = await import("@/lib/x/openrouter");
 const {
   buildTavilySearchRequest,
   buildAgentQlQueryRequest,
   buildMultiAgentHeuristicQueries,
   normalizeDiscoveredUrls,
 } = await import("@/lib/x/multiagent");
-
-describe("Apify payload builders", () => {
-  test("expands simple discovery queries for better lead coverage", () => {
-    expect(buildApifyDiscoveryQueries("founding engineers")).toEqual([
-      "founding engineers",
-      "\"founding engineers\"",
-      "founding engineers founder",
-      "founding engineers builder",
-      "founding engineers engineer",
-      "founding engineers creator",
-    ]);
-  });
-
-  test("keeps structured queries intact", () => {
-    expect(buildApifyDiscoveryQueries("to:austinxwalker founding engineers")).toEqual([
-      "to:austinxwalker founding engineers",
-    ]);
-  });
-
-  test("uses documented advanced search fields", () => {
-    expect(buildApifyAdvancedSearchInput("founding engineers", 80)).toEqual({
-      query: "founding engineers",
-      numberOfTweets: 80,
-    });
-  });
-
-  test("uses documented twitter-user-scraper fields", () => {
-    expect(buildApifyUserScraperInput(["@alice", "bob"], {
-      getFollowers: true,
-      maxItems: 42,
-    })).toEqual({
-      twitterHandles: ["@alice", "@bob"],
-      getFollowers: true,
-      getFollowing: false,
-      maxItems: 42,
-    });
-  });
-});
-
-describe("OpenRouter request builder", () => {
-  test("uses web search plus strict json schema output", () => {
-    process.env.TAVILY_API_KEY = "test-tavily";
-    const payload = buildOpenRouterDiscoveryRequest({
-      niche: "founding engineers",
-      seedHandle: "austinxwalker",
-      limit: 25,
-      minFollowers: 5000,
-    }) as {
-      model: string;
-      plugins: Array<{ id: string; engine: string }>;
-      response_format: { type: string; json_schema: { strict: boolean } };
-    };
-
-    expect(payload.model).toBe("x-ai/grok-4.1-fast");
-    expect(payload.plugins[0]?.id).toBe("web");
-    expect(payload.plugins[0]?.engine).toBe("native");
-    expect(payload.response_format.type).toBe("json_schema");
-    expect(payload.response_format.json_schema.strict).toBe(true);
-  });
-
-  test("parses fenced json responses", () => {
-    expect(parseOpenRouterContent("```json\n{\"leads\":[]}\n```")).toEqual({ leads: [] });
-  });
-
-  test("parses text-wrapped json responses", () => {
-    expect(parseOpenRouterContent("Here is the result:\n{\"leads\":[]}")).toEqual({ leads: [] });
-  });
-});
 
 describe("Multi-agent request builders", () => {
   test("builds deterministic heuristic queries for planner fallback", () => {

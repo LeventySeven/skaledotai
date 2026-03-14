@@ -24,7 +24,7 @@ describe("ProjectSchema", () => {
       seedUsername: "alice",
       createdAt: "2024-01-01T00:00:00.000Z",
       leadCount: 42,
-      sourceProviders: ["x-api", "openrouter"],
+      sourceProviders: ["x-api", "multiagent"],
     });
     expect(result.success).toBe(true);
   });

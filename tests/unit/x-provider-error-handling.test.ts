@@ -6,10 +6,10 @@ import { XProviderRuntimeError } from "@/lib/x";
 describe("X provider error handling", () => {
   test("maps unsupported capability errors to BAD_REQUEST", () => {
     const error = toXProviderTrpcError(new XProviderRuntimeError({
-      provider: "openrouter",
-      capability: "lookup",
+      provider: "multiagent",
+      capability: "network",
       code: "CAPABILITY_UNSUPPORTED",
-      message: "OpenRouter does not support lookup operations directly.",
+      message: "Multi-Agent does not support network operations directly.",
     }));
 
     expect(error).toBeInstanceOf(TRPCError);

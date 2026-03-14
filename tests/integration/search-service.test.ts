@@ -499,7 +499,7 @@ describe("searchAndAddLeads", () => {
     await searchAndAddLeads("user-1", {
       query: "founding engineers",
       projectName: "Founding Engineers",
-    }, "apify");
+    }, "multiagent");
 
     expect(discoverCandidatesMock).toHaveBeenCalledTimes(3);
     expect(discoverCandidatesMock).toHaveBeenNthCalledWith(1, expect.objectContaining({

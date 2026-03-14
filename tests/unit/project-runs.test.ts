@@ -55,10 +55,10 @@ describe("project source provider aggregation", () => {
     selectResults = [[
       {
         projectId: "project-1",
-        requestedProvider: "openrouter",
-        discoveryProvider: "openrouter",
+        requestedProvider: "multiagent",
+        discoveryProvider: "multiagent",
         lookupProvider: "x-api",
-        networkProvider: "apify",
+        networkProvider: "x-api",
         tweetsProvider: "multiagent",
       },
       {
@@ -73,7 +73,7 @@ describe("project source provider aggregation", () => {
         projectId: "project-2",
         requestedProvider: "multiagent",
         discoveryProvider: "multiagent",
-        lookupProvider: "apify",
+        lookupProvider: "twitterapi",
         networkProvider: "not-a-provider",
         tweetsProvider: "x-api",
       },
@@ -81,7 +81,7 @@ describe("project source provider aggregation", () => {
 
     const result = await getProjectSourceProvidersByProjectIds("user-1", ["project-1", "project-2"]);
 
-    expect(result.get("project-1")).toEqual(["openrouter", "x-api", "apify", "multiagent"]);
-    expect(result.get("project-2")).toEqual(["multiagent", "apify", "x-api"]);
+    expect(result.get("project-1")).toEqual(["multiagent", "x-api"]);
+    expect(result.get("project-2")).toEqual(["multiagent", "twitterapi", "x-api"]);
   });
 });
