@@ -63,16 +63,11 @@ export function XDataProviderSelector({
               {option.description}
             </div>
 
-            <div className="flex items-center justify-between border-t border-border/70 pt-3 text-[0.82rem]">
-              <span className="rounded-md bg-muted/60 px-2 py-0.5 text-[0.8rem] font-medium text-muted-foreground">
-                {disabled ? "Not configured" : option.badge}
-              </span>
-              {disabled && status?.missingEnv.length ? (
-                <span className="text-[0.78rem] text-muted-foreground/60">
-                  Missing: {status.missingEnv.join(", ")}
-                </span>
-              ) : null}
-            </div>
+            {disabled && status?.missingEnv.length ? (
+              <div className="border-t border-border/70 pt-3 text-[0.78rem] text-muted-foreground/60">
+                Missing: {status.missingEnv.join(", ")}
+              </div>
+            ) : null}
           </button>
         );
       })}
