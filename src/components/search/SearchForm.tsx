@@ -123,13 +123,15 @@ export function SearchForm() {
   const searchParams = useSearchParams();
   const rerunProjectId = searchParams.get("project");
   const rerunQuery = searchParams.get("query");
+  const rerunMinFollowers = searchParams.get("minFollowers");
+  const rerunTargetLeadCount = searchParams.get("targetLeadCount");
   const utils = trpc.useUtils();
   const { provider } = useXDataProviderPreference();
   const [query, setQuery] = useState(rerunQuery ?? "");
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
-  const [minFollowers, setMinFollowers] = useState(1_000);
-  const [targetLeadCount, setTargetLeadCount] = useState("100");
+  const [minFollowers, setMinFollowers] = useState(rerunMinFollowers ? Number(rerunMinFollowers) : 1_000);
+  const [targetLeadCount, setTargetLeadCount] = useState(rerunTargetLeadCount ?? "100");
   const [liveSearchPending, setLiveSearchPending] = useState(false);
   const [streamSteps, setStreamSteps] = useState<ProjectRunTraceStep[]>([]);
   const [streamSnapshot, setStreamSnapshot] = useState<SearchRunStreamSnapshot | null>(null);

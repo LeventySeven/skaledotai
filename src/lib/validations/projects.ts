@@ -25,12 +25,19 @@ export const ProjectPreviewLeadSchema = z.object({
 });
 export type ProjectPreviewLead = z.infer<typeof ProjectPreviewLeadSchema>;
 
+export const LatestRunParamsSchema = z.object({
+  requestedProvider: z.string(),
+  minFollowers: z.number().nullable(),
+  targetLeadCount: z.number().nullable(),
+}).optional();
+
 export const ProjectOverviewSchema = ProjectSchema.extend({
   leadCount: z.number(),
   avgFollowers: z.number(),
   topFollowers: z.number(),
   p0LeadCount: z.number(),
   previewLeads: z.array(ProjectPreviewLeadSchema),
+  latestRunParams: LatestRunParamsSchema,
 });
 export type ProjectOverview = z.infer<typeof ProjectOverviewSchema>;
 

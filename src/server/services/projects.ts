@@ -11,7 +11,7 @@ import type {
   ProjectPreviewLead,
 } from "@/lib/validations/projects";
 import type { XDataProvider } from "@/lib/x";
-import { getProjectSourceProvidersByProjectIds } from "./project-runs";
+import { getLatestRunParamsByProjectIds, getProjectSourceProvidersByProjectIds } from "./project-runs";
 
 function rowToProject(
   row: typeof projects.$inferSelect,
@@ -66,6 +66,7 @@ export async function getProjectOverviews(userId: string): Promise<ProjectOvervi
   if (baseProjects.length === 0) return [];
 
   const projectIds = baseProjects.map((project) => project.id);
+  const latestRunParamsMap = await getLatestRunParamsByProjectIds(userId, projectIds);
 
   const metricRows = await db
     .select({
@@ -111,6 +112,7 @@ export async function getProjectOverviews(userId: string): Promise<ProjectOvervi
       topFollowers: metrics?.topFollowers ?? 0,
       p0LeadCount: metrics?.p0LeadCount ?? 0,
       previewLeads: previewByProject.get(project.id) ?? [],
+      latestRunParams: latestRunParamsMap.get(project.id),
     };
   });
 }

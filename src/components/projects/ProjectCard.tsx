@@ -91,6 +91,15 @@ export function ProjectCard({
                 onClick={(event) => {
                   event.stopPropagation();
                   const params = new URLSearchParams({ project: project.id, query: project.query! });
+                  if (project.latestRunParams?.minFollowers != null) {
+                    params.set("minFollowers", String(project.latestRunParams.minFollowers));
+                  }
+                  if (project.latestRunParams?.targetLeadCount != null) {
+                    params.set("targetLeadCount", String(project.latestRunParams.targetLeadCount));
+                  }
+                  if (project.latestRunParams?.requestedProvider) {
+                    params.set("provider", project.latestRunParams.requestedProvider);
+                  }
                   startTransition(() => {
                     router.push(`/search?${params.toString()}`);
                   });

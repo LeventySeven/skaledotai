@@ -1,5 +1,5 @@
 import "@/lib/server-runtime";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { projectRuns, projects } from "@/db/schema";
 import type { XDataProvider } from "@/lib/x";
@@ -36,6 +36,8 @@ export async function recordProjectRun(input: {
   tweetsProvider: XDataProvider;
   query?: string;
   seedUsername?: string;
+  minFollowers?: number;
+  targetLeadCount?: number;
   leadCount: number;
 }): Promise<void> {
   const now = new Date();
@@ -50,6 +52,8 @@ export async function recordProjectRun(input: {
     tweetsProvider: input.tweetsProvider,
     query: input.query,
     seedUsername: input.seedUsername,
+    minFollowers: input.minFollowers,
+    targetLeadCount: input.targetLeadCount,
     leadCount: input.leadCount,
     createdAt: now,
   };
@@ -68,6 +72,8 @@ export async function recordProjectRun(input: {
         tweetsProvider: values.tweetsProvider,
         query: values.query,
         seedUsername: values.seedUsername,
+        minFollowers: values.minFollowers,
+        targetLeadCount: values.targetLeadCount,
         leadCount: values.leadCount,
         createdAt: now,
       },
@@ -116,4 +122,43 @@ export async function getProjectSourceProvidersByProjectIds(
   }
 
   return providersByProject;
+}
+
+export interface LatestRunParams {
+  requestedProvider: string;
+  minFollowers: number | null;
+  targetLeadCount: number | null;
+}
+
+export async function getLatestRunParamsByProjectIds(
+  userId: string,
+  projectIds: string[],
+): Promise<Map<string, LatestRunParams>> {
+  if (projectIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      projectId: projectRuns.projectId,
+      requestedProvider: projectRuns.requestedProvider,
+      minFollowers: projectRuns.minFollowers,
+      targetLeadCount: projectRuns.targetLeadCount,
+      createdAt: projectRuns.createdAt,
+    })
+    .from(projectRuns)
+    .innerJoin(projects, eq(projects.id, projectRuns.projectId))
+    .where(and(eq(projects.userId, userId), inArray(projectRuns.projectId, projectIds)))
+    .orderBy(desc(projectRuns.createdAt));
+
+  const result = new Map<string, LatestRunParams>();
+  for (const row of rows) {
+    if (!result.has(row.projectId)) {
+      result.set(row.projectId, {
+        requestedProvider: row.requestedProvider,
+        minFollowers: row.minFollowers,
+        targetLeadCount: row.targetLeadCount,
+      });
+    }
+  }
+
+  return result;
 }

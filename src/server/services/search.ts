@@ -720,6 +720,8 @@ export async function searchAndAddLeads(
       tweetsProvider: operationProviders.tweets,
       query: input.query,
       seedUsername: input.followerUsername?.replace(/^@/, ""),
+      minFollowers: input.minFollowers,
+      targetLeadCount: input.targetLeadCount,
       leadCount: leadsList.length,
     });
 
