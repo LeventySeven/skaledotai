@@ -302,7 +302,20 @@ export function SearchForm() {
 
   return (
     <>
-      <form className="mt-8 space-y-7" onSubmit={handleSubmit}>
+      {rerunProjectId ? (
+        <div className="mt-8 mb-2 flex items-center gap-3 rounded-xl border border-border px-3.5 py-2 text-[0.85rem] text-muted-foreground">
+          <span>Re-running into existing project</span>
+          <button
+            type="button"
+            className="ml-auto underline hover:text-foreground"
+            onClick={() => router.replace("/search")}
+          >
+            Start fresh
+          </button>
+        </div>
+      ) : null}
+
+      <form className={`${rerunProjectId ? "mt-4" : "mt-8"} space-y-7`} onSubmit={handleSubmit}>
         <div className="space-y-2">
           <label className="block text-[1.05rem] font-semibold">What are you looking for?</label>
           <Input
@@ -313,19 +326,6 @@ export function SearchForm() {
             required
           />
         </div>
-
-        {rerunProjectId ? (
-          <p className="text-[0.88rem] text-muted-foreground">
-            Adding to existing project.{" "}
-            <button
-              type="button"
-              className="underline hover:text-foreground"
-              onClick={() => router.replace("/search")}
-            >
-              Start fresh
-            </button>
-          </p>
-        ) : null}
 
         <div className="grid gap-5 md:grid-cols-3">
           <div className="space-y-2">
