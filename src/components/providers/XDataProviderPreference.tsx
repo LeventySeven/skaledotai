@@ -15,7 +15,7 @@ import {
 } from "@/lib/x";
 
 type XDataProviderPreferenceContextValue = {
-  provider: XDataProvider;
+  provider: XDataProvider | null;
   setProvider: (provider: XDataProvider) => void;
 };
 
@@ -49,7 +49,7 @@ export function XDataProviderPreferenceProvider({ children }: { children: ReactN
   const provider = useSyncExternalStore(
     subscribeToXDataProvider,
     readStoredXDataProvider,
-    () => DEFAULT_X_DATA_PROVIDER,
+    () => null as XDataProvider | null,
   );
 
   const value = useMemo<XDataProviderPreferenceContextValue>(() => ({
