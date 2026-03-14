@@ -25,8 +25,8 @@ const navItems = [
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/leads", label: "Leads", icon: UsersIcon },
   { href: "/outreach", label: "Outreach", icon: SendIcon },
-  { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
+  { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
 ];
 
 function CampaignsList({ onNav }: { onNav?: () => void }) {
