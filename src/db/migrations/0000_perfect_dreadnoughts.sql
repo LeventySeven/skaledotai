@@ -32,6 +32,7 @@ CREATE TABLE "leads" (
 	"name" text NOT NULL,
 	"handle" text DEFAULT '' NOT NULL,
 	"bio" text DEFAULT '' NOT NULL,
+	"location" text,
 	"platform" text NOT NULL,
 	"followers" integer DEFAULT 0 NOT NULL,
 	"following" integer,
@@ -57,6 +58,7 @@ CREATE TABLE "outreach_templates" (
 	"subject" text NOT NULL,
 	"body" text NOT NULL,
 	"reply_rate" text DEFAULT '—' NOT NULL,
+	"source_id" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -73,11 +75,45 @@ CREATE TABLE "post_stats" (
 	CONSTRAINT "post_stats_lead_id_unique" UNIQUE("lead_id")
 );
 --> statement-breakpoint
+CREATE TABLE "project_lead_insights" (
+	"project_id" uuid NOT NULL,
+	"lead_id" uuid NOT NULL,
+	"context_hash" text NOT NULL,
+	"summary" text NOT NULL,
+	"alignment_bullets" text[] DEFAULT '{}' NOT NULL,
+	"user_goals" text[] DEFAULT '{}' NOT NULL,
+	"confidence" integer DEFAULT 0 NOT NULL,
+	"tools" text[] DEFAULT '{}' NOT NULL,
+	"subagents" text[] DEFAULT '{}' NOT NULL,
+	"evidence" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"generated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_lead_insights_project_id_lead_id_pk" PRIMARY KEY("project_id","lead_id")
+);
+--> statement-breakpoint
 CREATE TABLE "project_leads" (
 	"project_id" uuid NOT NULL,
 	"lead_id" uuid NOT NULL,
 	"added_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "project_leads_project_id_lead_id_pk" PRIMARY KEY("project_id","lead_id")
+);
+--> statement-breakpoint
+CREATE TABLE "project_runs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"project_id" uuid NOT NULL,
+	"request_key" text NOT NULL,
+	"operation_type" text NOT NULL,
+	"requested_provider" text NOT NULL,
+	"discovery_provider" text NOT NULL,
+	"lookup_provider" text NOT NULL,
+	"network_provider" text NOT NULL,
+	"tweets_provider" text NOT NULL,
+	"query" text,
+	"seed_username" text,
+	"min_followers" integer,
+	"target_lead_count" integer,
+	"lead_count" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "projects" (
@@ -126,8 +162,11 @@ ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_user_id_fk" FOREIGN KEY 
 ALTER TABLE "leads" ADD CONSTRAINT "leads_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "outreach_templates" ADD CONSTRAINT "outreach_templates_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "post_stats" ADD CONSTRAINT "post_stats_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_lead_insights" ADD CONSTRAINT "project_lead_insights_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_lead_insights" ADD CONSTRAINT "project_lead_insights_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_leads" ADD CONSTRAINT "project_leads_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_leads" ADD CONSTRAINT "project_leads_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_runs" ADD CONSTRAINT "project_runs_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "projects" ADD CONSTRAINT "projects_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "accounts_user_provider_idx" ON "account" USING btree ("user_id","provider_id");--> statement-breakpoint
@@ -135,4 +174,9 @@ CREATE INDEX "api_keys_user_id_idx" ON "api_keys" USING btree ("user_id");--> st
 CREATE UNIQUE INDEX "leads_user_handle_platform_idx" ON "leads" USING btree ("user_id","handle","platform");--> statement-breakpoint
 CREATE INDEX "leads_user_id_idx" ON "leads" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "outreach_templates_user_id_idx" ON "outreach_templates" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "project_lead_insights_project_id_idx" ON "project_lead_insights" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "project_lead_insights_lead_id_idx" ON "project_lead_insights" USING btree ("lead_id");--> statement-breakpoint
+CREATE INDEX "project_runs_project_id_idx" ON "project_runs" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "project_runs_requested_provider_idx" ON "project_runs" USING btree ("requested_provider");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_runs_request_key_idx" ON "project_runs" USING btree ("request_key");--> statement-breakpoint
 CREATE INDEX "projects_user_id_idx" ON "projects" USING btree ("user_id");

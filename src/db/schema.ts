@@ -153,6 +153,8 @@ export const projectRuns = pgTable("project_runs", {
   tweetsProvider: text("tweets_provider").notNull(),
   query: text("query"),
   seedUsername: text("seed_username"),
+  minFollowers: integer("min_followers"),
+  targetLeadCount: integer("target_lead_count"),
   leadCount: integer("lead_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

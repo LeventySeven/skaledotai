@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1773091018015,
-      "tag": "0000_wealthy_photon",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1773183422723,
-      "tag": "0001_wise_king_cobra",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1773225043304,
-      "tag": "0002_lyrical_nextwave",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1773421125206,
-      "tag": "0003_gorgeous_praxagora",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1773500985381,
-      "tag": "0005_silent_makkari",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1773518907067,
-      "tag": "0005_aromatic_guardian",
+      "when": 1773519767504,
+      "tag": "0000_perfect_dreadnoughts",
       "breakpoints": true
     }
   ]
