@@ -17,7 +17,7 @@ import {
   SearchRunStreamEventSchema,
   type SearchRunStreamSnapshot,
 } from "@/lib/validations/search";
-import { DEFAULT_X_DATA_PROVIDER, type XDataProvider } from "@/lib/x";
+import type { XDataProvider } from "@/lib/x";
 
 const FOLLOWER_FLOOR_OPTIONS = [
   { label: "Any size", value: 0 },
@@ -123,8 +123,7 @@ export function SearchForm() {
   const router = useRouter();
   const { data: projects = [] } = trpc.projects.list.useQuery();
   const utils = trpc.useUtils();
-  const preference = useXDataProviderPreference();
-  const provider = preference.provider ?? DEFAULT_X_DATA_PROVIDER;
+  const { provider } = useXDataProviderPreference();
   const [query, setQuery] = useState("");
   const [projectMode, setProjectMode] = useState<"new" | "existing">("new");
   const [projectId, setProjectId] = useState("");

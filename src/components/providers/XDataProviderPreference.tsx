@@ -3,6 +3,7 @@
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useMemo,
   useSyncExternalStore,
@@ -15,12 +16,13 @@ import {
 } from "@/lib/x";
 
 type XDataProviderPreferenceContextValue = {
-  provider: XDataProvider | null;
+  provider: XDataProvider;
   setProvider: (provider: XDataProvider) => void;
 };
 
 const XDataProviderPreferenceContext = createContext<XDataProviderPreferenceContextValue | null>(null);
 const X_DATA_PROVIDER_EVENT = "skaleai:x-data-provider-change";
+const COOKIE_NAME = "skaleai.x-data-provider";
 
 export function readStoredXDataProvider(): XDataProvider {
   if (typeof window === "undefined") return DEFAULT_X_DATA_PROVIDER;
@@ -30,6 +32,7 @@ export function readStoredXDataProvider(): XDataProvider {
 export function writeStoredXDataProvider(provider: XDataProvider): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(X_DATA_PROVIDER_STORAGE_KEY, provider);
+  document.cookie = `${COOKIE_NAME}=${provider};path=/;max-age=31536000;samesite=lax`;
   window.dispatchEvent(new Event(X_DATA_PROVIDER_EVENT));
 }
 
@@ -45,11 +48,22 @@ function subscribeToXDataProvider(callback: () => void): () => void {
   };
 }
 
-export function XDataProviderPreferenceProvider({ children }: { children: ReactNode }) {
+export function XDataProviderPreferenceProvider({
+  children,
+  initialProvider,
+}: {
+  children: ReactNode;
+  initialProvider?: XDataProvider;
+}) {
+  const serverSnapshot = useCallback(
+    () => initialProvider ?? DEFAULT_X_DATA_PROVIDER,
+    [initialProvider],
+  );
+
   const provider = useSyncExternalStore(
     subscribeToXDataProvider,
     readStoredXDataProvider,
-    () => null as XDataProvider | null,
+    serverSnapshot,
   );
 
   const value = useMemo<XDataProviderPreferenceContextValue>(() => ({

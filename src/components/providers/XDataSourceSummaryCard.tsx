@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
-  DEFAULT_X_DATA_PROVIDER,
   getXDataProviderOption,
   X_DATA_PROVIDER_SURFACES,
   type XDataProvider,
@@ -27,7 +26,7 @@ export function XDataSourceSummaryCard({
   showButton?: boolean;
 }) {
   const preference = useXDataProviderPreference();
-  const provider = providerOverride ?? preference.provider ?? DEFAULT_X_DATA_PROVIDER;
+  const provider = providerOverride ?? preference.provider;
   const option = getXDataProviderOption(provider);
   const { data: runtimeStatuses = [] } = trpc.settings.xProviders.list.useQuery();
   const status = runtimeStatuses.find((item) => item.provider === provider);

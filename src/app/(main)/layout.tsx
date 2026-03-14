@@ -1,8 +1,9 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Sidebar, MobileHeader } from "@/components/sidebar/Sidebar";
 import { XDataProviderPreferenceProvider } from "@/components/providers/XDataProviderPreference";
+import { parseXDataProvider } from "@/lib/x";
 import { TRPCProvider } from "@/lib/trpc/react";
 
 export default async function MainLayout({
@@ -16,9 +17,12 @@ export default async function MainLayout({
 
   if (!session?.user) redirect("/sign-in");
 
+  const cookieStore = await cookies();
+  const initialProvider = parseXDataProvider(cookieStore.get("skaleai.x-data-provider")?.value);
+
   return (
     <TRPCProvider>
-      <XDataProviderPreferenceProvider>
+      <XDataProviderPreferenceProvider initialProvider={initialProvider}>
         <div className="flex h-screen overflow-hidden bg-background">
           <Sidebar />
           <div className="flex flex-1 flex-col overflow-hidden">
