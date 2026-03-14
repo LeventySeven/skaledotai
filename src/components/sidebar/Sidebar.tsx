@@ -14,6 +14,7 @@ import { getXDataProviderLabel } from "@/lib/x";
 import { LangGraphIcon } from "@/components/ui/langgraph-icon";
 import { XLogoIcon } from "@/components/ui/x-icon";
 import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
+import type { Project } from "@/lib/validations/projects";
 
 function CampaignsIcon({ className }: { className?: string }) {
   return (
@@ -29,10 +30,10 @@ const navItems = [
   { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
 ];
 
-function CampaignsList({ onNav }: { onNav?: () => void }) {
+function CampaignsList({ onNav, initialProjects }: { onNav?: () => void; initialProjects?: Project[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data: projects = [] } = trpc.projects.list.useQuery();
+  const { data: projects = [] } = trpc.projects.list.useQuery(undefined, { initialData: initialProjects });
 
   if (projects.length === 0) return null;
 
@@ -81,7 +82,7 @@ function SidebarProviderBadge() {
   );
 }
 
-function NavContent({ onNav }: { onNav?: () => void }) {
+function NavContent({ onNav, initialProjects }: { onNav?: () => void; initialProjects?: Project[] }) {
   const pathname = usePathname();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -108,7 +109,7 @@ function NavContent({ onNav }: { onNav?: () => void }) {
 
         <div className="my-3 border-t border-border/70" />
 
-        <CampaignsList onNav={onNav} />
+        <CampaignsList onNav={onNav} initialProjects={initialProjects} />
       </nav>
 
       <SidebarProviderBadge />
@@ -127,7 +128,7 @@ function NavContent({ onNav }: { onNav?: () => void }) {
   );
 }
 
-export function MobileHeader() {
+export function MobileHeader({ initialProjects }: { initialProjects?: Project[] }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -161,13 +162,13 @@ export function MobileHeader() {
             <XIcon className="size-4" />
           </Button>
         </div>
-        <NavContent onNav={() => setOpen(false)} />
+        <NavContent onNav={() => setOpen(false)} initialProjects={initialProjects} />
       </div>
     </>
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ initialProjects }: { initialProjects?: Project[] }) {
   return (
     <aside className="hidden h-screen w-[228px] shrink-0 flex-col border-r bg-background md:flex">
       <div className="flex h-[74px] items-center px-7 shrink-0">
@@ -176,7 +177,7 @@ export function Sidebar() {
 
       <Separator />
 
-      <NavContent />
+      <NavContent initialProjects={initialProjects} />
     </aside>
   );
 }
