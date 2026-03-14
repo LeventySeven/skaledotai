@@ -158,18 +158,6 @@ export function SettingsWorkspace() {
         </Table>
       </div>
 
-      <div className="my-12 h-px bg-border" />
-
-      <div>
-        <h3 className="text-[1.8rem] font-semibold tracking-[-0.03em]">Using the API</h3>
-        <p className="mt-3 text-[1rem] text-muted-foreground">
-          Pass your key as an <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[0.94rem]">x-api-key</span>{" "}
-          header on all requests to <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[0.94rem]">/api/v1/*</span>.
-        </p>
-        <p className="mt-4 text-[1rem] text-muted-foreground">
-          See <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[0.94rem]">SKILL.md</span> at the project root for the full endpoint reference.
-        </p>
-      </div>
     </div>
   );
 }
