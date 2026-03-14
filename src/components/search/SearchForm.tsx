@@ -336,9 +336,6 @@ export function SearchForm() {
                 value={projectName}
                 onChange={(event) => setProjectName(event.target.value)}
               />
-              <p className="text-[0.95rem] text-muted-foreground">
-                A new project will be created. Defaults to the search query.
-              </p>
             </>
           ) : null}
         </div>
@@ -359,7 +356,7 @@ export function SearchForm() {
           </select>
         ) : null}
 
-        <div className="grid gap-5 md:grid-cols-[minmax(0,270px)_minmax(0,1fr)_minmax(0,180px)]">
+        <div className="grid gap-5 md:grid-cols-3">
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-[1.05rem] font-semibold"><XLogoIcon className="size-4" /> data source</label>
             <XDataSourceSummaryCard />
@@ -377,9 +374,6 @@ export function SearchForm() {
                 </option>
               ))}
             </select>
-            <p className="text-[0.95rem] text-muted-foreground">
-              X returns `public_metrics.followers_count`; results are filtered and biased toward larger accounts.
-            </p>
           </div>
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Approximate leads</label>
@@ -396,9 +390,6 @@ export function SearchForm() {
                 setTargetLeadCount(nextValue);
               }}
             />
-            <p className="text-[0.95rem] text-muted-foreground">
-              Multi-agent search treats this as a bounded goal and keeps iterating until it gets close or exhausts the retry window.
-            </p>
           </div>
         </div>
 
