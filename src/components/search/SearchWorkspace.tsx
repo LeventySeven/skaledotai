@@ -2,10 +2,9 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 
 export function SearchWorkspace() {
   const router = useRouter();
@@ -22,6 +21,7 @@ export function SearchWorkspace() {
   const [query, setQuery] = useState("");
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
+  const [platform, setPlatform] = useState<"x" | "linkedin">("x");
 
   function handleContinue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,20 +46,16 @@ export function SearchWorkspace() {
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-[736px] flex-col items-center justify-center px-8">
-      <div className="w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-[32px] font-medium">
-            Describe your goal or audience
-          </h1>
-        </div>
+      <div className="w-full">
+        <h1 className="mb-8 text-center text-[32px] font-medium">
+          Describe your goal or audience
+        </h1>
 
-        <form className="w-full space-y-5" onSubmit={handleContinue}>
-          <div className="relative">
-            <Input
-              unstyled
-              nativeInput
-              className="h-[64px] w-full rounded-[100px] border border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[18px] font-normal outline-none placeholder:text-[18px] placeholder:font-normal placeholder:text-muted-foreground/50"
-              placeholder="For example: I want to find the best product designers"
+        <form onSubmit={handleContinue}>
+          <div className="flex h-[64px] items-center rounded-[100px] border border-[#dddddd] bg-[#f8f8f8] pr-3 pl-[29px]">
+            <input
+              className="min-w-0 flex-1 bg-transparent text-[18px] font-normal outline-none placeholder:text-[#999999]"
+              placeholder="For eg: I want to promote a launch video for my AI product..."
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               required
@@ -68,31 +64,60 @@ export function SearchWorkspace() {
             <Button
               type="submit"
               size="icon-bare"
-              className="absolute top-1/2 right-3 size-10 -translate-y-1/2 rounded-full bg-foreground text-background hover:bg-foreground/90"
+              className="ml-3 size-10 shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90"
             >
               <ArrowRightIcon className="size-4" />
             </Button>
           </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-[0.95rem]">
+          <div className="mt-4 flex items-center justify-between">
+            <label className="flex items-center gap-2.5 text-[0.9rem] text-muted-foreground">
               <Checkbox
                 checked={searchFollowersOnly}
                 onCheckedChange={(value) => setSearchFollowersOnly(Boolean(value))}
               />
-              Search within a user&apos;s followers
+              Search within my followers
             </label>
-            {searchFollowersOnly ? (
-              <Input
-                unstyled
-                nativeInput
-                className="mt-3 h-[64px] w-full rounded-[100px] border border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[18px] font-normal outline-none placeholder:text-[18px] placeholder:font-normal placeholder:text-muted-foreground/50"
+
+            <div className="flex items-center gap-2">
+              <span className="text-[0.9rem] text-muted-foreground">Search on</span>
+              <button
+                type="button"
+                onClick={() => setPlatform("x")}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.82rem] font-medium transition-colors ${
+                  platform === "x"
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-background text-foreground hover:border-foreground/30"
+                }`}
+              >
+                X / Twitter
+                {platform === "x" ? <CheckIcon className="size-3" strokeWidth={3} /> : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlatform("linkedin")}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.82rem] font-medium transition-colors ${
+                  platform === "linkedin"
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-background text-foreground hover:border-foreground/30"
+                }`}
+              >
+                LinkedIn
+                {platform === "linkedin" ? <CheckIcon className="size-3" strokeWidth={3} /> : null}
+              </button>
+            </div>
+          </div>
+
+          {searchFollowersOnly ? (
+            <div className="mt-4 flex h-[64px] items-center rounded-[100px] border border-[#dddddd] bg-[#f8f8f8] pr-3 pl-[29px]">
+              <input
+                className="min-w-0 flex-1 bg-transparent text-[18px] font-normal outline-none placeholder:text-[#999999]"
                 placeholder="@markknd"
                 value={followerUsername}
                 onChange={(event) => setFollowerUsername(event.target.value)}
               />
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </form>
       </div>
     </div>
