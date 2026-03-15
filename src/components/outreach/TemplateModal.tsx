@@ -43,7 +43,7 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
           <h2 className="text-[18px] font-medium">
             {mode === "create" ? "New template" : mode === "fork" ? "Save as your template" : "Edit template"}
           </h2>
-          <Button variant="ghost" className="size-7 rounded-lg p-0" onClick={onClose}>
+          <Button variant="ghost" size="icon-xs" className="before:hidden" onClick={onClose}>
             <XIcon className="size-4" />
           </Button>
         </div>
