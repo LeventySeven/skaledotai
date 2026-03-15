@@ -145,7 +145,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <select
-              className="h-10 min-w-[220px] rounded-xl border border-input bg-background px-3 text-[0.92rem]"
+              className="h-10 min-w-[220px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.92rem]"
               value={importProjectId}
               onChange={(e) => setImportProjectId(e.target.value)}
             >

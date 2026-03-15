@@ -94,7 +94,7 @@ export function LeadsWorkspace() {
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">
             <select
-              className="h-9 min-w-[200px] rounded-xl border border-input bg-background px-3 text-[0.9rem] shadow-xs/5"
+              className="h-9 min-w-[200px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.9rem] shadow-xs/5"
               value={workspace.projectId}
               onChange={(event) => workspace.updateProjectFilter(event.target.value)}
             >
@@ -107,7 +107,7 @@ export function LeadsWorkspace() {
             </select>
 
             <select
-              className="h-9 min-w-[150px] rounded-xl border border-input bg-background px-3 text-[0.9rem] shadow-xs/5"
+              className="h-9 min-w-[150px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.9rem] shadow-xs/5"
               value={workspace.stage}
               onChange={(event) => workspace.updateStageFilter(event.target.value as typeof workspace.stage)}
             >
@@ -119,7 +119,7 @@ export function LeadsWorkspace() {
             </select>
 
             <select
-              className="h-9 min-w-[180px] rounded-xl border border-input bg-background px-3 text-[0.9rem] shadow-xs/5"
+              className="h-9 min-w-[180px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.9rem] shadow-xs/5"
               value={workspace.sort}
               onChange={(event) => workspace.updateSort(event.target.value as typeof workspace.sort)}
             >

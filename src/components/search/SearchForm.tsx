@@ -245,7 +245,7 @@ export function SearchForm() {
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Minimum followers</label>
             <select
-              className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 text-[1rem] shadow-xs/5"
+              className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 pr-8 text-[1rem] shadow-xs/5"
               value={minFollowers}
               onChange={(event) => setMinFollowers(Number(event.target.value))}
             >
