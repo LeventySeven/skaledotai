@@ -56,8 +56,8 @@ export function SearchWorkspace() {
         <form className="w-full space-y-5" onSubmit={handleContinue}>
           <div className="relative">
             <Input
-              className="h-[64px] w-full rounded-full border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[1.05rem]"
-              placeholder="e.g. best product designers"
+              className="h-[64px] w-full rounded-full border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[18px] font-normal placeholder:text-[18px] placeholder:font-normal"
+              placeholder="For example: I want to find the best product designers"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               required
