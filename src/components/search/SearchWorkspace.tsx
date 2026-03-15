@@ -1,8 +1,7 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export function SearchWorkspace() {
@@ -17,9 +16,21 @@ export function SearchWorkspace() {
     }
   }, [hasRerunParams, searchParams, router]);
 
-  const [query, setQuery] = useState("");
-  const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
-  const [followerUsername, setFollowerUsername] = useState("");
+  const [query, setQuery] = useState(searchParams.get("query") ?? "");
+  const [searchFollowersOnly, setSearchFollowersOnly] = useState(searchParams.has("followerUsername"));
+  const [followerUsername, setFollowerUsername] = useState(searchParams.get("followerUsername") ?? "");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const syncToUrl = useCallback((q: string, followers: boolean, handle: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (q.trim()) params.set("query", q.trim());
+      if (followers && handle.trim()) params.set("followerUsername", handle.trim());
+      const qs = params.toString();
+      router.replace(qs ? `/search?${qs}` : "/search", { scroll: false });
+    }, 400);
+  }, [router]);
   function handleContinue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!query.trim()) return;
@@ -54,7 +65,7 @@ export function SearchWorkspace() {
               className="min-w-0 flex-1 bg-transparent text-[18px] font-normal outline-none placeholder:text-[#999999]"
               placeholder="For eg: I want to promote a launch video for my AI product..."
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => { setQuery(event.target.value); syncToUrl(event.target.value, searchFollowersOnly, followerUsername); }}
               required
               autoFocus
             />
@@ -70,7 +81,7 @@ export function SearchWorkspace() {
             <label className="flex items-center gap-2.5 text-[0.9rem] text-muted-foreground">
               <Checkbox
                 checked={searchFollowersOnly}
-                onCheckedChange={(value) => setSearchFollowersOnly(Boolean(value))}
+                onCheckedChange={(value) => { setSearchFollowersOnly(Boolean(value)); if (!value) syncToUrl(query, false, ""); }}
               />
               Search within my followers
             </label>
@@ -82,7 +93,7 @@ export function SearchWorkspace() {
                 className="min-w-0 flex-1 bg-transparent text-[18px] font-normal outline-none placeholder:text-[#999999]"
                 placeholder="@markknd"
                 value={followerUsername}
-                onChange={(event) => setFollowerUsername(event.target.value)}
+                onChange={(event) => { setFollowerUsername(event.target.value); syncToUrl(query, searchFollowersOnly, event.target.value); }}
               />
             </div>
           ) : null}
