@@ -27,7 +27,7 @@ export function SearchWorkspace() {
           <div className="h-px flex-1 bg-border" />
         </div>
 
-        <ImportNetworkForm key={importUsername ?? "new"} />
+        <ImportNetworkForm key={importUsername ?? "import-new"} />
       </div>
     </div>
   );
