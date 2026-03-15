@@ -38,14 +38,14 @@ export function AiPanel({
           {projects.map((project) => {
             const selected = selectedProjectIds.includes(project.id);
             return (
-              <div
+              <span
                 key={project.id}
                 role="checkbox"
                 aria-checked={selected}
                 tabIndex={0}
                 onClick={() => onToggleProject(project.id)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleProject(project.id); } }}
-                className={`group flex cursor-pointer items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[0.8rem] font-medium transition-all duration-150 select-none ${
+                className={`group inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[0.8rem] font-medium transition-all duration-150 select-none ${
                   selected
                     ? "bg-foreground text-background shadow-sm"
                     : "bg-background text-muted-foreground ring-1 ring-border hover:ring-foreground/25 hover:text-foreground"
@@ -59,7 +59,7 @@ export function AiPanel({
                   {selected ? <CheckIcon className="size-2.5 text-background" strokeWidth={3} /> : null}
                 </span>
                 {project.name}
-              </div>
+              </span>
             );
           })}
         </div>
