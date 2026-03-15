@@ -262,12 +262,48 @@ export async function getLeadReasoning(input: {
     };
   }
 
-  const [upserted] = await db
-    .insert(projectLeadInsights)
-    .values({
-      projectId: input.projectId,
+  const insightPayload = {
+    projectId: input.projectId,
+    leadId: input.leadId,
+    contextHash,
+    summary: generated.summary,
+    alignmentBullets: generated.alignmentBullets,
+    userGoals: generated.userGoals,
+    confidence: generated.confidence,
+    tools: generated.tools,
+    subagents: generated.subagents,
+    evidence: generated.evidence ?? [],
+    generatedAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    const [upserted] = await db
+      .insert(projectLeadInsights)
+      .values(insightPayload)
+      .onConflictDoUpdate({
+        target: [projectLeadInsights.projectId, projectLeadInsights.leadId],
+        set: {
+          contextHash,
+          summary: generated.summary,
+          alignmentBullets: generated.alignmentBullets,
+          userGoals: generated.userGoals,
+          confidence: generated.confidence,
+          tools: generated.tools,
+          subagents: generated.subagents,
+          evidence: generated.evidence ?? [],
+          generatedAt: now,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    return rowToLeadReasoning(upserted);
+  } catch (error) {
+    console.warn("[lead-reasoning] failed to persist insight, returning ephemeral result", error);
+    return {
       leadId: input.leadId,
-      contextHash,
+      projectId: input.projectId,
       summary: generated.summary,
       alignmentBullets: generated.alignmentBullets,
       userGoals: generated.userGoals,
@@ -275,25 +311,8 @@ export async function getLeadReasoning(input: {
       tools: generated.tools,
       subagents: generated.subagents,
       evidence: generated.evidence ?? [],
-      generatedAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [projectLeadInsights.projectId, projectLeadInsights.leadId],
-      set: {
-        contextHash,
-        summary: generated.summary,
-        alignmentBullets: generated.alignmentBullets,
-        userGoals: generated.userGoals,
-        confidence: generated.confidence,
-        tools: generated.tools,
-        subagents: generated.subagents,
-        evidence: generated.evidence ?? [],
-        generatedAt: now,
-        updatedAt: now,
-      },
-    })
-    .returning();
-
-  return rowToLeadReasoning(upserted);
+      generatedAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+  }
 }
