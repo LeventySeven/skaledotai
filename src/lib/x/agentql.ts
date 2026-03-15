@@ -59,7 +59,7 @@ export function buildAgentQlQueryRequest(
     url,
     query: AGENTQL_QUERIES[mode],
     params: {
-      wait_for: 0,
+      wait_for: 3,
       mode: "fast",
       browser_profile: "stealth",
       is_screenshot_enabled: false,
@@ -85,8 +85,9 @@ function warnPartialAgentQlFailure(url: string, capability: "discovery" | "looku
   }));
 }
 
-export async function queryAgentQl(
+async function queryAgentQlOnce(
   url: string,
+  mode: "profile" | "profile_with_tweets" | "tweets",
   capability: "discovery" | "lookup" | "tweets",
 ): Promise<unknown> {
   let response: Response;
@@ -100,10 +101,7 @@ export async function queryAgentQl(
         "Content-Type": "application/json",
         "X-API-Key": requireEnv("AGENTQL_API_KEY"),
       },
-      body: JSON.stringify(buildAgentQlQueryRequest(
-        url,
-        capability === "tweets" ? "tweets" : "profile_with_tweets",
-      )),
+      body: JSON.stringify(buildAgentQlQueryRequest(url, mode)),
       cache: "no-store",
       signal: controller.signal,
     }).finally(() => clearTimeout(timeoutId));
@@ -120,6 +118,23 @@ export async function queryAgentQl(
   } catch (error) {
     if (error instanceof XProviderRuntimeError) throw error;
     throwInvalidResponse(capability, "AgentQL");
+  }
+}
+
+export async function queryAgentQl(
+  url: string,
+  capability: "discovery" | "lookup" | "tweets",
+): Promise<unknown> {
+  const mode = capability === "tweets" ? "tweets" : "profile";
+
+  // Try once; on timeout, retry once with a longer pause
+  try {
+    return await queryAgentQlOnce(url, mode, capability);
+  } catch (error) {
+    if (!(error instanceof XProviderRuntimeError) || error.code !== "UPSTREAM_REQUEST_FAILED") throw error;
+    // Wait 2s before retry
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    return await queryAgentQlOnce(url, mode, capability);
   }
 }
 

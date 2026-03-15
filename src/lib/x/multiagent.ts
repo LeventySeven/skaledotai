@@ -339,26 +339,16 @@ async function interpretLeadSearchGoals(input: {
   try {
     const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
     const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
-      "Interpret this lead-search request for a multi-agent X discovery system that finds TARGETED PROMOTION LEADS.",
+      "Interpret this lead-search request. The user wants to find X/Twitter accounts that match this niche.",
       "",
-      "WHAT IS A LEAD: A real person on X/Twitter who is ACTIVELY ENGAGED in this niche. The ideal lead:",
-      "- Has a bio that clearly shows they work in or are passionate about this specific niche",
-      "- Actively posts about the niche (not just a stale bio claim)",
-      "- Engages with others' content — reposts, replies, threads, recommendations",
-      "- Is an individual — someone approachable for paid collaboration",
-      "",
-      "NOT A LEAD: Large corporations, celebrities, official brand accounts, bots, news outlets, institutions, parody accounts, dormant accounts.",
-      "",
-      "IMPORTANT: Focus ONLY on whether the person's bio and posts demonstrate genuine involvement in the niche. Audience size is irrelevant — it's just a filter, not evidence.",
-      "",
-      "CRITICAL: The user's query may be colloquial or informal. You MUST translate it into REALISTIC terms that people actually write in their X bios and posts. Think about what the ideal person would literally have written in their bio or tweeted about.",
+      "The user's query may be informal. Translate it into realistic terms that people actually write in their X bios.",
       "",
       "Extract:",
-      "- roleTerms: realistic job titles and roles people actually use in bios — translate informal language into real professional terms",
-      "- bioTerms: realistic phrases people actually write in bios — what would someone in this niche say about themselves? Include action verbs they'd use",
+      "- roleTerms: realistic job titles people use in bios for this niche (the exact words they'd write)",
+      "- bioTerms: realistic phrases from bios in this niche (what someone would literally say about themselves)",
       "- geoHints: optional location signals",
       "- antiGoals: account types to avoid",
-      "- userGoals: short descriptions of the ideal lead for this niche",
+      "- userGoals: what the user is looking for",
       JSON.stringify(input),
     ].join("\n")));
 
@@ -396,29 +386,24 @@ function buildGoogleDorkQueries(input: {
     return dedupeQueries([
       `${vf} ${input.niche}`,
       `${vf}`,
-      `${vf} ${input.niche} ${roleBlock ? `("${roleBlock}")` : ""}`,
-      `${vf} ${input.niche} ${bioBlock ? `("${bioBlock}")` : ""}`,
-      `${vf} ("building" OR "founder" OR "creator") ${input.niche}`,
-      `${vf} ("shipping" OR "working on" OR "obsessed") ${input.niche}`,
-      geoBlock ? `${vf} "${geoBlock}" ${input.niche}` : "",
-      input.attempt >= 2 ? `${vf} ("collab" OR "DM me" OR "open to") ${input.niche}` : "",
-      input.attempt >= 3 ? `${vf} ("indie" OR "bootstrapped" OR "freelance") ${input.niche}` : "",
+      roleBlock ? `${vf} ("${roleBlock}")` : "",
+      bioBlock ? `${vf} ("${bioBlock}")` : "",
+      geoBlock ? `${vf} "${geoBlock}"` : "",
     ]).slice(0, input.queryBudget);
   }
 
   return dedupeQueries([
-    // Bio-focused dorks: find people who identify with the niche
-    `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""} ("building" OR "founder" OR "creator")`,
-    `site:x.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""} ("shipping" OR "obsessed" OR "working on")`,
-    // Engagement-focused dorks: find people who actively discuss and share
-    roleBlock ? `site:x.com (${input.interpretation.roleTerms.slice(0, 3).join(" OR ")}) "${input.niche}" ("thread" OR "repost" OR "recommend")` : "",
-    `site:twitter.com "${input.niche}" ("I build" OR "I write about" OR "my project" OR "my startup")`,
+    // Direct niche search — find people with the niche in their profile
+    `site:x.com "${input.niche}"`,
+    `site:twitter.com "${input.niche}"`,
+    // With role terms from AI interpretation
+    roleBlock ? `site:x.com ("${roleBlock}")` : "",
+    bioBlock ? `site:x.com ("${bioBlock}")` : "",
     // Geo-targeted
-    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}" ("founder" OR "builder" OR "creator")` : "",
-    // Attempt escalation: broader engagement signals
-    input.attempt >= 2 ? `site:x.com "${input.niche}" ("collab" OR "DM me" OR "open to" OR "available for")` : "",
-    input.attempt >= 3 ? `site:x.com "${input.niche}" ("indie" OR "bootstrapped" OR "solopreneur" OR "freelance")` : "",
-    input.attempt >= 4 ? `site:twitter.com "${input.niche}" ("sharing my" OR "launched" OR "just shipped" OR "check out")` : "",
+    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}"` : "",
+    // Later attempts: broaden with individual terms
+    input.attempt >= 2 && roleBlock ? `site:x.com ${input.interpretation.roleTerms.slice(0, 2).join(" ")}` : "",
+    input.attempt >= 3 && bioBlock ? `site:twitter.com ${input.interpretation.bioTerms.slice(0, 2).join(" ")}` : "",
   ]).slice(0, input.queryBudget);
 }
 
@@ -448,10 +433,10 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
   }
 
   return dedupeQueries([
-    `${niche} founders creators builders actively posting on x`,
-    `${niche} people who repost share and engage on x`,
-    `${niche} indie makers operators shipping building on x`,
-    `${niche} engaged community members threads discussions on x`,
+    `${niche} on x`,
+    `${niche} x.com`,
+    `${niche} twitter`,
+    `best ${niche} on x`,
   ]).slice(0, resolveMultiAgentQueryBudget(input));
 }
 
@@ -462,20 +447,17 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
   if (cleanSeed) {
     const vf = `site:x.com/${cleanSeed}/verified_followers`;
     return dedupeQueries([
-      `${vf} ${niche} promote repost content`,
-      `${vf} ${niche} engaged creators recommendations`,
-      `${vf} ${niche} micro-influencers niche experts`,
-      attempt >= 3 ? `${vf} ${niche} collab partnerships` : "",
-      attempt >= 4 ? `${vf} ${niche} small audience high engagement` : "",
+      `${vf} ${niche}`,
+      attempt >= 3 ? `${vf}` : "",
     ]);
   }
 
   return dedupeQueries([
-    `${niche} people who actively promote and repost content on x`,
-    `${niche} engaged creators sharing recommendations on x`,
-    `${niche} community voices micro-influencers niche experts on x`,
-    attempt >= 3 ? `${niche} open to collabs partnerships promotions on x` : "",
-    attempt >= 4 ? `${niche} thought leaders small audience high engagement on x` : "",
+    `site:x.com "${niche}"`,
+    `"${niche}" x.com`,
+    `${niche} site:twitter.com`,
+    attempt >= 3 ? `top ${niche} on x` : "",
+    attempt >= 4 ? `${niche} freelance independent` : "",
   ]);
 }
 

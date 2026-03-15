@@ -153,51 +153,17 @@
   }
 }
 
-@keyframes traceShimmer {
-  0% {
-    transform: translateX(-120%);
-  }
-  100% {
-    transform: translateX(120%);
-  }
-}
-
-@keyframes traceEdgeShimmer {
-  0% {
-    opacity: 0.35;
-    background-position: 200% 50%;
-  }
-  100% {
-    opacity: 1;
-    background-position: -200% 50%;
-  }
+@keyframes traceBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 @layer utilities {
   .trace-active-shimmer {
-    position: relative;
-    overflow: hidden;
-    isolation: isolate;
-  }
-
-  .trace-active-shimmer::after {
-    content: "";
-    position: absolute;
-    inset: -20%;
-    z-index: -1;
-    background:
-      linear-gradient(
-        110deg,
-        transparent 0%,
-        rgba(255, 255, 255, 0.18) 35%,
-        rgba(232, 67, 147, 0.22) 50%,
-        transparent 70%
-      );
-    animation: traceShimmer 2.2s linear infinite;
+    animation: traceBlink 1.5s ease-in-out infinite;
   }
 
   .trace-edge-shimmer {
-    background-size: 220% 100%;
-    animation: traceEdgeShimmer 1.8s linear infinite;
+    animation: traceBlink 1.5s ease-in-out infinite;
   }
 }
