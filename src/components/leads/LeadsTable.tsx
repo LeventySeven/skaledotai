@@ -81,7 +81,7 @@ export function LeadsTable({
         <Table className="text-[0.9rem]">
           <TableHeader className="bg-muted/10 [&_tr]:border-b [&_tr]:border-border/55">
             <TableRow className="h-10 hover:bg-transparent">
-              <TableHead className="w-[40px] border-r border-border/45 px-2 text-center">
+              <TableHead className="w-[52px] border-r border-border/45 px-3 text-center">
                 <Checkbox checked={allVisibleSelected} onCheckedChange={(value) => onToggleAllSelection(Boolean(value))} />
               </TableHead>
               <TableHead className="min-w-[230px] border-r border-border/45">Name</TableHead>
@@ -102,7 +102,7 @@ export function LeadsTable({
                 className="h-[52px] border-b border-border/45 hover:bg-muted/5"
                 onClick={() => onOpenLead(lead)}
               >
-                <TableCell className="border-r border-border/45 px-2 text-center" onClick={(event) => event.stopPropagation()}>
+                <TableCell className="border-r border-border/45 px-3 text-center" onClick={(event) => event.stopPropagation()}>
                   <Checkbox
                     checked={allFilteredSelected || selectedIds.includes(lead.id)}
                     onCheckedChange={(value) => onToggleRowSelection(lead.id, Boolean(value))}
