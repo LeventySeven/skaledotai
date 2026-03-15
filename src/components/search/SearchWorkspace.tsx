@@ -2,7 +2,6 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -59,13 +58,12 @@ export function SearchWorkspace() {
               required
               autoFocus
             />
-            <Button
+            <button
               type="submit"
-              size="icon-bare"
-              className="ml-3 size-10 shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90"
+              className="ml-3 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#00000014]"
             >
-              <ArrowRightIcon className="size-4" />
-            </Button>
+              <img src="/Vector 2.svg" alt="Continue" width={12} height={10} className="invert" />
+            </button>
           </div>
 
           <div className="mt-6">
