@@ -90,7 +90,7 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
         <div className="text-[18px] font-medium text-[#111111]">API Keys</div>
         <Button
           variant="outline"
-          className="h-8 rounded-[10px] px-4 text-[0.88rem]"
+          className="h-8 rounded-[10px] px-2.5 text-[0.88rem]"
           onClick={() => setShowCreateForm((current) => !current)}
         >
           <PlusIcon className="size-4" />
