@@ -283,7 +283,7 @@ export function SearchForm() {
       projectName: rerunProjectId ? undefined : query.trim(),
       followerUsername:
         searchFollowersOnly && followerUsername.trim()
-          ? followerUsername.replace(/^@/, "").trim()
+          ? followerUsername.trim().replace(/^https?:\/\/(www\.)?(x\.com|twitter\.com)\//i, "").replace(/^@/, "").replace(/\/.*$/, "").trim()
           : undefined,
       minFollowers,
       targetLeadCount: Math.max(

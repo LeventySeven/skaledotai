@@ -16,6 +16,7 @@ export const searchRouter = router({
     .input(ImportNetworkInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) await assertProject(ctx.userId, input.projectId);
-      return importAccountNetwork(ctx.userId, input, ctx.xDataProvider);
+      // Network import always uses x-api — multiagent/openrouter don't support network operations
+      return importAccountNetwork(ctx.userId, input, "x-api");
     }),
 });
