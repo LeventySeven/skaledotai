@@ -121,7 +121,8 @@ async function getLiveMultiAgentStreamTarget(provider: XDataProvider): Promise<{
 export function SearchForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rerunProjectId = searchParams.get("project");
+  const isImportRerun = searchParams.has("importUsername");
+  const rerunProjectId = isImportRerun ? null : searchParams.get("project");
   const rerunQuery = searchParams.get("query");
   const rerunMinFollowers = searchParams.get("minFollowers");
   const rerunTargetLeadCount = searchParams.get("targetLeadCount");

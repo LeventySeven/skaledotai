@@ -86,7 +86,22 @@ export function ProjectCard({
 
         {!analysisMode ? (
           <div className="flex items-center gap-2">
-            {project.query ? (
+            {project.seedUsername ? (
+              <Button
+                variant="ghost"
+                className="h-9 rounded-xl px-3 text-[0.88rem]"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const params = new URLSearchParams({ importUsername: project.seedUsername!, project: project.id });
+                  startTransition(() => {
+                    router.push(`/search?${params.toString()}`);
+                  });
+                }}
+              >
+                <RotateCwIcon className="size-3.5" />
+                Re-run
+              </Button>
+            ) : project.query ? (
               <Button
                 variant="ghost"
                 className="h-9 rounded-xl px-3 text-[0.88rem]"

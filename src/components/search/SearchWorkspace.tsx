@@ -7,6 +7,7 @@ import { ImportNetworkForm } from "./ImportNetworkForm";
 export function SearchWorkspace() {
   const searchParams = useSearchParams();
   const rerunProjectId = searchParams.get("project");
+  const importUsername = searchParams.get("importUsername");
 
   return (
     <div className="mx-auto max-w-[1700px] px-8 py-8">
@@ -26,7 +27,7 @@ export function SearchWorkspace() {
           <div className="h-px flex-1 bg-border" />
         </div>
 
-        <ImportNetworkForm />
+        <ImportNetworkForm key={importUsername ?? "new"} />
       </div>
     </div>
   );

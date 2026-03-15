@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReasoningSheet, type LiveReasoningStep } from "@/components/runs/ReasoningSheet";
@@ -30,8 +30,11 @@ const NETWORK_REASONING_STEPS: LiveReasoningStep[] = [
 
 export function ImportNetworkForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const rerunUsername = searchParams.get("importUsername");
+  const rerunProjectId = rerunUsername ? searchParams.get("project") : null;
   const utils = trpc.useUtils();
-  const [networkUsername, setNetworkUsername] = useState("");
+  const [networkUsername, setNetworkUsername] = useState(rerunUsername ?? "");
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const [reasoningTrace, setReasoningTrace] = useState<ProjectRunTrace | null>(null);
 
@@ -66,12 +69,27 @@ export function ImportNetworkForm() {
     setReasoningOpen(true);
     await importMutation.mutateAsync({
       username: cleanHandle,
-      projectName: `${cleanHandle} leads`,
+      projectId: rerunProjectId ?? undefined,
+      projectName: rerunProjectId ? undefined : `${cleanHandle} leads`,
     });
   }
 
   return (
     <>
+      {rerunProjectId ? (
+        <div className="mb-2 flex items-center justify-between rounded-[10px] border border-border px-3.5 py-2.5">
+          <span className="text-[0.88rem] text-muted-foreground">Re-importing into existing campaign</span>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 rounded-lg px-3 text-[0.82rem]"
+            onClick={() => router.replace("/search")}
+          >
+            Start fresh
+          </Button>
+        </div>
+      ) : null}
+
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <h2 className="text-[1.45rem] font-semibold tracking-[-0.03em]">Import followers</h2>
