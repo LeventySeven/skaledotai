@@ -153,17 +153,24 @@
   }
 }
 
-@keyframes traceBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+@keyframes traceBorderShimmer {
+  0% { border-color: rgba(16, 185, 129, 0.2); }
+  50% { border-color: rgba(16, 185, 129, 0.7); }
+  100% { border-color: rgba(16, 185, 129, 0.2); }
+}
+
+@keyframes traceEdgePulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
 }
 
 @layer utilities {
   .trace-active-shimmer {
-    animation: traceBlink 1.5s ease-in-out infinite;
+    animation: traceBorderShimmer 2s ease-in-out infinite;
   }
 
   .trace-edge-shimmer {
-    animation: traceBlink 1.5s ease-in-out infinite;
+    animation: traceEdgePulse 2s ease-in-out infinite;
   }
 }
