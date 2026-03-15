@@ -68,7 +68,7 @@ export function SearchWorkspace() {
             </Button>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-6">
             <label className="flex items-center gap-2.5 text-[0.9rem] text-muted-foreground">
               <Checkbox
                 checked={searchFollowersOnly}
