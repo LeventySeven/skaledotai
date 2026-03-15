@@ -45,7 +45,7 @@ export function SearchWorkspace() {
   if (hasRerunParams) return null;
 
   return (
-    <div className="mx-auto flex max-w-[736px] flex-col items-center px-8 pt-[18vh]">
+    <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-[736px] flex-col items-center justify-center px-8">
       <div className="w-full space-y-8">
         <div className="text-center">
           <h1 className="text-[32px] font-medium">
