@@ -312,20 +312,20 @@ function buildHeuristicGoalInterpretation(input: {
   niche: string;
   seedHandle?: string;
 }): GoalInterpretation {
-  const keywords = extractKeywords(input.niche);
-  const geoHints = input.niche.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
+  const niche = input.niche.trim();
+  const geoHints = niche.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
     ?.map((match) => match.replace(/\b(?:in|from|based in|located in)\s+/i, "").trim())
     .filter(Boolean) ?? [];
 
+  // Keep the full niche as the primary term — don't split into individual words
   return {
-    roleTerms: keywords.slice(0, 5),
-    bioTerms: keywords.slice(0, 6),
+    roleTerms: [niche],
+    bioTerms: [niche],
     geoHints,
     antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution", "dormant account", "bot"],
     userGoals: [
-      `Find individual X accounts who actively engage with ${input.niche} content and would repost/interact with promoted posts for payment.`,
-      `Prioritize people whose bios and recent posts demonstrate genuine involvement in ${input.niche}, not just large follower counts.`,
-      input.seedHandle ? `Prefer accounts adjacent to @${input.seedHandle.replace(/^@/, "")}.` : "",
+      `Find ${input.niche} on X.`,
+      input.seedHandle ? `Look within @${input.seedHandle.replace(/^@/, "")}'s network.` : "",
     ].filter(Boolean),
   };
 }
@@ -339,26 +339,16 @@ async function interpretLeadSearchGoals(input: {
   try {
     const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
     const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
-      "Interpret this lead-search request for a multi-agent X discovery system that finds TARGETED PROMOTION LEADS.",
+      "Interpret this lead-search request. The user wants to find X/Twitter accounts that match this niche.",
       "",
-      "WHAT IS A LEAD: A real person on X/Twitter who is ACTIVELY ENGAGED in this niche. The ideal lead:",
-      "- Has a bio that clearly shows they work in or are passionate about this specific niche",
-      "- Actively posts about the niche (not just a stale bio claim)",
-      "- Engages with others' content — reposts, replies, threads, recommendations",
-      "- Is an individual — someone approachable for paid collaboration",
-      "",
-      "NOT A LEAD: Large corporations, celebrities, official brand accounts, bots, news outlets, institutions, parody accounts, dormant accounts.",
-      "",
-      "IMPORTANT: Focus ONLY on whether the person's bio and posts demonstrate genuine involvement in the niche. Audience size is irrelevant — it's just a filter, not evidence.",
-      "",
-      "CRITICAL: The user's query may be colloquial or informal. You MUST translate it into REALISTIC terms that people actually write in their X bios and posts. Think about what the ideal person would literally have written in their bio or tweeted about.",
+      "Generate SYNONYMS and VARIATIONS of the query that mean the same thing. Every term you generate must describe the same type of person as the original query. Never split a multi-word concept into separate unrelated words.",
       "",
       "Extract:",
-      "- roleTerms: realistic job titles and roles people actually use in bios — translate informal language into real professional terms",
-      "- bioTerms: realistic phrases people actually write in bios — what would someone in this niche say about themselves? Include action verbs they'd use",
-      "- geoHints: optional location signals",
+      "- roleTerms: synonyms and variations of the role the user is looking for. Each term must be a complete phrase that means the same thing as the query. Include the original query as-is, plus realistic variations people would write in their bios.",
+      "- bioTerms: how people in this niche describe themselves in bios. Each term must be a complete self-description that stays within the same niche as the query.",
+      "- geoHints: optional location signals from the query",
       "- antiGoals: account types to avoid",
-      "- userGoals: short descriptions of the ideal lead for this niche",
+      "- userGoals: what the user is looking for (restate simply)",
       JSON.stringify(input),
     ].join("\n")));
 
@@ -396,29 +386,24 @@ function buildGoogleDorkQueries(input: {
     return dedupeQueries([
       `${vf} ${input.niche}`,
       `${vf}`,
-      `${vf} ${input.niche} ${roleBlock ? `("${roleBlock}")` : ""}`,
-      `${vf} ${input.niche} ${bioBlock ? `("${bioBlock}")` : ""}`,
-      `${vf} ("building" OR "founder" OR "creator") ${input.niche}`,
-      `${vf} ("shipping" OR "working on" OR "obsessed") ${input.niche}`,
-      geoBlock ? `${vf} "${geoBlock}" ${input.niche}` : "",
-      input.attempt >= 2 ? `${vf} ("collab" OR "DM me" OR "open to") ${input.niche}` : "",
-      input.attempt >= 3 ? `${vf} ("indie" OR "bootstrapped" OR "freelance") ${input.niche}` : "",
+      roleBlock ? `${vf} ("${roleBlock}")` : "",
+      bioBlock ? `${vf} ("${bioBlock}")` : "",
+      geoBlock ? `${vf} "${geoBlock}"` : "",
     ]).slice(0, input.queryBudget);
   }
 
   return dedupeQueries([
-    // Bio-focused dorks: find people who identify with the niche
-    `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""} ("building" OR "founder" OR "creator")`,
-    `site:x.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""} ("shipping" OR "obsessed" OR "working on")`,
-    // Engagement-focused dorks: find people who actively discuss and share
-    roleBlock ? `site:x.com (${input.interpretation.roleTerms.slice(0, 3).join(" OR ")}) "${input.niche}" ("thread" OR "repost" OR "recommend")` : "",
-    `site:twitter.com "${input.niche}" ("I build" OR "I write about" OR "my project" OR "my startup")`,
+    // Direct niche search — find people with the niche in their profile
+    `site:x.com "${input.niche}"`,
+    `site:twitter.com "${input.niche}"`,
+    // With role terms from AI interpretation
+    roleBlock ? `site:x.com ("${roleBlock}")` : "",
+    bioBlock ? `site:x.com ("${bioBlock}")` : "",
     // Geo-targeted
-    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}" ("founder" OR "builder" OR "creator")` : "",
-    // Attempt escalation: broader engagement signals
-    input.attempt >= 2 ? `site:x.com "${input.niche}" ("collab" OR "DM me" OR "open to" OR "available for")` : "",
-    input.attempt >= 3 ? `site:x.com "${input.niche}" ("indie" OR "bootstrapped" OR "solopreneur" OR "freelance")` : "",
-    input.attempt >= 4 ? `site:twitter.com "${input.niche}" ("sharing my" OR "launched" OR "just shipped" OR "check out")` : "",
+    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}"` : "",
+    // Later attempts: try role/bio terms individually (each quoted)
+    input.attempt >= 2 && input.interpretation.roleTerms[1] ? `site:x.com "${input.interpretation.roleTerms[1]}"` : "",
+    input.attempt >= 3 && input.interpretation.bioTerms[1] ? `site:twitter.com "${input.interpretation.bioTerms[1]}"` : "",
   ]).slice(0, input.queryBudget);
 }
 
@@ -448,10 +433,10 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
   }
 
   return dedupeQueries([
-    `${niche} founders creators builders actively posting on x`,
-    `${niche} people who repost share and engage on x`,
-    `${niche} indie makers operators shipping building on x`,
-    `${niche} engaged community members threads discussions on x`,
+    `${niche} on x`,
+    `${niche} x.com`,
+    `${niche} twitter`,
+    `best ${niche} on x`,
   ]).slice(0, resolveMultiAgentQueryBudget(input));
 }
 
@@ -462,20 +447,17 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
   if (cleanSeed) {
     const vf = `site:x.com/${cleanSeed}/verified_followers`;
     return dedupeQueries([
-      `${vf} ${niche} promote repost content`,
-      `${vf} ${niche} engaged creators recommendations`,
-      `${vf} ${niche} micro-influencers niche experts`,
-      attempt >= 3 ? `${vf} ${niche} collab partnerships` : "",
-      attempt >= 4 ? `${vf} ${niche} small audience high engagement` : "",
+      `${vf} ${niche}`,
+      attempt >= 3 ? `${vf}` : "",
     ]);
   }
 
   return dedupeQueries([
-    `${niche} people who actively promote and repost content on x`,
-    `${niche} engaged creators sharing recommendations on x`,
-    `${niche} community voices micro-influencers niche experts on x`,
-    attempt >= 3 ? `${niche} open to collabs partnerships promotions on x` : "",
-    attempt >= 4 ? `${niche} thought leaders small audience high engagement on x` : "",
+    `site:x.com "${niche}"`,
+    `"${niche}" x.com`,
+    `${niche} site:twitter.com`,
+    attempt >= 3 ? `top ${niche} on x` : "",
+    attempt >= 4 ? `${niche} freelance independent` : "",
   ]);
 }
 
@@ -532,21 +514,48 @@ const NICHE_STOP_WORDS = new Set([
   "coolest", "awesome", "amazing", "top", "biggest", "most", "real", "people",
 ]);
 
+function pluralVariants(phrase: string): string[] {
+  const variants = [phrase];
+  // "designers" -> "designer", "designer" -> "designers"
+  if (phrase.endsWith("s") && !phrase.endsWith("ss")) {
+    variants.push(phrase.slice(0, -1));
+  } else {
+    variants.push(phrase + "s");
+  }
+  // Handle multi-word: apply to last word
+  if (phrase.includes(" ")) {
+    const parts = phrase.split(" ");
+    const last = parts[parts.length - 1];
+    if (last.endsWith("s") && !last.endsWith("ss")) {
+      variants.push([...parts.slice(0, -1), last.slice(0, -1)].join(" "));
+    } else {
+      variants.push([...parts.slice(0, -1), last + "s"].join(" "));
+    }
+  }
+  return variants;
+}
+
 function extractKeywords(niche: string): string[] {
   const normalized = normalizeText(niche);
   const words = normalized.split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 3 && !NICHE_STOP_WORDS.has(w));
 
-  // Build meaningful multi-word phrases (bigrams) alongside filtered single words
   const phrases: string[] = [];
-  for (let i = 0; i < words.length - 1; i++) {
-    phrases.push(`${words[i]} ${words[i + 1]}`);
-  }
-  // Full niche as a phrase (if multi-word)
+
+  // Full niche phrase + singular/plural variants
   if (words.length >= 2) {
-    phrases.push(words.join(" "));
+    const fullPhrase = words.join(" ");
+    phrases.push(...pluralVariants(fullPhrase));
   }
-  // Include individual words but only domain-specific ones (not generic)
-  phrases.push(...words);
+
+  // Bigrams + their variants
+  for (let i = 0; i < words.length - 1; i++) {
+    phrases.push(...pluralVariants(`${words[i]} ${words[i + 1]}`));
+  }
+
+  // Individual words + their variants
+  for (const word of words) {
+    phrases.push(...pluralVariants(word));
+  }
 
   return [...new Set(phrases)];
 }
@@ -559,69 +568,55 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   const keywords = extractKeywords(niche);
   const bioText = normalizeText(candidate.account.bio);
   const postTexts = candidate.posts.slice(0, 5).map((post) => normalizeText(post.text));
-  const profileText = normalizeText([
-    candidate.account.name,
-    candidate.account.bio,
-    ...candidate.posts.slice(0, 5).map((post) => post.text),
-  ].join(" "));
 
-  // Phrase matches (multi-word) are worth more than single-word matches
-  const phraseHits = keywords.filter((kw) => kw.includes(" ") && profileText.includes(kw)).length;
-  const wordHits = keywords.filter((kw) => !kw.includes(" ") && profileText.includes(kw)).length;
-  const topicalHits = phraseHits * 3 + wordHits;
-
+  // Bio relevance — phrase matches count 3x
   const bioPhraseHits = keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).length;
   const bioWordHits = keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).length;
-  const bioHits = bioPhraseHits * 3 + bioWordHits;
+  const bioScore = Math.min(60, (bioPhraseHits * 3 + bioWordHits) * 10);
 
-  const postHits = postTexts.filter((text) => keywords.some((kw) => kw.includes(" ") ? text.includes(kw) : text.includes(kw))).length;
+  // Post relevance — posts with niche keywords
+  const postHits = postTexts.filter((text) => keywords.some((kw) => text.includes(kw))).length;
+  const postScore = Math.min(40, postHits * 12);
 
-  // Relevance-first scoring: topical alignment is the dominant signal
-  const topicScore = Math.min(35, topicalHits * 5);
-  const bioRelevanceScore = Math.min(15, bioHits * 4);
-
-  // Engagement behavior: people who actively repost/reply are better promotion leads
-  const engagementBase = candidate.metrics.avgLikes
-    + (candidate.metrics.avgReplies * 3)
-    + (candidate.metrics.avgReposts * 4)
-    + ((candidate.metrics.avgViews ?? 0) / 500);
-  const engagementScore = Math.min(20, Math.round(Math.log10(engagementBase + 10) * 7));
-
-  // Posts with niche keywords show active participation, not just a bio claim
-  const activePostSignal = postHits > 0 ? Math.min(12, postHits * 4) : (candidate.posts.length > 0 ? 3 : 0);
-
-  // Follower count is NOT a scoring signal — it's only a pre-filter.
-  const followerScore = 0;
-
-  // Creator/operator bio signals: people likely to engage with promotion offers
-  const creatorBioBonus = /(founder|ceo|cto|i build|building|shipping|creator|maker|indie|freelance|consultant|engineer|designer|operator|solopreneur|bootstrapped)/i.test(candidate.account.bio) ? 6 : 0;
-
-  // Engagement willingness signals from posts: retweets, threads, interactions
-  const engagementWillingnessBonus = candidate.posts.some((post) =>
-    /(RT @|repost|thread|🧵|collab|promo|shill|check out|recommend)/i.test(post.text),
-  ) ? 5 : 0;
-
-  const handlePenalty = /(support|official|news|updates|hq|team)/i.test(candidate.account.handle) ? 20 : 0;
-  const brandPenalty = /\b(official|support|newsroom|company|inc|labs|hq)\b/i.test(candidate.account.bio) ? 16 : 0;
-  const score = clampScore(
-    5 + topicScore + bioRelevanceScore + engagementScore + activePostSignal
-    + followerScore + creatorBioBonus + engagementWillingnessBonus
-    - handlePenalty - brandPenalty,
-  );
+  const score = clampScore(bioScore + postScore);
 
   const reasons: string[] = [];
-  if (topicalHits > 0) reasons.push(`${topicalHits} niche keyword hits across bio/posts`);
-  if (bioHits > 0) reasons.push(`Bio directly mentions ${bioHits} niche terms`);
-  if (postHits > 0) reasons.push(`${postHits} recent posts discuss the niche`);
-  if (creatorBioBonus > 0) reasons.push("Bio signals individual creator/operator");
-  if (engagementWillingnessBonus > 0) reasons.push("Posts show reposting/engagement behavior");
-  if (engagementScore >= 12) reasons.push("Active engagement signals");
-  if (handlePenalty > 0 || brandPenalty > 0) reasons.push("Brand or support-account penalty applied");
+  if (bioPhraseHits > 0) reasons.push(`Bio contains: ${keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  else if (bioWordHits > 0) reasons.push(`Bio mentions: ${keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  if (postHits > 0) reasons.push(`${postHits} post(s) discuss the niche`);
 
-  return {
-    score,
-    reasons: reasons.length > 0 ? reasons : ["Baseline relevance heuristic score"],
-  };
+  return { score, reasons };
+}
+
+function extractBioWebsiteUrl(bio: string): string | null {
+  const urlMatch = bio.match(/https?:\/\/[^\s,)]+/i);
+  if (urlMatch) return urlMatch[0];
+  // Match domain-like patterns: word.tld
+  const domainMatch = bio.match(/\b([a-z0-9][-a-z0-9]*\.(com|io|co|dev|app|xyz|ai|org|net|me|so|gg))\b/i);
+  if (domainMatch) return `https://${domainMatch[1]}`;
+  return null;
+}
+
+async function scrapeWebsiteForEvidence(
+  url: string,
+  niche: string,
+  keywords: string[],
+): Promise<SelectionEvidence | null> {
+  try {
+    const payload = await queryAgentQlBestEffort(url, "discovery");
+    if (!payload) return null;
+    const text = JSON.stringify(payload).toLowerCase().slice(0, 3000);
+    const matched = keywords.filter((kw) => text.includes(kw)).slice(0, 3);
+    if (matched.length === 0) return null;
+    const snippet = text.slice(0, 200).replace(/["\n\r]/g, " ").trim();
+    return {
+      source: "bio" as const,
+      snippet: `Website (${url}): ${snippet}...`,
+      whyItAligns: `Website contains: ${matched.map((h) => `"${h}"`).join(", ")}`,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): SelectionEvidence[] {
@@ -637,8 +632,8 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
       ? candidate.account.bio.slice(0, 200) + "..."
       : candidate.account.bio;
 
-    // Only add bio evidence if actual niche terms were found — not generic creator signals
-    if (bioPhrasesFound.length > 0 || bioWordsFound.length >= 2) {
+    // Add bio evidence if any niche term was found
+    if (bioPhrasesFound.length > 0 || bioWordsFound.length > 0) {
       const matched = [...bioPhrasesFound, ...bioWordsFound].slice(0, 4);
       evidence.push({
         source: "bio",
@@ -1206,23 +1201,41 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
     };
   })
   .addNode("candidate_scorer", async (state) => {
-    const scored: ScoredCandidate[] = [];
-    for (const candidate of state.candidates) {
-      const heuristic = scoreCandidateHeuristically(state.niche, candidate);
-      const evidence = extractSelectionEvidence(state.niche, candidate);
+    const keywords = extractKeywords(state.niche);
 
-      // Inline relevance filter: reject candidates with no bio/post evidence during discovery
-      // This prevents irrelevant leads from ever reaching the screening stage
-      if (evidence.length === 0 && heuristic.score < 15) continue;
+    // Phase 1: Score all candidates and collect website URLs to scrape
+    const prescoredCandidates = state.candidates.map((candidate) => ({
+      candidate,
+      heuristic: scoreCandidateHeuristically(state.niche, candidate),
+      evidence: extractSelectionEvidence(state.niche, candidate),
+      websiteUrl: extractBioWebsiteUrl(candidate.account.bio),
+    }));
 
-      scored.push({
-        candidate,
-        score: heuristic.score,
-        reasons: heuristic.reasons,
-        attempt: state.attempt,
-        evidence,
+    // Phase 2: Scrape websites in parallel (only for candidates that have one)
+    const websiteCandidates = prescoredCandidates.filter((c) => c.websiteUrl);
+    if (websiteCandidates.length > 0) {
+      const websiteResults = await mapWithConcurrency(
+        websiteCandidates,
+        MULTIAGENT_SCRAPE_CONCURRENCY,
+        async (c) => scrapeWebsiteForEvidence(c.websiteUrl!, state.niche, keywords),
+      );
+      websiteCandidates.forEach((c, i) => {
+        const result = websiteResults[i];
+        if (result) c.evidence.push(result);
       });
     }
+
+    // Pass all candidates through — AI screening handles semantic relevance
+    // Candidates with keyword evidence get higher scores, but none are rejected here
+    const scored: ScoredCandidate[] = prescoredCandidates
+      .map((c) => ({
+        candidate: c.candidate,
+        score: c.heuristic.score,
+        reasons: c.heuristic.reasons,
+        attempt: state.attempt,
+        evidence: c.evidence,
+      }));
+
     return {
       activeSubagent: "candidate_scorer" as const,
       scored,

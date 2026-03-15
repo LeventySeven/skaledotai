@@ -46,7 +46,7 @@ export const LeadReasoningSchema = z.object({
   tools: z.array(z.string()).default([]),
   subagents: z.array(z.string()).default([]),
   evidence: z.array(z.object({
-    source: z.enum(["name", "handle", "bio", "post", "audience"]),
+    source: z.enum(["name", "handle", "bio", "post"]),
     snippet: z.string(),
     whyItAligns: z.string(),
   })).default([]),

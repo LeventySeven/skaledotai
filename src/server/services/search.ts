@@ -1,5 +1,8 @@
 import "@/lib/server-runtime";
+import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { db } from "@/db";
+import { projectLeadInsights } from "@/db/schema";
 import { expandLeadSearchQueries, screenProfilesForLeadSearchDetailed } from "@/lib/openai";
 import type { Lead } from "@/lib/validations/leads";
 import type { Project } from "@/lib/validations/projects";
@@ -703,6 +706,56 @@ export async function searchAndAddLeads(
       discoverySource: input.followerUsername ? "followers" : "profile_search",
       discoveryQuery: input.query,
     });
+
+    // Persist screening reasons as inline reasoning — generated DURING search, not after
+    if (screeningResult.selectedReasons.size > 0 && leadsList.length > 0) {
+      try {
+        const now = new Date();
+        const insightRows = leadsList
+          .map((lead) => {
+            const reason = screeningResult.selectedReasons.get(lead.xUserId ?? "")
+              ?? screeningResult.selectedReasons.get(lead.handle.replace(/^@/, "").toLowerCase());
+            if (!reason) return null;
+            return {
+              projectId: project.id,
+              leadId: lead.id,
+              contextHash: `screening:${Date.now()}`,
+              summary: reason,
+              alignmentBullets: [reason],
+              userGoals: [`Search: "${input.query}"`],
+              confidence: 70,
+              tools: ["OpenAI", "Tavily", "AgentQL"],
+              subagents: ["goal_interpreter", "dork_planner", "source_researcher", "candidate_scorer"],
+              evidence: [],
+              generatedAt: now,
+              updatedAt: now,
+            };
+          })
+          .filter((row): row is NonNullable<typeof row> => row !== null);
+
+        if (insightRows.length > 0) {
+          await db
+            .insert(projectLeadInsights)
+            .values(insightRows)
+            .onConflictDoUpdate({
+              target: [projectLeadInsights.projectId, projectLeadInsights.leadId],
+              set: {
+                summary: sql`excluded.summary`,
+                alignmentBullets: sql`excluded.alignment_bullets`,
+                userGoals: sql`excluded.user_goals`,
+                confidence: sql`excluded.confidence`,
+                tools: sql`excluded.tools`,
+                subagents: sql`excluded.subagents`,
+                evidence: sql`excluded.evidence`,
+                contextHash: sql`excluded.context_hash`,
+                updatedAt: sql`excluded.updated_at`,
+              },
+            });
+        }
+      } catch (error) {
+        console.warn("[search] failed to persist inline screening reasons", error);
+      }
+    }
 
     trace.addStep(await emitStep(progress, {
       id: "insert",

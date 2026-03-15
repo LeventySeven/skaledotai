@@ -101,7 +101,7 @@ export function normalizeDiscoveredUrls(results: TavilyResult[], limit: number):
         continue;
       }
 
-      urls.add(`https://x.com/${handle}`);
+      urls.add(`https://x.com/${handle.toLowerCase()}`);
     } catch {
       continue;
     }

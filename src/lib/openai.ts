@@ -70,6 +70,7 @@ const ScreeningSchema = z.object({
     profileId: z.string(),
     include: z.boolean(),
     score: z.number().int().min(0).max(100),
+    reason: z.string().default(""),
   })),
 });
 
@@ -246,6 +247,7 @@ export async function screenProfilesForLeadSearchDetailed(
   maxResults: number,
 ): Promise<{
   selectedIds: string[];
+  selectedReasons: Map<string, string>;
   batchSummaries: Array<{
     candidateCount: number;
     includedCount: number;
@@ -255,6 +257,7 @@ export async function screenProfilesForLeadSearchDetailed(
   if (candidates.length === 0) {
     return {
       selectedIds: [],
+      selectedReasons: new Map(),
       batchSummaries: [],
     };
   }
@@ -262,11 +265,13 @@ export async function screenProfilesForLeadSearchDetailed(
   if (prefilteredCandidates.length === 0) {
     return {
       selectedIds: [],
+      selectedReasons: new Map(),
       batchSummaries: [],
     };
   }
 
   const selectedScores = new Map<string, number>();
+  const selectedReasons = new Map<string, string>();
   const batchSummaries: Array<{
     candidateCount: number;
     includedCount: number;
@@ -276,12 +281,12 @@ export async function screenProfilesForLeadSearchDetailed(
   for (const batch of chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE)) {
     const validIds = new Set(batch.map((candidate) => candidate.xUserId));
     const result = await structuredResponseWithMeta<{
-      decisions: Array<{ profileId: string; include: boolean; score: number }>;
+      decisions: Array<{ profileId: string; include: boolean; score: number; reason: string }>;
     }>({
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
       instructions:
-        "Screen X/Twitter profiles for a search query. Include ONLY if the bio or posts contain specific text proving the person works in or actively discusses the query's niche.\n\nScoring:\n- 80-100: Bio explicitly references the niche AND posts discuss it.\n- 60-79: Bio references the niche OR at least 2 posts discuss it.\n- 40-59: At least one clear niche reference in bio or a post.\n- 0 (include=false): No specific niche text found in bio or posts.\n\nRules:\n- Follower count is a pre-filter only. Never use it in decisions.\n- Do NOT infer relevance from adjacent fields or generic terms. The bio/posts must contain text directly related to the search query's core topic.\n- If you cannot quote a specific phrase from bio or posts as proof, set include=false.\n- Translate the query into realistic terms people would use (the query may be informal).",
+        "Screen X/Twitter profiles for a search query. Read each bio fully and decide if this person genuinely works in or is closely related to the niche.\n\nHow to decide:\n- Read the ENTIRE bio. Understand what the person does, not just whether a single keyword appears.\n- Include if the bio or posts show this person works in, practices, or is deeply involved in the query's field.\n- Exclude if the person's work is in a completely different field with no real connection.\n\nScoring:\n- 80-100: Clearly works in this field based on bio.\n- 60-79: Related to the field — close enough to be relevant.\n- 40-59: Tangentially connected.\n- 0 (include=false): Unrelated.\n\nReason (REQUIRED): Quote the part of their bio that shows relevance. 1-2 sentences max.\n\nRules:\n- Follower count is irrelevant. Never mention it.\n- Understand the query's intent — translate informal terms into what people actually do.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -289,8 +294,6 @@ export async function screenProfilesForLeadSearchDetailed(
           handle: `@${candidate.username}`,
           name: candidate.displayName,
           bio: candidate.bio,
-          followers: candidate.followersCount,
-          source: candidate.source,
           posts: candidate.samplePosts?.slice(0, 3) ?? [],
         })),
       }),
@@ -307,6 +310,9 @@ export async function screenProfilesForLeadSearchDetailed(
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);
+        if (decision.reason) {
+          selectedReasons.set(decision.profileId, decision.reason);
+        }
       }
       includedCount += 1;
     }
@@ -334,6 +340,7 @@ export async function screenProfilesForLeadSearchDetailed(
     selectedIds: selectedIds.length > 0
       ? selectedIds
       : getFallbackScreenedIds(query, prefilteredCandidates, maxResults),
+    selectedReasons,
     batchSummaries,
   };
 }
@@ -598,7 +605,7 @@ export async function generateLeadReasoning(input: {
     schemaName: "lead_reasoning",
     schema: LeadReasoningSchema,
     instructions:
-      "Analyze whether this profile matches the search query. Be honest.\n\nRules:\n- Summary: one sentence stating what the person does, from their bio. No filler.\n- alignmentBullets: quote exact text from bio or post topics. No vague statements.\n- Evidence snippets: exact quotes from bio or posts. whyItAligns: state what niche term was found.\n- If bio/posts don't mention the query's topic, say so. Set confidence below 30.\n- Follower count is not evidence. Never mention it.\n- No filler text. Every sentence must reference a specific fact from the profile.\n- Translate the search query into realistic terms — the query may be informal but match against what people actually write.\n- confidence: 80+ if bio explicitly references the niche, 50-79 if only posts do, below 50 if neither.",
+      "Analyze whether this profile matches the search query. Read the full bio and understand what the person does.\n\nRules:\n- Summary: one sentence stating what the person does. No filler.\n- alignmentBullets: quote the relevant part of the bio. No vague statements.\n- Evidence: quote the bio text that shows relevance.\n- If the person's work is unrelated, set confidence below 30.\n- Never mention follower count.\n- Understand the query's intent and match against what the person actually does, not just exact keywords.",
     input: JSON.stringify(input),
     fallback,
     maxOutputTokens: 500,
