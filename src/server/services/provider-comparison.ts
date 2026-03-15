@@ -54,12 +54,19 @@ export async function compareXDiscoveryProviders(input: {
   );
 
   const results: ProviderComparisonResult[] = [];
-  for (const outcome of settled) {
+  const failures: string[] = [];
+  for (const [i, outcome] of settled.entries()) {
     if (outcome.status === "fulfilled") {
       results.push(outcome.value);
     } else {
-      console.warn("[provider-comparison] provider failed, skipping", outcome.reason);
+      const provider = eligible[i];
+      console.warn(`[provider-comparison] ${provider} failed, skipping`, outcome.reason);
+      failures.push(`${provider}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
     }
+  }
+
+  if (results.length === 0 && eligible.length > 0) {
+    throw new Error(`All ${eligible.length} provider(s) failed:\n${failures.join("\n")}`);
   }
 
   return results.sort((a, b) => b.qualifiedCount - a.qualifiedCount || b.averageScore - a.averageScore);
