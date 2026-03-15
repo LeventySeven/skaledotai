@@ -42,7 +42,7 @@ export function SearchWorkspace() {
   if (hasRerunParams) return null;
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-[736px] flex-col items-center justify-center px-8">
+    <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-[800px] flex-col items-center justify-center px-8">
       <div className="w-full">
         <h1 className="mb-6 text-center text-[32px] font-medium">
           Describe your goal or audience
