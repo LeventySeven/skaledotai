@@ -87,4 +87,4 @@ export async function parseUpstreamJson(
 
 
 export const MULTIAGENT_FETCH_TIMEOUT_MS = 12_000;
-export const MULTIAGENT_SCRAPE_CONCURRENCY = 2;
+export const MULTIAGENT_SCRAPE_CONCURRENCY = 4;

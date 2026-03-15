@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import {
   ActivityIcon,
+  ChevronDownIcon,
   Clock3Icon,
   GitBranchPlusIcon,
   NetworkIcon,
   SparklesIcon,
-  WrenchIcon,
   TargetIcon,
+  WrenchIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ProjectRunTrace, ProjectRunTraceStep } from "@/lib/validations/project-runs";
@@ -43,9 +45,9 @@ function resolveGraphNodes(
 function getNodeTone(status: SearchRunGraphNode["status"]) {
   if (status === "active") {
     return {
-      card: "border-[#e84393]/35 bg-[#fdf2f8]/90 text-[#831843] shadow-[0_18px_50px_-32px_rgba(232,67,147,0.45)]",
-      dot: "bg-[#e84393] ring-4 ring-[#f9a8d4]/90",
-      edge: "bg-gradient-to-r from-[#f472b6] via-[#f9a8d4] to-border/35",
+      card: "border-emerald-500/35 bg-emerald-50/90 text-emerald-900 shadow-[0_18px_50px_-32px_rgba(16,185,129,0.45)]",
+      dot: "bg-emerald-500 ring-4 ring-emerald-300/90",
+      edge: "bg-gradient-to-r from-emerald-400 via-emerald-200 to-border/35",
       label: "Streaming",
     };
   }
@@ -75,7 +77,7 @@ function GraphLane({
   snapshot?: SearchRunStreamSnapshot | null;
 }) {
   return (
-    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(228,52,32,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.96))] p-4 dark:bg-[radial-gradient(circle_at_top_left,_rgba(228,52,32,0.18),_transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.96))]">
+    <div className="overflow-hidden rounded-[26px] border border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.96))] p-4 dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.96))]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -157,14 +159,15 @@ export function SearchRunTracePanel({
   isPending: boolean;
   trace?: ProjectRunTrace | null;
 }) {
+  const [reasoningOpen, setReasoningOpen] = useState(false);
   const latestStepId = isPending ? steps.at(-1)?.id : undefined;
   const graphNodes = resolveGraphNodes(snapshot, steps, isPending);
 
   return (
-    <div className="mt-4 rounded-[26px] border border-border/70 bg-card shadow-xs/5">
-      <div className="border-b border-border/60 px-5 py-4">
+    <div className="mt-4 rounded-[26px] border border-emerald-200/70 bg-card shadow-xs/5">
+      <div className="border-b border-emerald-200/60 px-5 py-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={isPending ? "secondary" : "outline"}>
+          <Badge variant={isPending ? "secondary" : "outline"} className={isPending ? "bg-emerald-100 text-emerald-800" : ""}>
             {isPending ? "Live Stream" : "Completed"}
           </Badge>
           <Badge variant="outline">LangGraph</Badge>
@@ -174,179 +177,167 @@ export function SearchRunTracePanel({
           {snapshot?.recoveryState ? <Badge variant="outline">Recovery: {snapshot.recoveryState.replace(/_/g, " ")}</Badge> : null}
           {snapshot?.stopReason ? <Badge variant="outline">Stop: {snapshot.stopReason.replace(/_/g, " ")}</Badge> : null}
         </div>
-        <h3 className="mt-3 text-[1.15rem] font-semibold tracking-[-0.02em]">Search reasoning</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Live node updates from the multi-agent discovery graph plus the downstream screening pipeline.
-        </p>
-      </div>
 
-      <div className="space-y-4 p-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[22px] border border-border/70 bg-background/75 px-4 py-4">
-            <div className="flex items-center justify-between gap-3 text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[18px] border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               <span>Lead Goal</span>
-              <TargetIcon className="size-4" />
+              <TargetIcon className="size-3.5" />
             </div>
-            <div className="mt-3 text-[1.35rem] font-semibold tracking-[-0.04em]">
+            <div className="mt-2 text-[1.2rem] font-semibold tracking-[-0.04em]">
               {snapshot ? `~${snapshot.targetLeadCount}` : "—"}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {snapshot
-                ? `${snapshot.goalCount} discovery candidates in the bounded search window${snapshot.firstPassCount !== undefined ? ` · first pass ${snapshot.firstPassCount}` : ""}`
-                : "Awaiting the first state update"}
-            </p>
           </div>
 
-          <div className="rounded-[22px] border border-border/70 bg-background/75 px-4 py-4">
-            <div className="flex items-center justify-between gap-3 text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              <span>Discovery Pass</span>
-              <GitBranchPlusIcon className="size-4" />
+          <div className="rounded-[18px] border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              <span>Pass</span>
+              <GitBranchPlusIcon className="size-3.5" />
             </div>
-            <div className="mt-3 text-[1.35rem] font-semibold tracking-[-0.04em]">
+            <div className="mt-2 text-[1.2rem] font-semibold tracking-[-0.04em]">
               {snapshot ? `${snapshot.attempt} / ${snapshot.maxAttempts}` : "1 / 1"}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {snapshot?.recoveryState
-                ? `Recovery lane: ${snapshot.recoveryState.replace(/_/g, " ")}`
-                : isPending ? "Current bounded retry window" : "Completed discovery window"}
-            </p>
           </div>
 
-          <div className="rounded-[22px] border border-border/70 bg-background/75 px-4 py-4">
-            <div className="flex items-center justify-between gap-3 text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              <span>Discovery State</span>
-              <NetworkIcon className="size-4" />
+          <div className="rounded-[18px] border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              <span>Candidates</span>
+              <NetworkIcon className="size-3.5" />
             </div>
-            <div className="mt-3 text-[1.35rem] font-semibold tracking-[-0.04em]">
+            <div className="mt-2 text-[1.2rem] font-semibold tracking-[-0.04em]">
               {snapshot ? snapshot.candidates : 0}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {snapshot
-                ? `${snapshot.queries} queries, ${snapshot.urls} URLs, ${snapshot.scraped} payloads processed`
-                : "No graph state recorded yet"}
-            </p>
           </div>
 
-          <div className="rounded-[22px] border border-border/70 bg-background/75 px-4 py-4">
-            <div className="flex items-center justify-between gap-3 text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className="rounded-[18px] border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               <span>Runtime</span>
-              <Clock3Icon className="size-4" />
+              <Clock3Icon className="size-3.5" />
             </div>
-            <div className="mt-3 text-[1.35rem] font-semibold tracking-[-0.04em]">
+            <div className="mt-2 text-[1.2rem] font-semibold tracking-[-0.04em]">
               {trace ? formatDuration(trace.durationMs) : "Live"}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {isPending ? "Streaming state transitions" : "Observed wall time"}
-            </p>
           </div>
         </div>
+      </div>
 
+      <div className="p-4">
         {graphNodes.length > 0 ? <GraphLane nodes={graphNodes} snapshot={snapshot} /> : null}
 
-        <div className="rounded-[26px] border border-border/70 bg-background/65">
-          <div className="border-b border-border/60 px-5 py-4">
+        {/* Collapsible reasoning panel */}
+        <div className="mt-4 rounded-[22px] border border-border/70 bg-background/65">
+          <button
+            type="button"
+            onClick={() => setReasoningOpen(!reasoningOpen)}
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
+          >
             <div className="flex items-center gap-2">
               <ActivityIcon className="size-4 text-muted-foreground" />
               <div className="text-[0.82rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                State Updates
+                Reasoning ({steps.length} steps)
               </div>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Each node delta is appended here in the order the search actually progressed.
-            </p>
-          </div>
+            <ChevronDownIcon
+              className={cn(
+                "size-5 text-muted-foreground transition-transform duration-200",
+                reasoningOpen && "rotate-180",
+              )}
+            />
+          </button>
 
-          <div className="space-y-3 p-4">
-            {steps.length === 0 ? (
-              <div className="rounded-[22px] border border-dashed border-border/80 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">
-                {isPending
-                  ? "Waiting for the first LangGraph update."
-                  : "No streamed reasoning was recorded for this run."}
-              </div>
-            ) : (
-              steps.map((step, index) => {
-                const isActive = latestStepId === step.id;
-                return (
-                  <div
-                    key={step.id}
-                    className={cn(
-                      "rounded-[22px] border px-4 py-4 transition-all duration-300",
-                      isActive
-                        ? "trace-active-shimmer border-[#e84393]/35 bg-[#fdf2f8]/90"
-                        : "border-border/70 bg-background/80",
-                    )}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={cn(
-                              "size-2.5 rounded-full",
-                              isActive ? "bg-[#e84393]" : "bg-foreground/70",
-                            )}
-                          />
-                          <div className="text-sm font-semibold">{step.title}</div>
-                          <span className="text-xs text-muted-foreground">Step {index + 1}</span>
+          {reasoningOpen ? (
+            <div className="max-h-[600px] space-y-3 overflow-y-auto border-t border-border/60 p-4">
+              {steps.length === 0 ? (
+                <div className="rounded-[18px] border border-dashed border-border/80 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">
+                  {isPending
+                    ? "Waiting for the first LangGraph update."
+                    : "No streamed reasoning was recorded for this run."}
+                </div>
+              ) : (
+                steps.map((step, index) => {
+                  const isActive = latestStepId === step.id;
+                  return (
+                    <div
+                      key={step.id}
+                      className={cn(
+                        "rounded-[18px] border px-4 py-4 transition-all duration-300",
+                        isActive
+                          ? "trace-active-shimmer border-emerald-400/35 bg-emerald-50/90"
+                          : "border-border/70 bg-background/80",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={cn(
+                                "size-2.5 rounded-full",
+                                isActive ? "bg-emerald-500" : "bg-foreground/70",
+                              )}
+                            />
+                            <div className="text-sm font-semibold">{step.title}</div>
+                            <span className="text-xs text-muted-foreground">Step {index + 1}</span>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.summary}</p>
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.summary}</p>
-                      </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        {step.provider ? <Badge variant="outline">{step.provider}</Badge> : null}
-                        {step.subagent ? <Badge variant="outline">{step.subagent}</Badge> : null}
-                        {step.model ? <Badge variant="secondary">{step.model}</Badge> : null}
-                        <Badge variant={isActive ? "secondary" : "outline"}>
-                          {isActive ? "Streaming" : step.status}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {step.metrics.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {step.metrics.map((metric, i) => (
-                          <Badge key={`${step.id}-metric-${i}`} variant="outline" className="rounded-full bg-card">
-                            {metric.label}: {metric.value}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {step.tools.length > 0 ? (
-                      <div className="mt-3">
-                        <div className="mb-2 flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                          <WrenchIcon className="size-3.5" />
-                          <span>Tools used</span>
-                        </div>
                         <div className="flex flex-wrap gap-2">
-                          {step.tools.map((tool, i) => (
-                            <Badge key={`${step.id}-tool-${i}`} variant="secondary" className="rounded-full">
-                              {tool}
+                          {step.provider ? <Badge variant="outline">{step.provider}</Badge> : null}
+                          {step.subagent ? <Badge variant="outline">{step.subagent}</Badge> : null}
+                          {step.model ? <Badge variant="secondary">{step.model}</Badge> : null}
+                          <Badge variant={isActive ? "secondary" : "outline"} className={isActive ? "bg-emerald-100 text-emerald-800" : ""}>
+                            {isActive ? "Streaming" : step.status}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {step.metrics.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {step.metrics.map((metric, i) => (
+                            <Badge key={`${step.id}-metric-${i}`} variant="outline" className="rounded-full bg-card">
+                              {metric.label}: {metric.value}
                             </Badge>
                           ))}
                         </div>
-                      </div>
-                    ) : null}
+                      ) : null}
 
-                    {step.bullets.length > 0 ? (
-                      <div className="mt-4 space-y-2">
-                        {step.bullets.map((bullet, i) => (
-                          <div key={`${step.id}-bullet-${i}`} className="flex items-start gap-2 text-sm text-muted-foreground">
-                            <SparklesIcon className="mt-0.5 size-3.5 shrink-0" />
-                            <span>{bullet}</span>
+                      {step.tools.length > 0 ? (
+                        <div className="mt-3">
+                          <div className="mb-2 flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                            <WrenchIcon className="size-3.5" />
+                            <span>Tools used</span>
                           </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })
-            )}
-          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {step.tools.map((tool, i) => (
+                              <Badge key={`${step.id}-tool-${i}`} variant="secondary" className="rounded-full">
+                                {tool}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {step.bullets.length > 0 ? (
+                        <div className="mt-4 space-y-2">
+                          {step.bullets.map((bullet, i) => (
+                            <div key={`${step.id}-bullet-${i}`} className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <SparklesIcon className="mt-0.5 size-3.5 shrink-0" />
+                              <span>{bullet}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
 
       {trace ? (
-        <div className="border-t border-border/60 px-5 py-4 text-sm text-muted-foreground">
+        <div className="border-t border-emerald-200/60 px-5 py-4 text-sm text-muted-foreground">
           {trace.summary}
         </div>
       ) : null}

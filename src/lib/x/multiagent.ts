@@ -559,69 +559,24 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   const keywords = extractKeywords(niche);
   const bioText = normalizeText(candidate.account.bio);
   const postTexts = candidate.posts.slice(0, 5).map((post) => normalizeText(post.text));
-  const profileText = normalizeText([
-    candidate.account.name,
-    candidate.account.bio,
-    ...candidate.posts.slice(0, 5).map((post) => post.text),
-  ].join(" "));
 
-  // Phrase matches (multi-word) are worth more than single-word matches
-  const phraseHits = keywords.filter((kw) => kw.includes(" ") && profileText.includes(kw)).length;
-  const wordHits = keywords.filter((kw) => !kw.includes(" ") && profileText.includes(kw)).length;
-  const topicalHits = phraseHits * 3 + wordHits;
-
+  // Bio relevance — phrase matches count 3x
   const bioPhraseHits = keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).length;
   const bioWordHits = keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).length;
-  const bioHits = bioPhraseHits * 3 + bioWordHits;
+  const bioScore = Math.min(60, (bioPhraseHits * 3 + bioWordHits) * 10);
 
-  const postHits = postTexts.filter((text) => keywords.some((kw) => kw.includes(" ") ? text.includes(kw) : text.includes(kw))).length;
+  // Post relevance — posts with niche keywords
+  const postHits = postTexts.filter((text) => keywords.some((kw) => text.includes(kw))).length;
+  const postScore = Math.min(40, postHits * 12);
 
-  // Relevance-first scoring: topical alignment is the dominant signal
-  const topicScore = Math.min(35, topicalHits * 5);
-  const bioRelevanceScore = Math.min(15, bioHits * 4);
-
-  // Engagement behavior: people who actively repost/reply are better promotion leads
-  const engagementBase = candidate.metrics.avgLikes
-    + (candidate.metrics.avgReplies * 3)
-    + (candidate.metrics.avgReposts * 4)
-    + ((candidate.metrics.avgViews ?? 0) / 500);
-  const engagementScore = Math.min(20, Math.round(Math.log10(engagementBase + 10) * 7));
-
-  // Posts with niche keywords show active participation, not just a bio claim
-  const activePostSignal = postHits > 0 ? Math.min(12, postHits * 4) : (candidate.posts.length > 0 ? 3 : 0);
-
-  // Follower count is NOT a scoring signal — it's only a pre-filter.
-  const followerScore = 0;
-
-  // Creator/operator bio signals: people likely to engage with promotion offers
-  const creatorBioBonus = /(founder|ceo|cto|i build|building|shipping|creator|maker|indie|freelance|consultant|engineer|designer|operator|solopreneur|bootstrapped)/i.test(candidate.account.bio) ? 6 : 0;
-
-  // Engagement willingness signals from posts: retweets, threads, interactions
-  const engagementWillingnessBonus = candidate.posts.some((post) =>
-    /(RT @|repost|thread|🧵|collab|promo|shill|check out|recommend)/i.test(post.text),
-  ) ? 5 : 0;
-
-  const handlePenalty = /(support|official|news|updates|hq|team)/i.test(candidate.account.handle) ? 20 : 0;
-  const brandPenalty = /\b(official|support|newsroom|company|inc|labs|hq)\b/i.test(candidate.account.bio) ? 16 : 0;
-  const score = clampScore(
-    5 + topicScore + bioRelevanceScore + engagementScore + activePostSignal
-    + followerScore + creatorBioBonus + engagementWillingnessBonus
-    - handlePenalty - brandPenalty,
-  );
+  const score = clampScore(bioScore + postScore);
 
   const reasons: string[] = [];
-  if (topicalHits > 0) reasons.push(`${topicalHits} niche keyword hits across bio/posts`);
-  if (bioHits > 0) reasons.push(`Bio directly mentions ${bioHits} niche terms`);
-  if (postHits > 0) reasons.push(`${postHits} recent posts discuss the niche`);
-  if (creatorBioBonus > 0) reasons.push("Bio signals individual creator/operator");
-  if (engagementWillingnessBonus > 0) reasons.push("Posts show reposting/engagement behavior");
-  if (engagementScore >= 12) reasons.push("Active engagement signals");
-  if (handlePenalty > 0 || brandPenalty > 0) reasons.push("Brand or support-account penalty applied");
+  if (bioPhraseHits > 0) reasons.push(`Bio contains: ${keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  else if (bioWordHits > 0) reasons.push(`Bio mentions: ${keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  if (postHits > 0) reasons.push(`${postHits} post(s) discuss the niche`);
 
-  return {
-    score,
-    reasons: reasons.length > 0 ? reasons : ["Baseline relevance heuristic score"],
-  };
+  return { score, reasons };
 }
 
 function extractBioWebsiteUrl(bio: string): string | null {
@@ -1238,30 +1193,40 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
   })
   .addNode("candidate_scorer", async (state) => {
     const keywords = extractKeywords(state.niche);
-    const scored: ScoredCandidate[] = [];
 
-    for (const candidate of state.candidates) {
-      const heuristic = scoreCandidateHeuristically(state.niche, candidate);
-      const evidence = extractSelectionEvidence(state.niche, candidate);
+    // Phase 1: Score all candidates and collect website URLs to scrape
+    const prescoredCandidates = state.candidates.map((candidate) => ({
+      candidate,
+      heuristic: scoreCandidateHeuristically(state.niche, candidate),
+      evidence: extractSelectionEvidence(state.niche, candidate),
+      websiteUrl: extractBioWebsiteUrl(candidate.account.bio),
+    }));
 
-      // If bio contains a website, scrape it for additional evidence
-      const websiteUrl = extractBioWebsiteUrl(candidate.account.bio);
-      if (websiteUrl) {
-        const websiteEvidence = await scrapeWebsiteForEvidence(websiteUrl, state.niche, keywords);
-        if (websiteEvidence) evidence.push(websiteEvidence);
-      }
-
-      // Inline relevance filter: reject candidates with no evidence during discovery
-      if (evidence.length === 0 && heuristic.score < 15) continue;
-
-      scored.push({
-        candidate,
-        score: heuristic.score,
-        reasons: heuristic.reasons,
-        attempt: state.attempt,
-        evidence,
+    // Phase 2: Scrape websites in parallel (only for candidates that have one)
+    const websiteCandidates = prescoredCandidates.filter((c) => c.websiteUrl);
+    if (websiteCandidates.length > 0) {
+      const websiteResults = await mapWithConcurrency(
+        websiteCandidates,
+        MULTIAGENT_SCRAPE_CONCURRENCY,
+        async (c) => scrapeWebsiteForEvidence(c.websiteUrl!, state.niche, keywords),
+      );
+      websiteCandidates.forEach((c, i) => {
+        const result = websiteResults[i];
+        if (result) c.evidence.push(result);
       });
     }
+
+    // Phase 3: Filter to candidates with at least one evidence source
+    const scored: ScoredCandidate[] = prescoredCandidates
+      .filter((c) => c.evidence.length > 0)
+      .map((c) => ({
+        candidate: c.candidate,
+        score: c.heuristic.score,
+        reasons: c.heuristic.reasons,
+        attempt: state.attempt,
+        evidence: c.evidence,
+      }));
+
     return {
       activeSubagent: "candidate_scorer" as const,
       scored,
