@@ -3,7 +3,7 @@ import { XProviderRuntimeError } from "./types";
 import { parseJsonResponse } from "./json";
 
 export function requireEnv(name: "TAVILY_API_KEY" | "AGENTQL_API_KEY" | "OPENAI_API_KEY"): string {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   if (!value) {
     throw new XProviderRuntimeError({
       provider: "multiagent",
