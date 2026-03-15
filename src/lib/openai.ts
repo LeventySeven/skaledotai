@@ -258,7 +258,7 @@ export async function screenProfilesForLeadSearchDetailed(
       batchSummaries: [],
     };
   }
-  const prefilteredCandidates = candidates.filter((candidate) => !isHardRejectedSearchCandidate(candidate));
+  const prefilteredCandidates = candidates.filter((candidate) => !isHardRejectedSearchCandidate(candidate, query));
   if (prefilteredCandidates.length === 0) {
     return {
       selectedIds: [],
@@ -281,7 +281,7 @@ export async function screenProfilesForLeadSearchDetailed(
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
       instructions:
-        "You are screening X/Twitter profiles to find TARGETED PROMOTION LEADS — people who would potentially interact with, repost, or promote a post about this niche in exchange for payment. Score by RELEVANCE and ENGAGEMENT POTENTIAL, not follower count. The ideal lead: (1) has a bio showing genuine involvement in the niche, (2) posts actively about the topic, (3) shows engagement behavior (reposts, threads, recommendations), (4) has a relevant audience even if small (500-50k is fine). High score = strong niche fit + active engagement. Moderate score = relevant but less active. Low score = tangentially relevant. REJECT: large corporations, celebrities, official brand accounts, bots, news outlets, dormant accounts, and accounts with high followers but zero niche relevance. When uncertain, keep the account with a moderate score. IMPORTANT: a 2k-follower creator who actively discusses the niche is MORE valuable than a 200k-follower account that never engages with the topic.",
+        "You are screening X/Twitter profiles for a specific search query. Your job: decide if each profile is genuinely relevant to the EXACT niche described in the query.\n\nTHE ONLY THING THAT MATTERS IS EVIDENCE. For each profile, look at their bio and posts. If you cannot find a direct, specific reference to the query's core topic in the bio or posts, set include=false. Vague connections, adjacent industries, or generic terms do NOT count.\n\nScoring:\n- 80-100: Bio explicitly references the niche AND posts actively discuss it. Exact quotes exist.\n- 60-79: Bio references the niche OR at least 2 posts discuss it directly.\n- 40-59: At least one clear, specific niche reference in bio or a post.\n- 0 (include=false): No specific niche evidence found in bio or posts. Do NOT include.\n\nFollower count is completely irrelevant to the include/exclude decision. A 1k-follower account with the niche keyword in their bio is a YES. A 1M-follower account whose bio and posts never mention the niche is a NO.\n\nDo NOT infer relevance from job titles, company names, or adjacent topics unless the bio or posts explicitly mention the query's core subject. Be strict — only include profiles where you could quote a specific phrase from their bio or post as proof of niche relevance.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -318,6 +318,7 @@ export async function screenProfilesForLeadSearchDetailed(
     });
   }
 
+  // Keep ALL relevant leads — more relevant leads = better. No artificial cap.
   const selectedIds = prefilteredCandidates
     .filter((candidate) => selectedScores.has(candidate.xUserId))
     .sort((a, b) => {
@@ -327,7 +328,6 @@ export async function screenProfilesForLeadSearchDetailed(
       const postDiff = (b.samplePosts?.length ?? 0) - (a.samplePosts?.length ?? 0);
       return postDiff || b.bio.length - a.bio.length;
     })
-    .slice(0, maxResults)
     .map((candidate) => candidate.xUserId);
 
   return {

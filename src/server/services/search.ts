@@ -222,11 +222,9 @@ function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
   return [...byHandle.values()];
 }
 
-function buildScreeningPool(candidates: XLeadCandidate[], targetLeadCount: number): XLeadCandidate[] {
-  // Soft target: allow overrun up to requested + max(5, ceil(requested * 0.15))
-  const overrunBuffer = Math.max(5, Math.ceil(targetLeadCount * 0.15));
-  const softCeiling = targetLeadCount + overrunBuffer;
-  const headCount = Math.min(candidates.length, Math.max(softCeiling, Math.ceil(targetLeadCount * 1.4)));
+function buildScreeningPool(candidates: XLeadCandidate[], _targetLeadCount: number): XLeadCandidate[] {
+  // Send ALL discovered candidates to AI screening — more relevant leads = better.
+  // The AI screener will reject irrelevant ones. No artificial pre-screening cap.
   const seen = new Set<string>();
   const pool: XLeadCandidate[] = [];
 
@@ -238,15 +236,14 @@ function buildScreeningPool(candidates: XLeadCandidate[], targetLeadCount: numbe
   }
 
   // Priority 1: candidates with posts (evidence of active niche participation)
-  for (const candidate of candidates.filter((candidate) => candidate.posts.length > 0).slice(0, headCount)) push(candidate);
+  for (const candidate of candidates.filter((candidate) => candidate.posts.length > 0)) push(candidate);
   // Priority 2: candidates with substantive bios (identity signal)
-  for (const candidate of candidates.filter((candidate) => candidate.account.bio.trim().length >= 30).slice(0, headCount)) push(candidate);
+  for (const candidate of candidates.filter((candidate) => candidate.account.bio.trim().length >= 30)) push(candidate);
   // Priority 3: reply/profile search sources (direct niche discovery)
   for (const candidate of candidates.filter((candidate) => candidate.discoverySource === "profile_search" || candidate.discoverySource === "reply_search")) {
     push(candidate);
   }
-  // Priority 4: remaining candidates up to head count
-  for (const candidate of candidates.slice(0, headCount)) push(candidate);
+  // Priority 4: all remaining candidates
   for (const candidate of candidates) push(candidate);
 
   return pool;

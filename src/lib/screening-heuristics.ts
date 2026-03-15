@@ -159,7 +159,7 @@ function hasNonLeadSignal(candidate: SearchScreeningCandidate, haystack: string)
   );
 }
 
-export function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidate): boolean {
+export function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidate, _query?: string): boolean {
   const haystack = buildSearchCandidateText(candidate);
   const personSignal = hasPersonSignal(candidate, haystack);
   if (SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())) return true;
@@ -170,7 +170,7 @@ export function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidat
 // ── Fallback scoring ──────────────────────────────────────────────────────────
 
 export function getFallbackSearchScore(query: string, candidate: SearchScreeningCandidate): number {
-  if (isHardRejectedSearchCandidate(candidate)) return 0;
+  if (isHardRejectedSearchCandidate(candidate, query)) return 0;
 
   const queryTerms = getSearchQueryTerms(query);
   const haystack = buildSearchCandidateText(candidate);
@@ -178,10 +178,10 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
   const personSignal = hasPersonSignal(candidate, haystack);
   const companySignal = hasCompanySignal(haystack);
   const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
-  const followerScore = Math.min(20, Math.round(Math.log10(candidate.followersCount + 10) * 6));
-  const postScore = candidate.samplePosts?.length ? 12 : 0;
+  const followerScore = Math.min(8, Math.round(Math.log10(candidate.followersCount + 10) * 2));
+  const postScore = candidate.samplePosts?.length ? 15 : 0;
 
-  let score = Math.min(36, matchedTerms * 12) + followerScore + postScore;
+  let score = Math.min(45, matchedTerms * 15) + followerScore + postScore;
   if (personSignal) score += 22;
   if (companySignal) score += 14;
   if (!personSignal && !companySignal) score -= 4;
@@ -194,7 +194,7 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
 export function getFallbackScreenedIds(
   query: string,
   candidates: SearchScreeningCandidate[],
-  maxResults: number,
+  _maxResults: number,
 ): string[] {
   return candidates
     .map((candidate) => ({
@@ -204,7 +204,6 @@ export function getFallbackScreenedIds(
     }))
     .filter((candidate) => candidate.score >= SEARCH_FALLBACK_SCORE_THRESHOLD)
     .sort((a, b) => b.score - a.score || b.followers - a.followers)
-    .slice(0, maxResults)
     .map((candidate) => candidate.id);
 }
 

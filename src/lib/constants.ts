@@ -34,7 +34,7 @@ export const ANALYSIS_OUTREACH_CANDIDATES = 12;
 export const PROJECT_PREVIEW_LEAD_COUNT = 4;
 
 // Pagination
-export const DEFAULT_PAGE_SIZE = 10;
+export const DEFAULT_PAGE_SIZE = 20;
 
 // AI config
 export const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";

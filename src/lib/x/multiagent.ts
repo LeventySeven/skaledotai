@@ -1280,9 +1280,8 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("validator", async (state) => {
     const sortedScores = sortScoredCandidates(state.scored);
-    const candidates = sortedScores
-      .map((item) => item.candidate)
-      .slice(0, Math.max(state.goalCount, state.limit));
+    // Keep all scored candidates — don't cap. More relevant leads = better.
+    const candidates = sortedScores.map((item) => item.candidate);
     const attemptYield = sortedScores.filter((item) => item.attempt === state.attempt).length;
     const attemptErrors = state.errors.filter((error) => error.attempt === state.attempt);
     const rateLimited = attemptErrors.filter((error) => error.code === "UPSTREAM_RATE_LIMITED");
