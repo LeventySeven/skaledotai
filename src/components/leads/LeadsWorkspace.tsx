@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Pagination,
@@ -93,40 +94,43 @@ export function LeadsWorkspace() {
 
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">
-            <select
-              className="h-9 min-w-[200px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.9rem] shadow-xs/5"
-              value={workspace.projectId}
-              onChange={(event) => workspace.updateProjectFilter(event.target.value)}
-            >
-              <option value="">All Projects</option>
-              {workspace.projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+            <Select value={workspace.projectId} onValueChange={(val) => workspace.updateProjectFilter(val as string)}>
+              <SelectTrigger className="h-9 min-w-[200px] rounded-[10px] text-[0.9rem]">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="">All Projects</SelectItem>
+                {workspace.projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
 
-            <select
-              className="h-9 min-w-[150px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.9rem] shadow-xs/5"
-              value={workspace.stage}
-              onChange={(event) => workspace.updateStageFilter(event.target.value as typeof workspace.stage)}
-            >
-              <option value="all">all</option>
-              <option value="found">found</option>
-              <option value="messaged">messaged</option>
-              <option value="replied">replied</option>
-              <option value="agreed">agreed</option>
-            </select>
+            <Select value={workspace.stage} onValueChange={(val) => workspace.updateStageFilter(val as typeof workspace.stage)}>
+              <SelectTrigger className="h-9 min-w-[150px] rounded-[10px] text-[0.9rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="all">all</SelectItem>
+                <SelectItem value="found">found</SelectItem>
+                <SelectItem value="messaged">messaged</SelectItem>
+                <SelectItem value="replied">replied</SelectItem>
+                <SelectItem value="agreed">agreed</SelectItem>
+              </SelectPopup>
+            </Select>
 
-            <select
-              className="h-9 min-w-[180px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.9rem] shadow-xs/5"
-              value={workspace.sort}
-              onChange={(event) => workspace.updateSort(event.target.value as typeof workspace.sort)}
-            >
-              <option value="followers-desc">followers-desc</option>
-              <option value="followers-asc">followers-asc</option>
-              <option value="name-asc">name-asc</option>
-            </select>
+            <Select value={workspace.sort} onValueChange={(val) => workspace.updateSort(val as typeof workspace.sort)}>
+              <SelectTrigger className="h-9 min-w-[180px] rounded-[10px] text-[0.9rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="followers-desc">followers-desc</SelectItem>
+                <SelectItem value="followers-asc">followers-asc</SelectItem>
+                <SelectItem value="name-asc">name-asc</SelectItem>
+              </SelectPopup>
+            </Select>
           </div>
 
           <Input

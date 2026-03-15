@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import type { Lead } from "@/lib/validations/leads";
@@ -338,16 +339,17 @@ export function LeadDetailSheet({
             {/* Stage */}
             <div className="flex items-center gap-3">
               <Label className="w-36 shrink-0 text-sm text-muted-foreground font-normal">Stage</Label>
-              <select
-                value={lead.stage}
-                onChange={(e) => onPatch(lead.id, { stage: e.target.value as Lead["stage"] })}
-                className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-              >
-                <option value="found">Found</option>
-                <option value="messaged">Messaged</option>
-                <option value="replied">Replied</option>
-                <option value="agreed">Agreed</option>
-              </select>
+              <Select value={lead.stage} onValueChange={(val) => onPatch(lead.id, { stage: val as Lead["stage"] })}>
+                <SelectTrigger className="h-8 rounded-[10px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectPopup>
+                  <SelectItem value="found">Found</SelectItem>
+                  <SelectItem value="messaged">Messaged</SelectItem>
+                  <SelectItem value="replied">Replied</SelectItem>
+                  <SelectItem value="agreed">Agreed</SelectItem>
+                </SelectPopup>
+              </Select>
             </div>
 
             {/* The Ask */}

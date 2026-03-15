@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Trash2Icon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AiPanel } from "./AiPanel";
 import { TemplateCard } from "./TemplateCard";
@@ -144,18 +145,19 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
             Leads in queue
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <select
-              className="h-10 min-w-[220px] rounded-xl border border-input bg-background px-3 pr-8 text-[0.92rem]"
-              value={importProjectId}
-              onChange={(e) => setImportProjectId(e.target.value)}
-            >
-              <option value="">Select folder</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+            <Select value={importProjectId} onValueChange={(val) => setImportProjectId(val as string)}>
+              <SelectTrigger className="h-10 min-w-[220px] rounded-[10px] text-[0.92rem]">
+                <SelectValue placeholder="Select folder" />
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="">Select folder</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
             <Button
               variant="outline"
               className="h-8 rounded-[10px] px-4 text-[0.88rem]"

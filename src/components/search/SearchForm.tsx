@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
 import { XDataSourceSummaryCard } from "@/components/providers/XDataSourceSummaryCard";
 import { SearchRunTracePanel } from "./SearchRunTracePanel";
@@ -244,17 +245,18 @@ export function SearchForm() {
           </div>
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Minimum followers</label>
-            <select
-              className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 pr-8 text-[1rem] shadow-xs/5"
-              value={minFollowers}
-              onChange={(event) => setMinFollowers(Number(event.target.value))}
-            >
-              {FOLLOWER_FLOOR_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <Select value={minFollowers} onValueChange={(val) => setMinFollowers(Number(val))}>
+              <SelectTrigger className="h-[42px] rounded-[10px] text-[1rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPopup>
+                {FOLLOWER_FLOOR_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           </div>
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Approximate leads <span className="font-normal text-muted-foreground text-sm">(soft target)</span></label>
