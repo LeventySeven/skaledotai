@@ -145,7 +145,9 @@ async function enrichCandidate(
         stats = normalizeStats(fresh);
       }
     } catch (error) {
-      console.warn("[analysis] tweet enrichment failed for", candidate.lead.handle, error);
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[analysis] tweet enrichment failed for @${candidate.lead.handle}: ${reason}`);
+      samplePosts = [`[enrichment unavailable: ${reason}]`];
     }
   }
 
@@ -311,7 +313,7 @@ export async function analyzeProjectsIntoNewProject(input: {
       .insert(projectLeads)
       .values(selectedLeadIds.map((leadId) => ({
         projectId: project.id,
-      leadId,
+        leadId,
       })))
       .onConflictDoNothing();
 
