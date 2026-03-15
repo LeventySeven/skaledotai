@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2Icon, Trash2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
 import { TemplateModal } from "./TemplateModal";
 
@@ -47,13 +48,13 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
                 <CheckCircle2Icon className="size-[18px] text-[#e43420]" />
               </span>
             ) : (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-bare"
                 onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
-                className="flex size-[26px] shrink-0 items-center justify-center rounded hover:bg-muted"
               >
                 <EditIcon className="text-foreground" />
-              </button>
+              </Button>
             )}
           </div>
 
@@ -65,13 +66,14 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
 
           <div className="flex items-center justify-between border-t border-border/70 pt-3 text-[0.82rem]">
             {onDelete ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-bare"
+                className="text-muted-foreground/50 hover:bg-red-50 hover:text-red-500"
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="flex size-[26px] items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-red-50 hover:text-red-500"
               >
                 <Trash2Icon className="size-3.5" />
-              </button>
+              </Button>
             ) : <span />}
             <span className="font-medium">Reply rate {template.replyRate}</span>
           </div>
