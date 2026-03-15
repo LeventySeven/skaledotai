@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChangeEvent } from "react";
-import { CheckIcon, SparklesIcon } from "lucide-react";
+import { SparklesIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Project } from "@/lib/validations/projects";
@@ -45,19 +45,12 @@ export function AiPanel({
                 tabIndex={0}
                 onClick={() => onToggleProject(project.id)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleProject(project.id); } }}
-                className={`group inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[0.8rem] font-medium transition-all duration-150 select-none ${
+                className={`inline-block cursor-pointer rounded-[8px] border px-2.5 py-1 text-[0.78rem] leading-tight transition-colors ${
                   selected
-                    ? "bg-foreground text-background shadow-sm"
-                    : "bg-background text-muted-foreground ring-1 ring-border hover:ring-foreground/25 hover:text-foreground"
+                    ? "border-border bg-card text-foreground shadow-xs"
+                    : "border-transparent text-muted-foreground hover:border-border hover:bg-card"
                 }`}
               >
-                <span className={`flex size-3.5 items-center justify-center rounded-full transition-all duration-150 ${
-                  selected
-                    ? "bg-background/20"
-                    : "border border-border group-hover:border-foreground/30"
-                }`}>
-                  {selected ? <CheckIcon className="size-2.5 text-background" strokeWidth={3} /> : null}
-                </span>
                 {project.name}
               </span>
             );
