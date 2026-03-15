@@ -65,18 +65,23 @@ export function LeadsWorkspace() {
 
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">
-            <select
-              className="h-8 min-w-[200px] rounded-[10px] border border-input bg-background px-3 pr-8 text-[0.88rem] shadow-xs/5"
+            <Select
+              key={workspace.projects.length}
               value={workspace.projectId}
-              onChange={(event) => workspace.updateProjectFilter(event.target.value)}
+              onValueChange={(val) => workspace.updateProjectFilter(val as string)}
             >
-              <option value="">All Projects</option>
-              {workspace.projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-8 min-w-[200px] rounded-[10px] text-[0.88rem]">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="">All Projects</SelectItem>
+                {workspace.projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
 
             <Select value={workspace.stage} onValueChange={(val) => workspace.updateStageFilter(val as typeof workspace.stage)}>
               <SelectTrigger className="h-8 min-w-[150px] rounded-[10px] text-[0.88rem]">
