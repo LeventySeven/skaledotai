@@ -60,9 +60,9 @@ export function SearchWorkspace() {
             />
             <button
               type="submit"
-              className="ml-3 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#00000014]"
+              className="ml-3 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#111111]"
             >
-              <img src="/Vector 2.svg" alt="Continue" width={12} height={10} className="invert" />
+              <img src="/Vector 2.svg" alt="Continue" width={12} height={10} />
             </button>
           </div>
 
