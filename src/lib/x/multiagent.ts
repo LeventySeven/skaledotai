@@ -514,21 +514,48 @@ const NICHE_STOP_WORDS = new Set([
   "coolest", "awesome", "amazing", "top", "biggest", "most", "real", "people",
 ]);
 
+function pluralVariants(phrase: string): string[] {
+  const variants = [phrase];
+  // "designers" -> "designer", "designer" -> "designers"
+  if (phrase.endsWith("s") && !phrase.endsWith("ss")) {
+    variants.push(phrase.slice(0, -1));
+  } else {
+    variants.push(phrase + "s");
+  }
+  // Handle multi-word: apply to last word
+  if (phrase.includes(" ")) {
+    const parts = phrase.split(" ");
+    const last = parts[parts.length - 1];
+    if (last.endsWith("s") && !last.endsWith("ss")) {
+      variants.push([...parts.slice(0, -1), last.slice(0, -1)].join(" "));
+    } else {
+      variants.push([...parts.slice(0, -1), last + "s"].join(" "));
+    }
+  }
+  return variants;
+}
+
 function extractKeywords(niche: string): string[] {
   const normalized = normalizeText(niche);
   const words = normalized.split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 3 && !NICHE_STOP_WORDS.has(w));
 
-  // Build meaningful multi-word phrases (bigrams) alongside filtered single words
   const phrases: string[] = [];
-  for (let i = 0; i < words.length - 1; i++) {
-    phrases.push(`${words[i]} ${words[i + 1]}`);
-  }
-  // Full niche as a phrase (if multi-word)
+
+  // Full niche phrase + singular/plural variants
   if (words.length >= 2) {
-    phrases.push(words.join(" "));
+    const fullPhrase = words.join(" ");
+    phrases.push(...pluralVariants(fullPhrase));
   }
-  // Include individual words but only domain-specific ones (not generic)
-  phrases.push(...words);
+
+  // Bigrams + their variants
+  for (let i = 0; i < words.length - 1; i++) {
+    phrases.push(...pluralVariants(`${words[i]} ${words[i + 1]}`));
+  }
+
+  // Individual words + their variants
+  for (const word of words) {
+    phrases.push(...pluralVariants(word));
+  }
 
   return [...new Set(phrases)];
 }
@@ -605,8 +632,8 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
       ? candidate.account.bio.slice(0, 200) + "..."
       : candidate.account.bio;
 
-    // Only add bio evidence if actual niche terms were found — not generic creator signals
-    if (bioPhrasesFound.length > 0 || bioWordsFound.length >= 2) {
+    // Add bio evidence if any niche term was found
+    if (bioPhrasesFound.length > 0 || bioWordsFound.length > 0) {
       const matched = [...bioPhrasesFound, ...bioWordsFound].slice(0, 4);
       evidence.push({
         source: "bio",
@@ -1198,9 +1225,9 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
       });
     }
 
-    // Phase 3: Filter to candidates with at least one evidence source
+    // Pass all candidates through — AI screening handles semantic relevance
+    // Candidates with keyword evidence get higher scores, but none are rejected here
     const scored: ScoredCandidate[] = prescoredCandidates
-      .filter((c) => c.evidence.length > 0)
       .map((c) => ({
         candidate: c.candidate,
         score: c.heuristic.score,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIcon,
   ChevronDownIcon,
@@ -160,6 +160,14 @@ export function SearchRunTracePanel({
   trace?: ProjectRunTrace | null;
 }) {
   const [reasoningOpen, setReasoningOpen] = useState(false);
+  const reasoningEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to latest step when new steps arrive
+  useEffect(() => {
+    if (reasoningOpen && isPending && reasoningEndRef.current) {
+      reasoningEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [steps.length, reasoningOpen, isPending]);
   const latestStepId = isPending ? steps.at(-1)?.id : undefined;
   const graphNodes = resolveGraphNodes(snapshot, steps, isPending);
 
@@ -256,9 +264,11 @@ export function SearchRunTracePanel({
               ) : (
                 steps.map((step, index) => {
                   const isActive = latestStepId === step.id;
+                  const isLast = index === steps.length - 1;
                   return (
                     <div
                       key={step.id}
+                      ref={isLast ? reasoningEndRef : undefined}
                       className={cn(
                         "rounded-[18px] border px-4 py-4 transition-all duration-300",
                         isActive

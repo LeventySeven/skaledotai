@@ -286,7 +286,7 @@ export async function screenProfilesForLeadSearchDetailed(
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
       instructions:
-        "Screen X/Twitter profiles for a search query. For each profile, decide include/exclude and provide a brief reason.\n\nScoring:\n- 80-100: Bio explicitly references the niche AND posts discuss it.\n- 60-79: Bio references the niche OR at least 2 posts discuss it.\n- 40-59: At least one clear niche reference in bio or a post.\n- 0 (include=false): No specific niche text found in bio or posts.\n\nReason field (REQUIRED for included profiles):\n- Quote the specific text from bio or posts that proves niche relevance. Keep it to 1-2 short sentences.\n- Example format: 'Bio says \"[exact quote]\". Posts discuss [topic].'\n- If include=false, reason should state what's missing.\n\nRules:\n- Follower count is a pre-filter only. Never use it in decisions or reasons.\n- Bio/posts must contain text directly related to the search query's core topic.\n- Translate informal queries into realistic terms people would use.",
+        "Screen X/Twitter profiles for a search query. Read each bio fully and decide if this person genuinely works in or is closely related to the niche.\n\nHow to decide:\n- Read the ENTIRE bio. Understand what the person does, not just whether a single keyword appears.\n- Include if the bio or posts show this person works in, practices, or is deeply involved in the query's field.\n- Exclude if the person's work is in a completely different field with no real connection.\n\nScoring:\n- 80-100: Clearly works in this field based on bio.\n- 60-79: Related to the field — close enough to be relevant.\n- 40-59: Tangentially connected.\n- 0 (include=false): Unrelated.\n\nReason (REQUIRED): Quote the part of their bio that shows relevance. 1-2 sentences max.\n\nRules:\n- Follower count is irrelevant. Never mention it.\n- Understand the query's intent — translate informal terms into what people actually do.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -294,8 +294,6 @@ export async function screenProfilesForLeadSearchDetailed(
           handle: `@${candidate.username}`,
           name: candidate.displayName,
           bio: candidate.bio,
-          followers: candidate.followersCount,
-          source: candidate.source,
           posts: candidate.samplePosts?.slice(0, 3) ?? [],
         })),
       }),
@@ -607,7 +605,7 @@ export async function generateLeadReasoning(input: {
     schemaName: "lead_reasoning",
     schema: LeadReasoningSchema,
     instructions:
-      "Analyze whether this profile matches the search query. Be honest.\n\nRules:\n- Summary: one sentence stating what the person does, from their bio. No filler.\n- alignmentBullets: quote exact text from bio or post topics. No vague statements.\n- Evidence snippets: exact quotes from bio or posts. whyItAligns: state what niche term was found.\n- If bio/posts don't mention the query's topic, say so. Set confidence below 30.\n- Follower count is not evidence. Never mention it.\n- No filler text. Every sentence must reference a specific fact from the profile.\n- Translate the search query into realistic terms — the query may be informal but match against what people actually write.\n- confidence: 80+ if bio explicitly references the niche, 50-79 if only posts do, below 50 if neither.",
+      "Analyze whether this profile matches the search query. Read the full bio and understand what the person does.\n\nRules:\n- Summary: one sentence stating what the person does. No filler.\n- alignmentBullets: quote the relevant part of the bio. No vague statements.\n- Evidence: quote the bio text that shows relevance.\n- If the person's work is unrelated, set confidence below 30.\n- Never mention follower count.\n- Understand the query's intent and match against what the person actually does, not just exact keywords.",
     input: JSON.stringify(input),
     fallback,
     maxOutputTokens: 500,
