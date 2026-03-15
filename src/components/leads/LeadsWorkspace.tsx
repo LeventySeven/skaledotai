@@ -21,18 +21,21 @@ export function LeadsWorkspace() {
   const workspace = useLeadsWorkspace();
 
   return (
-    <div className="px-4 py-4">
+    <div className="px-8 py-8">
       <div className="mx-auto max-w-[1820px]">
-        <div className="mb-4 flex items-start justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <h1 className="text-[2.55rem] font-semibold tracking-[-0.04em]">
-              {workspace.currentProject?.name ?? "Leads"}
-            </h1>
-            {workspace.selectedCount > 0 ? (
-              <Badge variant="outline" className="h-8 rounded-full px-3 text-sm font-semibold">
-                {workspace.selectedCount} selected
-              </Badge>
-            ) : null}
+        <div className="flex w-full items-start justify-between pb-6">
+          <div className="flex flex-col">
+            <div className="text-[18px] font-medium text-[#111111]/40">Spreadsheet</div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-[28px] font-medium tracking-[-0.04em]">
+                {workspace.currentProject?.name ?? "Leads"}
+              </h1>
+              {workspace.selectedCount > 0 ? (
+                <Badge variant="outline" className="h-8 rounded-full px-3 text-sm font-semibold">
+                  {workspace.selectedCount} selected
+                </Badge>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -86,6 +89,7 @@ export function LeadsWorkspace() {
             </Button>
           </div>
         </div>
+        <div className="-mx-8 mb-5 border-b border-border/70" />
 
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">

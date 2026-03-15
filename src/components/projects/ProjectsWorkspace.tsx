@@ -150,14 +150,11 @@ export function ProjectsWorkspace() {
 
   return (
     <div className="mx-auto max-w-[1660px] px-8 py-8">
-      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <h1 className="text-[2.9rem] font-semibold tracking-[-0.04em]">Campaigns</h1>
-          <p className="mt-2 max-w-[720px] text-[1rem] text-muted-foreground">
-            Open any campaign to view its spreadsheet, or run AI analysis across multiple campaigns to generate a new shortlist sheet.
-          </p>
+      <div className="flex w-full items-start justify-between pb-6">
+        <div className="flex flex-col">
+          <div className="text-[18px] font-medium text-[#111111]/40">Manage</div>
+          <h1 className="text-[28px] font-medium tracking-[-0.04em]">Campaigns</h1>
         </div>
-
         <div className="flex flex-wrap items-center gap-3">
           {!analysisMode ? (
             <Button className="h-8 rounded-[10px] px-4 text-[0.88rem]" onClick={enterAnalysisMode}>
@@ -197,6 +194,7 @@ export function ProjectsWorkspace() {
           )}
         </div>
       </div>
+      <div className="-mx-8 mb-5 border-b border-border/70" />
 
       {analysisMode ? (
         <div className="mb-5 flex items-center gap-3 rounded-2xl border border-border bg-muted/30 px-4 py-3 text-[0.95rem]">
