@@ -27,12 +27,6 @@ interface TemplateCardProps {
 
 export function TemplateCard({ template, selected, onToggle, onSave, onDelete, fork }: TemplateCardProps) {
   const [editOpen, setEditOpen] = useState(false);
-  const [localTemplate, setLocalTemplate] = useState(template);
-
-  function handleSave(updated: { title: string; body: string }) {
-    setLocalTemplate((t) => ({ ...t, ...updated }));
-    onSave?.(updated);
-  }
 
   return (
     <>
@@ -47,7 +41,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
           }`}
         >
           <div className="flex items-center justify-between">
-            <div className="text-[0.95rem] font-semibold">{localTemplate.title}</div>
+            <div className="text-[0.95rem] font-semibold">{template.title}</div>
             {selected ? (
               <span className="flex size-[26px] shrink-0 items-center justify-center">
                 <CheckCircle2Icon className="size-[18px] text-[#e43420]" />
@@ -66,7 +60,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
           <div className="h-px bg-border/70" />
 
           <div className="min-h-0 flex-1 overflow-hidden text-[0.85rem] leading-[1.6] text-muted-foreground">
-            <p className="whitespace-pre-line">{localTemplate.body}</p>
+            <p className="whitespace-pre-line">{template.body}</p>
           </div>
 
           <div className="flex items-center justify-between border-t border-border/70 pt-3 text-[0.82rem]">
@@ -79,7 +73,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
                 <Trash2Icon className="size-3.5" />
               </button>
             ) : <span />}
-            <span className="font-medium">Reply rate {localTemplate.replyRate}</span>
+            <span className="font-medium">Reply rate {template.replyRate}</span>
           </div>
         </div>
       </div>
@@ -87,10 +81,10 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
       {editOpen ? (
         <TemplateModal
           mode={fork ? "fork" : "edit"}
-          initialTitle={localTemplate.title}
-          initialBody={localTemplate.body}
+          initialTitle={template.title}
+          initialBody={template.body}
           onClose={() => setEditOpen(false)}
-          onSave={handleSave}
+          onSave={(updated) => onSave?.(updated)}
         />
       ) : null}
     </>
