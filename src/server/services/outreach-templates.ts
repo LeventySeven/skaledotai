@@ -36,6 +36,7 @@ export async function saveOutreachTemplate(
     .values({ userId, ...data })
     .returning();
 
+  if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save template." });
   return rowToTemplate(row);
 }
 

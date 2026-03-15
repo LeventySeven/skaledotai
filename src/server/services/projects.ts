@@ -144,6 +144,7 @@ export async function createProject(
     .values({ userId, ...data })
     .returning();
 
+  if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create project." });
   return rowToProject(row, undefined, []);
 }
 
