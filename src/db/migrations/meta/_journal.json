@@ -8,6 +8,13 @@
       "when": 1773519767504,
       "tag": "0000_perfect_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773595804175,
+      "tag": "0001_daffy_wildside",
+      "breakpoints": true
     }
   ]
 }

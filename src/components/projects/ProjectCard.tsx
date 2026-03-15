@@ -7,7 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LangGraphIcon } from "@/components/ui/langgraph-icon";
 import { toastManager } from "@/components/ui/toast";
+import { XLogoIcon } from "@/components/ui/x-icon";
 import { trpc } from "@/lib/trpc/client";
 import { getXDataProviderOption } from "@/lib/x";
 import type { ProjectOverview } from "@/lib/validations/projects";
@@ -128,8 +130,10 @@ export function ProjectCard({
               </div>
             )}
             {project.sourceProviders.map((provider) => (
-              <Badge key={provider} variant="outline" className="h-6 rounded-full px-2 text-[0.72rem] font-semibold">
-                {getXDataProviderOption(provider).label}
+              <Badge key={provider} variant="outline" className="flex h-6 items-center gap-1 rounded-full px-2 text-[0.72rem] font-semibold">
+                {provider === "x-api" ? <><XLogoIcon className="size-3" /> API</> : null}
+                {provider === "multiagent" ? <><LangGraphIcon className="size-4" /> {getXDataProviderOption(provider).label}</> : null}
+                {provider !== "x-api" && provider !== "multiagent" ? getXDataProviderOption(provider).label : null}
               </Badge>
             ))}
             {analysisMode && selected ? (

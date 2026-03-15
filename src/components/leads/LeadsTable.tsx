@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { XLogoIcon } from "@/components/ui/x-icon";
 import { cn } from "@/lib/utils";
 import type { Lead } from "@/lib/validations/leads";
 
@@ -83,7 +84,7 @@ export function LeadsTable({
                 <Checkbox checked={allVisibleSelected} onCheckedChange={(value) => onToggleAllSelection(Boolean(value))} />
               </TableHead>
               <TableHead className="min-w-[230px] border-r border-border/45">Name</TableHead>
-              <TableHead className="w-[68px] border-r border-border/45 text-center">X</TableHead>
+              <TableHead className="w-[68px] border-r border-border/45 text-center">Platform</TableHead>
               <TableHead className="min-w-[250px] border-r border-border/45">Bio</TableHead>
               <TableHead className="w-[86px] border-r border-border/45 text-center">Followers</TableHead>
               <TableHead className="w-[70px] border-r border-border/45 text-center">P</TableHead>
@@ -119,9 +120,7 @@ export function LeadsTable({
                   </div>
                 </TableCell>
                 <TableCell className="border-r border-border/45 text-center">
-                  <Badge variant="outline" className="h-6 rounded-sm border-border/50 bg-background px-1.5 text-[0.76rem] font-medium lowercase">
-                    x
-                  </Badge>
+                  <XLogoIcon className="inline size-3.5" />
                 </TableCell>
                 <TableCell className="max-w-[250px] border-r border-border/45">
                   <div className="truncate text-[0.86rem] text-muted-foreground">{lead.bio || "—"}</div>

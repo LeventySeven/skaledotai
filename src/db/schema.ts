@@ -190,6 +190,25 @@ export const outreachTemplates = pgTable("outreach_templates", {
   index("outreach_templates_user_id_idx").on(table.userId),
 ]);
 
+export const internalLeads = pgTable("internal_leads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+
+  name: text("name").notNull(),
+  handle: text("handle").notNull(),
+  platform: text("platform").notNull().default("twitter"),
+  deliverables: text("deliverables").array().notNull().default([]),
+  url: text("url"),
+  email: text("email"),
+  price: integer("price"), // cents
+  notes: text("notes"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("internal_leads_user_id_idx").on(table.userId),
+]);
+
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
   // Owner

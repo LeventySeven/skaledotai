@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ReasoningSheet, type LiveReasoningStep } from "@/components/runs/ReasoningSheet";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
+import { XLogoIcon } from "@/components/ui/x-icon";
 import { trpc } from "@/lib/trpc/client";
 import type { ProjectRunTrace } from "@/lib/validations/project-runs";
 
@@ -99,13 +100,12 @@ export function ImportNetworkForm() {
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <h2 className="text-[1.45rem] font-semibold tracking-[-0.03em]">Import verified followers</h2>
-          <p className="mt-1.5 text-[0.98rem] text-muted-foreground">
-            Import an X account&apos;s verified followers directly into your leads.
+          <p className="mt-1.5 flex items-center gap-1 text-[0.98rem] text-muted-foreground">
+            Import an <XLogoIcon className="inline size-3.5" /> account&apos;s verified followers directly into your leads.
           </p>
         </div>
 
         <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">X handle</label>
           <Input
             className="h-[42px] items-center rounded-[10px] text-[1rem]"
             placeholder="@MarkKnd"
