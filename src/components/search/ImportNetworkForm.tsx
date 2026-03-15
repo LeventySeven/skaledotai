@@ -82,14 +82,14 @@ export function ImportNetworkForm() {
     <>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
-          <h2 className="text-[1.45rem] font-semibold tracking-[-0.03em]">Import followers</h2>
+          <h2 className="text-[1.45rem] font-semibold tracking-[-0.03em]">Import verified followers</h2>
           <p className="mt-1.5 text-[0.98rem] text-muted-foreground">
-            Import all followers &amp; following from a Twitter account directly into your leads.
+            Import verified followers &amp; following from an X account directly into your leads.
           </p>
         </div>
 
         <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">Twitter handle</label>
+          <label className="block text-[1.05rem] font-semibold">X handle</label>
           <Input
             className="h-[42px] items-center rounded-[10px] text-[1rem]"
             placeholder="@MarkKnd"
@@ -139,7 +139,7 @@ export function ImportNetworkForm() {
           disabled={importMutation.isPending}
         >
           {importMutation.isPending ? <Spinner className="size-4" /> : null}
-          {importMutation.isPending ? "Importing..." : "Import Followers"}
+          {importMutation.isPending ? "Importing..." : "Import Verified Followers"}
         </Button>
       </form>
 

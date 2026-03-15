@@ -820,9 +820,11 @@ export async function importAccountNetwork(
       ]);
 
       for (const profile of followersPage.profiles) {
+        if (!profile.verified) continue;
         candidates.set(profile.username.toLowerCase(), { ...profile, samplePosts: [], source: "followers" });
       }
       for (const profile of followingPage.profiles) {
+        if (!profile.verified) continue;
         candidates.set(profile.username.toLowerCase(), { ...profile, samplePosts: [], source: "following" });
       }
 
@@ -837,7 +839,7 @@ export async function importAccountNetwork(
 
     trace.addStep({
       title: "Network Sweep",
-      summary: `Collected ${candidates.size} unique accounts from the followers and following graph.`,
+      summary: `Collected ${candidates.size} verified accounts from the followers and following graph.`,
       status: network.resolution.usedFallback ? "warning" : "success",
       provider: network.resolution.effectiveProvider,
       bullets: [

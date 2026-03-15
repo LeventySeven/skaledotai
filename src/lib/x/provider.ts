@@ -44,7 +44,7 @@ export const X_PROVIDER_CAPABILITIES: Record<XDataProvider, XProviderCapabilitie
   twitterapi: {
     discovery: false,
     lookup: true,
-    network: false,
+    network: true,
     tweets: false,
   },
   multiagent: {
@@ -81,14 +81,22 @@ export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
   {
     value: "twitterapi",
     label: "TwitterAPI.io",
-    badge: "Lookup",
-    description: "Lookup and enrichment provider for X profiles by user ID.",
-    integration: "Batch user hydration through TwitterAPI.io with richer profile description and location fields.",
+    badge: "Lookup + Network",
+    description: "Lookup, enrichment, and follower/following network import for X profiles.",
+    integration: "Batch user hydration and network graph traversal through TwitterAPI.io with richer profile description and location fields.",
     capabilities: X_PROVIDER_CAPABILITIES.twitterapi,
     docs: [
       {
         label: "Batch user info by ids",
         href: "https://docs.twitterapi.io/api-reference/endpoint/batch_get_user_by_userids",
+      },
+      {
+        label: "User followers",
+        href: "https://docs.twitterapi.io/api-reference/endpoint/get_user_followers",
+      },
+      {
+        label: "User following",
+        href: "https://docs.twitterapi.io/api-reference/endpoint/get_user_followings",
       },
     ],
   },

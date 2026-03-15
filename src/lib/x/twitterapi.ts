@@ -74,7 +74,7 @@ function requireApiKey(): string {
   return apiKey;
 }
 
-function unsupported(capability: "discovery" | "network" | "tweets"): never {
+function unsupported(capability: "discovery" | "tweets"): never {
   throw new XProviderRuntimeError({
     provider: "twitterapi",
     capability,
@@ -142,6 +142,50 @@ async function twitterApiRequest<T>(
   );
 }
 
+const TwitterApiFollowersResponseSchema = z.object({
+  users: z.array(TwitterApiUserSchema).default([]),
+  has_next_page: z.boolean().optional(),
+  next_cursor: z.string().optional(),
+  status: z.enum(["success", "error"]).optional(),
+  msg: z.string().optional(),
+}).passthrough();
+
+export async function getTwitterApiFollowersPage(
+  userName: string,
+  cursor?: string,
+): Promise<{ profiles: XProfile[]; nextToken?: string }> {
+  const params: Record<string, string> = { userName };
+  if (cursor) params.cursor = cursor;
+
+  const response = await twitterApiRequest<z.infer<typeof TwitterApiFollowersResponseSchema>>(
+    "/twitter/user/followers",
+    params,
+  );
+  const parsed = TwitterApiFollowersResponseSchema.parse(response);
+  return {
+    profiles: parsed.users.map(mapTwitterApiUserToProfile),
+    nextToken: parsed.has_next_page ? parsed.next_cursor : undefined,
+  };
+}
+
+export async function getTwitterApiFollowingPage(
+  userName: string,
+  cursor?: string,
+): Promise<{ profiles: XProfile[]; nextToken?: string }> {
+  const params: Record<string, string> = { userName };
+  if (cursor) params.cursor = cursor;
+
+  const response = await twitterApiRequest<z.infer<typeof TwitterApiFollowersResponseSchema>>(
+    "/twitter/user/following",
+    params,
+  );
+  const parsed = TwitterApiFollowersResponseSchema.parse(response);
+  return {
+    profiles: parsed.users.map(mapTwitterApiUserToProfile),
+    nextToken: parsed.has_next_page ? parsed.next_cursor : undefined,
+  };
+}
+
 export async function lookupTwitterApiUsersByIds(userIds: string[]): Promise<XProfile[]> {
   const unique = [...new Set(userIds.map((value) => value.trim()).filter(Boolean))];
   if (unique.length === 0) return [];
@@ -170,11 +214,29 @@ export const twitterApiClient: XDataClient = {
   lookupUsersByIds(userIds) {
     return lookupTwitterApiUsersByIds(userIds);
   },
-  getFollowersPage(): Promise<XProfilesPage> {
-    unsupported("network");
+  async getFollowersPage(input) {
+    const username = (input.username ?? "").replace(/^@/, "").trim();
+    if (!username) {
+      throw new XProviderRuntimeError({
+        provider: "twitterapi",
+        capability: "network",
+        code: "CAPABILITY_UNSUPPORTED",
+        message: "TwitterAPI.io followers lookup requires a username.",
+      });
+    }
+    return getTwitterApiFollowersPage(username, input.paginationToken);
   },
-  getFollowingPage(): Promise<XProfilesPage> {
-    unsupported("network");
+  async getFollowingPage(input) {
+    const username = (input.username ?? "").replace(/^@/, "").trim();
+    if (!username) {
+      throw new XProviderRuntimeError({
+        provider: "twitterapi",
+        capability: "network",
+        code: "CAPABILITY_UNSUPPORTED",
+        message: "TwitterAPI.io following lookup requires a username.",
+      });
+    }
+    return getTwitterApiFollowingPage(username, input.paginationToken);
   },
   searchRecentPosts(): Promise<XPostSearchResult> {
     unsupported("tweets");

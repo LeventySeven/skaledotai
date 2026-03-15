@@ -2,18 +2,35 @@
 
 ## 1. What this project is
 
-`skaleai` is an authenticated Next.js application for X/Twitter lead discovery and outreach preparation.
+`skaleai` is an authenticated Next.js application that finds **targeted promotion leads** on X/Twitter — real people who are actively engaged in a specific niche and would potentially interact with, repost, or promote a post in exchange for payment.
 
-The current codebase is centered around a single operational loop:
+### The core problem
 
-1. Discover relevant X accounts from a niche query or a seed account.
-2. Save those accounts as leads inside projects.
-3. Score and enrich the leads with tweet metrics and AI signals.
-4. Move selected leads into an outreach queue.
-5. Generate and manage outreach templates.
-6. Use AI to create new shortlist projects from existing projects.
+A user has a post they want to advertise. They need to find the right people in a specific niche who would repost or interact with it for a price the lead suggests. The challenge is finding people who are **genuinely relevant** to the niche — not accounts with the most followers, but people whose bios and posts prove they live in that space and actively engage with related content.
 
-The product is not a general CRM and not a generic social analytics tool. It is a focused workflow app for sourcing and managing X/Twitter outreach targets.
+### What "relevant" means
+
+A relevant lead is someone whose bio explicitly references the niche, whose recent posts discuss it, and who shows engagement behavior (reposts, threads, recommendations, collaborations). A 2k-follower designer who says "I design products for startups" in their bio and actively posts about design is far more valuable than a 1M-follower VC who never mentions design. Follower count is only a minimum threshold filter — it is never a scoring signal, never evidence, and never influences inclusion decisions.
+
+### The operational loop
+
+1. Discover relevant X accounts from a niche query or a seed account. The multi-agent pipeline understands the essence of the ideal lead, generates queries targeting engaged niche participants, scrapes profiles + tweets, scores purely by niche relevance, and extracts concrete evidence (exact bio quotes, post excerpts with engagement stats).
+2. AI-screen candidates with strict evidence requirements — only include profiles where you can quote a specific phrase from their bio or post as proof of niche relevance. Keep ALL leads that pass. No artificial cap.
+3. Save those accounts as leads inside projects (20 per page).
+4. Score and enrich the leads with tweet metrics and AI signals.
+5. Move selected leads into an outreach queue.
+6. Generate and manage outreach templates.
+7. Use AI to create new shortlist projects from existing projects.
+
+### Design principles
+
+- **Relevance over reach.** Every scoring formula, sort order, deduplication rule, screening prompt, and evidence extraction is built around niche fit — never follower count.
+- **Evidence, not inference.** The system demands exact bio/post quotes as proof. Vague connections, adjacent industries, or generic terms are not accepted.
+- **More relevant leads = better.** There is no hard cap on results. If 150 leads pass evidence-based screening for a target of 100, all 150 are kept.
+- **Followers = filter only.** The minimum follower setting (multiples of 1000: 1k, 2k, ... 10k, 15k, 20k, 30k, 50k, 100k) removes accounts below the threshold before any scoring happens. It never appears in scores, evidence, sort orders, or AI reasoning.
+- **No hardcoded niche-specific rejections.** The system works for any niche. There are no hardcoded terms like "VC" or "investor" in rejection lists — the AI screener handles relevance decisions based on evidence.
+
+The product is not a general CRM and not a generic social analytics tool. It is a focused workflow app for sourcing and managing X/Twitter promotion leads.
 
 ## 2. System shape
 
@@ -808,15 +825,20 @@ The repository also carries [`memory/migrations.md`](./memory/migrations.md), wh
 
 ## 14. Summary
 
-The current codebase is already a functioning X/Twitter sourcing product with:
+The current codebase is a functioning X/Twitter promotion lead sourcing product with:
 
 - authenticated dashboard access
-- provider-selectable lead discovery
-- project-based storage
+- provider-selectable lead discovery with relevance-first multi-agent pipeline
+- evidence-based AI screening that requires exact bio/post quotes as proof of niche relevance
+- relevance-first scoring (follower count = 0 weight; topic overlap, bio alignment, post evidence, engagement behavior are the signals)
+- concrete evidence extraction: exact bio quotes, post excerpts with engagement stats, handle identity signals
+- no artificial result cap — all qualifying leads are kept
+- follower count as pre-filter only (multiples of 1000), never scoring or evidence
+- project-based storage with 20 leads per page
 - CRM editing
 - cached post stats
 - AI-assisted scoring and shortlist creation
 - outreach queue management
 - saved/generated templates
 
-The architecture is a classic thin-router / service-layer / provider-adapter design with strong typing across the request, validation, and persistence boundaries.
+The architecture is a classic thin-router / service-layer / provider-adapter design with strong typing across the request, validation, and persistence boundaries. The core design principle is **relevance over reach** — every component from query generation to final screening is built to find people who genuinely belong in the niche, not people with the most followers.

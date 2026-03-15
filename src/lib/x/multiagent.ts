@@ -385,7 +385,20 @@ function buildGoogleDorkQueries(input: {
   const geoBlock = input.interpretation.geoHints[0]?.trim();
   const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
 
+  const seedDorkQueries = cleanSeed
+    ? [
+      // Primary: target the verified_followers page directly
+      `site:x.com/${cleanSeed}/verified_followers ${input.niche}`,
+      `site:x.com/${cleanSeed}/verified_followers`,
+      `site:x.com inurl:${cleanSeed}/verified_followers "${input.niche}"`,
+      // Secondary: find people adjacent to the seed
+      `site:x.com "${input.niche}" ("@${cleanSeed}" OR "replying to @${cleanSeed}")`,
+    ]
+    : [];
+
   return dedupeQueries([
+    // When we have a seed, prioritize verified_followers dorks
+    ...seedDorkQueries,
     // Bio-focused dorks: find people who identify with the niche
     `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""} ("building" OR "founder" OR "creator")`,
     `site:x.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""} ("shipping" OR "obsessed" OR "working on")`,
@@ -394,8 +407,6 @@ function buildGoogleDorkQueries(input: {
     `site:twitter.com "${input.niche}" ("I build" OR "I write about" OR "my project" OR "my startup")`,
     // Geo-targeted
     geoBlock ? `site:x.com "${input.niche}" "${geoBlock}" ("founder" OR "builder" OR "creator")` : "",
-    // Seed-adjacent
-    cleanSeed ? `site:x.com "${input.niche}" ("@${cleanSeed}" OR "replying to @${cleanSeed}")` : "",
     // Attempt escalation: broader engagement signals
     input.attempt >= 2 ? `site:x.com "${input.niche}" ("collab" OR "DM me" OR "open to" OR "available for")` : "",
     input.attempt >= 3 ? `site:x.com "${input.niche}" ("indie" OR "bootstrapped" OR "solopreneur" OR "freelance")` : "",
@@ -414,14 +425,22 @@ function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" |
 export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[] {
   const niche = input.niche.trim();
   const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
-  const queries = [
-    `${niche} founders creators builders actively posting on x`,
-    `${niche} people who repost share and engage on x`,
-    `${niche} indie makers operators shipping building on x`,
-    `${niche} engaged community members threads discussions on x`,
-    seedHandle ? `${niche} people interacting with @${seedHandle} on x` : "",
-    seedHandle ? `people replying to @${seedHandle} about ${niche} on x` : "",
-  ];
+  const queries = seedHandle
+    ? [
+      // When searching within a user's followers, prioritize the verified_followers page via Google dork
+      `site:x.com/${seedHandle}/verified_followers ${niche}`,
+      `site:x.com/${seedHandle}/verified_followers`,
+      `site:x.com "${niche}" inurl:${seedHandle}/verified_followers`,
+      `${niche} people interacting with @${seedHandle} on x`,
+      `people replying to @${seedHandle} about ${niche} on x`,
+      `${niche} followers of @${seedHandle} on x`,
+    ]
+    : [
+      `${niche} founders creators builders actively posting on x`,
+      `${niche} people who repost share and engage on x`,
+      `${niche} indie makers operators shipping building on x`,
+      `${niche} engaged community members threads discussions on x`,
+    ];
 
   return dedupeQueries(queries).slice(0, resolveMultiAgentQueryBudget(input));
 }
@@ -430,6 +449,9 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
   const cleanSeed = seedHandle?.replace(/^@/, "").trim();
 
   return dedupeQueries([
+    // When searching within a user's followers, keep targeting verified_followers
+    cleanSeed ? `site:x.com/${cleanSeed}/verified_followers ${niche}` : "",
+    cleanSeed ? `${niche} verified followers of @${cleanSeed} on x` : "",
     `${niche} people who actively promote and repost content on x`,
     `${niche} engaged creators sharing recommendations on x`,
     `${niche} community voices micro-influencers niche experts on x`,
@@ -775,11 +797,23 @@ async function runSourceFanoutAgent(input: SourceFanoutAgentInput): Promise<{
 }> {
   try {
     const results = await searchTavily(input.query, input.limit);
+    const discoveredUrls = normalizeDiscoveredUrls(
+      results,
+      resolveMultiAgentUrlLimit(input.limit, input.goalCount),
+    );
+
+    // When searching within a user's followers, inject the verified_followers URL
+    // as a priority scrape target so AgentQL can extract profiles from it directly.
+    const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
+    if (cleanSeed) {
+      const verifiedFollowersUrl = `https://x.com/${cleanSeed}/verified_followers`;
+      if (!discoveredUrls.includes(verifiedFollowersUrl)) {
+        discoveredUrls.unshift(verifiedFollowersUrl);
+      }
+    }
+
     return {
-      candidateUrls: normalizeDiscoveredUrls(
-        results,
-        resolveMultiAgentUrlLimit(input.limit, input.goalCount),
-      ),
+      candidateUrls: discoveredUrls,
       errors: [],
     };
   } catch (error) {
@@ -1073,6 +1107,7 @@ const SourceResearchSubgraphState = Annotation.Root({
   goalCount: Annotation<number>,
   limit: Annotation<number>,
   query: Annotation<string>,
+  seedHandle: Annotation<string | undefined>,
   candidateUrls: Annotation<string[]>({
     reducer: mergeUniqueStrings,
     default: () => [],
@@ -1337,6 +1372,7 @@ const graph = new StateGraph(MultiAgentState)
         goalCount: state.goalCount,
         limit: state.limit,
         query,
+        seedHandle: state.seedHandle,
       } satisfies SourceFanoutAgentInput));
     }
 

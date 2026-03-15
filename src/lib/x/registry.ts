@@ -58,6 +58,7 @@ const PROVIDER_COST_ESTIMATES: Record<XDataProvider, Partial<Record<XProviderCap
   },
   twitterapi: {
     lookup: 0.001,
+    network: 0.001,
   },
   multiagent: {
     discovery: 0.03,
