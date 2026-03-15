@@ -82,8 +82,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           </div>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 rounded-[10px] text-[0.88rem]"
+            className="h-8 rounded-[10px] px-4 text-[0.88rem]"
             onClick={() => setCreateModalOpen(true)}
           >
             Create new
