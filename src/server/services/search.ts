@@ -792,9 +792,9 @@ export async function importAccountNetwork(
     });
 
     const project = await resolveProject(userId, {
-      query: `${cleanHandle} network`,
+      query: `${cleanHandle} leads`,
       projectId: input.projectId,
-      projectName: input.projectName || `${cleanHandle} network`,
+      projectName: input.projectName || `${cleanHandle} leads`,
       followerUsername: cleanHandle,
     });
 
@@ -876,7 +876,7 @@ export async function importAccountNetwork(
       lookupProvider: lookup.resolution.effectiveProvider,
       networkProvider: network.resolution.effectiveProvider,
       tweetsProvider,
-      query: `${cleanHandle} network`,
+      query: `${cleanHandle} leads`,
       seedUsername: cleanHandle,
       leadCount: leadsList.length,
     });

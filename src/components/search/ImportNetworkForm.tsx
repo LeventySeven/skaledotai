@@ -30,12 +30,8 @@ const NETWORK_REASONING_STEPS: LiveReasoningStep[] = [
 
 export function ImportNetworkForm() {
   const router = useRouter();
-  const { data: projects = [] } = trpc.projects.list.useQuery();
   const utils = trpc.useUtils();
   const [networkUsername, setNetworkUsername] = useState("");
-  const [networkProjectMode, setNetworkProjectMode] = useState<"new" | "existing">("new");
-  const [networkProjectId, setNetworkProjectId] = useState("");
-  const [networkProjectName, setNetworkProjectName] = useState("");
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const [reasoningTrace, setReasoningTrace] = useState<ProjectRunTrace | null>(null);
 
@@ -70,11 +66,7 @@ export function ImportNetworkForm() {
     setReasoningOpen(true);
     await importMutation.mutateAsync({
       username: cleanHandle,
-      projectId: networkProjectMode === "existing" ? networkProjectId || undefined : undefined,
-      projectName:
-        networkProjectMode === "new"
-          ? networkProjectName.trim() || `${cleanHandle} network`
-          : undefined,
+      projectName: `${cleanHandle} leads`,
     });
   }
 
@@ -97,39 +89,6 @@ export function ImportNetworkForm() {
             onChange={(event) => setNetworkUsername(event.target.value)}
             required
           />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <select
-            className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 text-[1rem] shadow-xs/5"
-            value={networkProjectMode}
-            onChange={(event) => setNetworkProjectMode(event.target.value as "new" | "existing")}
-          >
-            <option value="new">Create new campaign</option>
-            <option value="existing">Use existing campaign</option>
-          </select>
-          {networkProjectMode === "new" ? (
-            <Input
-              className="h-[42px] items-center rounded-[10px] text-[1rem]"
-              placeholder="Campaign name (optional)"
-              value={networkProjectName}
-              onChange={(event) => setNetworkProjectName(event.target.value)}
-            />
-          ) : (
-            <select
-              className="flex h-[42px] w-full rounded-[10px] border border-input bg-background px-4 text-[1rem] shadow-xs/5"
-              value={networkProjectId}
-              onChange={(event) => setNetworkProjectId(event.target.value)}
-              required
-            >
-              <option value="">Select campaign</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
 
         <Button
