@@ -48,12 +48,9 @@ export function SearchWorkspace() {
     <div className="mx-auto flex min-h-[60vh] max-w-[560px] flex-col items-center justify-center px-8">
       <div className="w-full space-y-8">
         <div className="text-center">
-          <h1 className="text-[1.7rem] font-semibold tracking-[-0.03em]">
+          <h1 className="text-[32px] font-medium">
             Describe your goal or audience
           </h1>
-          <p className="mt-2 text-[0.95rem] text-muted-foreground">
-            We&apos;ll find the right leads for you.
-          </p>
         </div>
 
         <form className="space-y-5" onSubmit={handleContinue}>
