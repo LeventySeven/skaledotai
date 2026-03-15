@@ -313,64 +313,66 @@ export async function addProfilesToProject(input: {
     discoveryQuery: input.discoveryQuery,
   }));
 
-  let upsertedLeads: LeadRowShape[];
+  return await db.transaction(async (tx) => {
+    let upsertedLeads: LeadRowShape[];
 
-  try {
-    upsertedLeads = await db
-      .insert(leads)
-      .values(values)
-      .onConflictDoUpdate({
-        target: [leads.userId, leads.handle, leads.platform],
-        set: {
-          name: sql`excluded.name`,
-          bio: sql`excluded.bio`,
-          location: sql`excluded.location`,
-          followers: sql`excluded.followers`,
-          following: sql`excluded.following`,
-          avatarUrl: sql`excluded.avatar_url`,
-          profileUrl: sql`excluded.profile_url`,
-          xUserId: sql`excluded.x_user_id`,
-          discoverySource: sql`excluded.discovery_source`,
-          discoveryQuery: sql`excluded.discovery_query`,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-  } catch (error) {
-    if (!isMissingLocationColumnError(error)) {
-      throw error;
+    try {
+      upsertedLeads = await tx
+        .insert(leads)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [leads.userId, leads.handle, leads.platform],
+          set: {
+            name: sql`excluded.name`,
+            bio: sql`excluded.bio`,
+            location: sql`excluded.location`,
+            followers: sql`excluded.followers`,
+            following: sql`excluded.following`,
+            avatarUrl: sql`excluded.avatar_url`,
+            profileUrl: sql`excluded.profile_url`,
+            xUserId: sql`excluded.x_user_id`,
+            discoverySource: sql`excluded.discovery_source`,
+            discoveryQuery: sql`excluded.discovery_query`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+    } catch (error) {
+      if (!isMissingLocationColumnError(error)) {
+        throw error;
+      }
+
+      const legacyValues = values.map(({ location: _location, ...value }) => value);
+      upsertedLeads = await tx
+        .insert(leads)
+        .values(legacyValues)
+        .onConflictDoUpdate({
+          target: [leads.userId, leads.handle, leads.platform],
+          set: {
+            name: sql`excluded.name`,
+            bio: sql`excluded.bio`,
+            followers: sql`excluded.followers`,
+            following: sql`excluded.following`,
+            avatarUrl: sql`excluded.avatar_url`,
+            profileUrl: sql`excluded.profile_url`,
+            xUserId: sql`excluded.x_user_id`,
+            discoverySource: sql`excluded.discovery_source`,
+            discoveryQuery: sql`excluded.discovery_query`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning(LEGACY_LEAD_SELECTION) as LeadRowShape[];
     }
 
-    const legacyValues = values.map(({ location: _location, ...value }) => value);
-    upsertedLeads = await db
-      .insert(leads)
-      .values(legacyValues)
-      .onConflictDoUpdate({
-        target: [leads.userId, leads.handle, leads.platform],
-        set: {
-          name: sql`excluded.name`,
-          bio: sql`excluded.bio`,
-          followers: sql`excluded.followers`,
-          following: sql`excluded.following`,
-          avatarUrl: sql`excluded.avatar_url`,
-          profileUrl: sql`excluded.profile_url`,
-          xUserId: sql`excluded.x_user_id`,
-          discoverySource: sql`excluded.discovery_source`,
-          discoveryQuery: sql`excluded.discovery_query`,
-          updatedAt: new Date(),
-        },
-      })
-      .returning(LEGACY_LEAD_SELECTION) as LeadRowShape[];
-  }
+    if (upsertedLeads.length > 0) {
+      await tx
+        .insert(projectLeads)
+        .values(upsertedLeads.map((lead) => ({ projectId: input.projectId, leadId: lead.id })))
+        .onConflictDoNothing();
+    }
 
-  if (upsertedLeads.length > 0) {
-    await db
-      .insert(projectLeads)
-      .values(upsertedLeads.map((lead) => ({ projectId: input.projectId, leadId: lead.id })))
-      .onConflictDoNothing();
-  }
-
-  return upsertedLeads.map((lead) => rowToLead(lead, input.projectId));
+    return upsertedLeads.map((lead) => rowToLead(lead, input.projectId));
+  });
 }
 
 export async function listOutreachQueue(userId: string): Promise<Lead[]> {
