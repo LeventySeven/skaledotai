@@ -8,6 +8,7 @@ import {
   getProjectOverviews,
   getProjects,
   queueProjectInfluencers,
+  renameProject,
 } from "@/server/services/projects";
 import { analyzeProjectsIntoNewProject } from "@/server/services/analysis";
 import { AnalyzeProjectsInputSchema, CreateProjectInputSchema } from "@/lib/validations/projects";
@@ -22,6 +23,10 @@ export const projectsRouter = router({
   create: protectedProcedure
     .input(CreateProjectInputSchema)
     .mutation(({ ctx, input }) => createProject(ctx.userId, input)),
+
+  rename: protectedProcedure
+    .input(z.object({ projectId: z.string().uuid(), name: z.string().min(1) }))
+    .mutation(({ ctx, input }) => renameProject(ctx.userId, input.projectId, input.name)),
 
   delete: protectedProcedure
     .input(z.object({ projectId: z.string().uuid() }))

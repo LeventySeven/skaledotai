@@ -1,11 +1,14 @@
 "use client";
 
-import { startTransition } from "react";
+import { startTransition, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckIcon, FolderOpenIcon, RotateCwIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, FolderOpenIcon, PencilIcon, RotateCwIcon, Trash2Icon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toastManager } from "@/components/ui/toast";
+import { trpc } from "@/lib/trpc/client";
 import { getXDataProviderOption } from "@/lib/x";
 import type { ProjectOverview } from "@/lib/validations/projects";
 
@@ -43,6 +46,33 @@ export function ProjectCard({
   onDelete: (id: string) => void;
 }) {
   const router = useRouter();
+  const utils = trpc.useUtils();
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(project.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const renameMutation = trpc.projects.rename.useMutation({
+    onSuccess: async () => {
+      setEditing(false);
+      await Promise.all([
+        utils.projects.list.invalidate(),
+        utils.projects.overviews.invalidate(),
+      ]);
+    },
+    onError: (error) => {
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
+
+  function commitRename() {
+    const trimmed = editName.trim();
+    if (!trimmed || trimmed === project.name) {
+      setEditing(false);
+      setEditName(project.name);
+      return;
+    }
+    renameMutation.mutate({ projectId: project.id, name: trimmed });
+  }
 
   return (
     <div
@@ -66,7 +96,37 @@ export function ProjectCard({
       <div className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="text-[1.15rem] font-semibold">{project.name}</div>
+            {editing ? (
+              <Input
+                ref={inputRef}
+                className="h-8 w-[200px] rounded-lg text-[1.05rem] font-semibold"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter") commitRename();
+                  if (e.key === "Escape") { setEditing(false); setEditName(project.name); }
+                }}
+                onBlur={commitRename}
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+                disabled={renameMutation.isPending}
+              />
+            ) : (
+              <div
+                className="group flex items-center gap-1.5 text-[1.15rem] font-semibold"
+                onClick={(e) => {
+                  if (!analysisMode) {
+                    e.stopPropagation();
+                    setEditName(project.name);
+                    setEditing(true);
+                  }
+                }}
+              >
+                {project.name}
+                {!analysisMode ? <PencilIcon className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" /> : null}
+              </div>
+            )}
             {project.sourceProviders.map((provider) => (
               <Badge key={provider} variant="outline" className="h-6 rounded-full px-2 text-[0.72rem] font-semibold">
                 {getXDataProviderOption(provider).label}

@@ -147,6 +147,18 @@ export async function createProject(
   return rowToProject(row, undefined, []);
 }
 
+export async function renameProject(userId: string, projectId: string, name: string): Promise<Project> {
+  const [row] = await db
+    .update(projects)
+    .set({ name })
+    .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
+    .returning();
+
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+  const sourceProvidersByProject = await getProjectSourceProvidersByProjectIds(userId, [projectId]);
+  return rowToProject(row, undefined, sourceProvidersByProject.get(projectId) ?? []);
+}
+
 export async function deleteProject(userId: string, projectId: string): Promise<void> {
   await db
     .delete(projects)
