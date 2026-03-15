@@ -56,7 +56,9 @@ export function SearchWorkspace() {
         <form className="w-full space-y-5" onSubmit={handleContinue}>
           <div className="relative">
             <Input
-              className="h-[64px] w-full rounded-full border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[18px] font-normal placeholder:text-[18px] placeholder:font-normal"
+              unstyled
+              nativeInput
+              className="h-[64px] w-full rounded-[100px] border border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[18px] font-normal outline-none placeholder:text-[18px] placeholder:font-normal placeholder:text-muted-foreground/50"
               placeholder="For example: I want to find the best product designers"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -82,7 +84,9 @@ export function SearchWorkspace() {
             </label>
             {searchFollowersOnly ? (
               <Input
-                className="mt-3 h-[64px] w-full rounded-full border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[1rem]"
+                unstyled
+                nativeInput
+                className="mt-3 h-[64px] w-full rounded-[100px] border border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[18px] font-normal outline-none placeholder:text-[18px] placeholder:font-normal placeholder:text-muted-foreground/50"
                 placeholder="@markknd"
                 value={followerUsername}
                 onChange={(event) => setFollowerUsername(event.target.value)}
