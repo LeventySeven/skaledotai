@@ -60,7 +60,7 @@ export function AiPanel({
 
       <div className="flex flex-wrap items-center gap-3">
         <Input
-          className="h-9 w-[280px] rounded-xl text-[0.88rem]"
+          className="h-8 w-[280px] rounded-[10px] text-[0.88rem]"
           placeholder="e.g. more casual, friendly, or direct"
           value={stylePrompt}
           onChange={(e: ChangeEvent<HTMLInputElement>) => onStylePromptChange(e.target.value)}

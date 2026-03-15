@@ -95,7 +95,7 @@ export function LeadsWorkspace() {
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">
             <Select value={workspace.projectId} onValueChange={(val) => workspace.updateProjectFilter(val as string)}>
-              <SelectTrigger className="h-9 min-w-[200px] rounded-[10px] text-[0.9rem]">
+              <SelectTrigger className="h-8 min-w-[200px] rounded-[10px] text-[0.88rem]">
                 <SelectValue placeholder="All Projects" />
               </SelectTrigger>
               <SelectPopup>
@@ -109,7 +109,7 @@ export function LeadsWorkspace() {
             </Select>
 
             <Select value={workspace.stage} onValueChange={(val) => workspace.updateStageFilter(val as typeof workspace.stage)}>
-              <SelectTrigger className="h-9 min-w-[150px] rounded-[10px] text-[0.9rem]">
+              <SelectTrigger className="h-8 min-w-[150px] rounded-[10px] text-[0.88rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectPopup>
@@ -122,7 +122,7 @@ export function LeadsWorkspace() {
             </Select>
 
             <Select value={workspace.sort} onValueChange={(val) => workspace.updateSort(val as typeof workspace.sort)}>
-              <SelectTrigger className="h-9 min-w-[180px] rounded-[10px] text-[0.9rem]">
+              <SelectTrigger className="h-8 min-w-[180px] rounded-[10px] text-[0.88rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectPopup>
@@ -134,7 +134,7 @@ export function LeadsWorkspace() {
           </div>
 
           <Input
-            className="h-9 w-full max-w-[230px] rounded-xl text-[0.9rem]"
+            className="h-8 w-full max-w-[230px] rounded-[10px] text-[0.88rem]"
             placeholder="Search leads..."
             value={workspace.search}
             onChange={(event) => workspace.updateSearch(event.target.value)}
