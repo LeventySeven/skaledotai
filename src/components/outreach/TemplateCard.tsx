@@ -50,7 +50,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
             ) : (
               <Button
                 variant="ghost"
-                size="icon-xs"
+                className="size-[26px] shrink-0 rounded p-0"
                 onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
               >
                 <EditIcon className="text-foreground" />
@@ -68,8 +68,7 @@ export function TemplateCard({ template, selected, onToggle, onSave, onDelete, f
             {onDelete ? (
               <Button
                 variant="ghost"
-                size="icon-xs"
-                className="text-muted-foreground/50 hover:bg-red-50 hover:text-red-500"
+                className="size-[26px] shrink-0 rounded p-0 text-muted-foreground/50 hover:bg-red-50 hover:text-red-500"
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
               >
                 <Trash2Icon className="size-3.5" />
