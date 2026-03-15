@@ -26,6 +26,17 @@ export const LEAD_TARGET_BOUNDS = {
   max: 300,
 } as const;
 
+export const LEAD_TARGET_OPTIONS = [
+  { label: "10", value: 10 },
+  { label: "25", value: 25 },
+  { label: "50", value: 50 },
+  { label: "100", value: 100 },
+  { label: "150", value: 150 },
+  { label: "200", value: 200 },
+  { label: "250", value: 250 },
+  { label: "300", value: 300 },
+] as const;
+
 export function mergeTraceSteps(
   current: ProjectRunTraceStep[],
   incoming: ProjectRunTraceStep[],

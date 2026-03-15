@@ -20,6 +20,7 @@ import {
 import {
   FOLLOWER_FLOOR_OPTIONS,
   LEAD_TARGET_BOUNDS,
+  LEAD_TARGET_OPTIONS,
   mergeTraceSteps,
   readErrorMessage,
   normalizeLiveStreamError,
@@ -40,7 +41,7 @@ export function SearchForm() {
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
   const [minFollowers, setMinFollowers] = useState(rerunMinFollowers ? Number(rerunMinFollowers) : 1_000);
-  const [targetLeadCount, setTargetLeadCount] = useState(rerunTargetLeadCount ?? "100");
+  const [targetLeadCount, setTargetLeadCount] = useState(rerunTargetLeadCount ? Number(rerunTargetLeadCount) : 100);
   const [liveSearchPending, setLiveSearchPending] = useState(false);
   const [streamSteps, setStreamSteps] = useState<ProjectRunTraceStep[]>([]);
   const [streamSnapshot, setStreamSnapshot] = useState<SearchRunStreamSnapshot | null>(null);
@@ -260,14 +261,18 @@ export function SearchForm() {
           </div>
           <div className="space-y-2">
             <label className="block text-[1.05rem] font-semibold">Approximate leads <span className="font-normal text-muted-foreground text-sm">(soft target)</span></label>
-            <Input
-              className="h-[42px] items-center rounded-[10px] text-[1rem]"
-              type="number"
-              min={LEAD_TARGET_BOUNDS.min}
-              max={LEAD_TARGET_BOUNDS.max}
-              value={targetLeadCount}
-              onChange={(event) => setTargetLeadCount(event.target.value)}
-            />
+            <Select value={targetLeadCount} onValueChange={(val) => setTargetLeadCount(Number(val))}>
+              <SelectTrigger className="h-[42px] rounded-[10px] text-[1rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPopup>
+                {LEAD_TARGET_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           </div>
         </div>
 
