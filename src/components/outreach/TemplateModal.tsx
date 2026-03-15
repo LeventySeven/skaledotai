@@ -1,8 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogPopup,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { toastManager } from "@/components/ui/toast";
 
 interface TemplateModalProps {
@@ -34,21 +43,22 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div
-        className="w-full max-w-lg rounded-2xl border border-border/70 bg-background p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[18px] font-medium">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogPopup>
+        <DialogHeader>
+          <DialogTitle>
             {mode === "create" ? "New template" : mode === "fork" ? "Save as your template" : "Edit template"}
-          </h2>
-          <Button variant="ghost" size="icon-bare" onClick={onClose}>
-            <XIcon className="size-4" />
-          </Button>
-        </div>
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "create"
+              ? "Create a new outreach template."
+              : mode === "fork"
+                ? "Save a copy to your templates."
+                : "Edit your template."}
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 px-6">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <label className="text-[0.85rem] font-medium text-muted-foreground">Title</label>
@@ -56,12 +66,12 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
                 {title.trim().length}/{TITLE_MIN} min
               </span>
             </div>
-            <input
-              autoFocus
-              className="h-10 rounded-xl border border-input bg-background px-3 text-[0.95rem] outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background"
+            <Input
+              className="h-8 rounded-[10px] text-[0.95rem]"
               placeholder="e.g. Warm intro"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              autoFocus
             />
           </div>
 
@@ -72,8 +82,8 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
                 {body.trim().length}/{BODY_MIN} min
               </span>
             </div>
-            <textarea
-              className="min-h-[160px] resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-[0.95rem] leading-relaxed outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background"
+            <Textarea
+              className="min-h-[160px] resize-none rounded-[10px] text-[0.95rem] leading-relaxed"
               placeholder={"Hi {{name}},\n\n..."}
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -81,7 +91,7 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <DialogFooter>
           <Button
             variant="outline"
             className="h-8 rounded-[10px] px-4 text-[0.88rem]"
@@ -95,8 +105,8 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
           >
             {mode === "create" ? "Create" : mode === "fork" ? "Save to my templates" : "Save"}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
   );
 }
