@@ -56,9 +56,9 @@ function buildContextHash(input: {
     .digest("hex");
 }
 
-type EvidenceEntry = { source: "name" | "handle" | "bio" | "post" | "audience"; snippet: string; whyItAligns: string };
+type EvidenceEntry = { source: "name" | "handle" | "bio" | "post"; snippet: string; whyItAligns: string };
 
-const EVIDENCE_SOURCES = new Set(["name", "handle", "bio", "post", "audience"]);
+const EVIDENCE_SOURCES = new Set(["name", "handle", "bio", "post"]);
 
 function parseEvidence(raw: unknown): EvidenceEntry[] {
   if (!Array.isArray(raw)) return [];
