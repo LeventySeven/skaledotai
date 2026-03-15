@@ -219,13 +219,17 @@ export function getFallbackScreenedIds(
 export function getFallbackScreeningDecisions(
   query: string,
   candidates: SearchScreeningCandidate[],
-): Array<{ profileId: string; include: boolean; score: number }> {
+): Array<{ profileId: string; include: boolean; score: number; reason: string }> {
+  const queryTerms = getSearchQueryTerms(query);
   return candidates.map((candidate) => {
     const score = getFallbackSearchScore(query, candidate);
+    const haystack = [candidate.displayName, candidate.username, candidate.bio, candidate.samplePosts?.join(" ") ?? ""].join(" ").toLowerCase();
+    const matched = queryTerms.filter((term) => haystack.includes(term)).slice(0, 3);
     return {
       profileId: candidate.xUserId,
       include: score >= SEARCH_FALLBACK_SCORE_THRESHOLD,
       score,
+      reason: matched.length > 0 ? `Bio/posts contain: ${matched.map((t) => `"${t}"`).join(", ")}` : "",
     };
   });
 }

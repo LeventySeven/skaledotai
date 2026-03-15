@@ -222,6 +222,12 @@ export async function getLeadReasoning(input: {
     return rowToLeadReasoning(row.insight);
   }
 
+  // If we already have a screening-time insight (generated during search), use it as-is
+  // Only regenerate if the context has changed (bio updated, stats refreshed, etc.)
+  if (row.insight && row.insight.contextHash.startsWith("screening:")) {
+    return rowToLeadReasoning(row.insight);
+  }
+
   const generated = await generateLeadReasoning({
     query: project.query?.trim() || project.name,
     lead: {

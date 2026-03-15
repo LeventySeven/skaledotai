@@ -624,6 +624,37 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   };
 }
 
+function extractBioWebsiteUrl(bio: string): string | null {
+  const urlMatch = bio.match(/https?:\/\/[^\s,)]+/i);
+  if (urlMatch) return urlMatch[0];
+  // Match domain-like patterns: word.tld
+  const domainMatch = bio.match(/\b([a-z0-9][-a-z0-9]*\.(com|io|co|dev|app|xyz|ai|org|net|me|so|gg))\b/i);
+  if (domainMatch) return `https://${domainMatch[1]}`;
+  return null;
+}
+
+async function scrapeWebsiteForEvidence(
+  url: string,
+  niche: string,
+  keywords: string[],
+): Promise<SelectionEvidence | null> {
+  try {
+    const payload = await queryAgentQlBestEffort(url, "discovery");
+    if (!payload) return null;
+    const text = JSON.stringify(payload).toLowerCase().slice(0, 3000);
+    const matched = keywords.filter((kw) => text.includes(kw)).slice(0, 3);
+    if (matched.length === 0) return null;
+    const snippet = text.slice(0, 200).replace(/["\n\r]/g, " ").trim();
+    return {
+      source: "bio" as const,
+      snippet: `Website (${url}): ${snippet}...`,
+      whyItAligns: `Website contains: ${matched.map((h) => `"${h}"`).join(", ")}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): SelectionEvidence[] {
   const keywords = extractKeywords(niche);
   const evidence: SelectionEvidence[] = [];
@@ -1206,13 +1237,21 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
     };
   })
   .addNode("candidate_scorer", async (state) => {
+    const keywords = extractKeywords(state.niche);
     const scored: ScoredCandidate[] = [];
+
     for (const candidate of state.candidates) {
       const heuristic = scoreCandidateHeuristically(state.niche, candidate);
       const evidence = extractSelectionEvidence(state.niche, candidate);
 
-      // Inline relevance filter: reject candidates with no bio/post evidence during discovery
-      // This prevents irrelevant leads from ever reaching the screening stage
+      // If bio contains a website, scrape it for additional evidence
+      const websiteUrl = extractBioWebsiteUrl(candidate.account.bio);
+      if (websiteUrl) {
+        const websiteEvidence = await scrapeWebsiteForEvidence(websiteUrl, state.niche, keywords);
+        if (websiteEvidence) evidence.push(websiteEvidence);
+      }
+
+      // Inline relevance filter: reject candidates with no evidence during discovery
       if (evidence.length === 0 && heuristic.score < 15) continue;
 
       scored.push({

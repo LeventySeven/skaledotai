@@ -70,6 +70,7 @@ const ScreeningSchema = z.object({
     profileId: z.string(),
     include: z.boolean(),
     score: z.number().int().min(0).max(100),
+    reason: z.string().default(""),
   })),
 });
 
@@ -246,6 +247,7 @@ export async function screenProfilesForLeadSearchDetailed(
   maxResults: number,
 ): Promise<{
   selectedIds: string[];
+  selectedReasons: Map<string, string>;
   batchSummaries: Array<{
     candidateCount: number;
     includedCount: number;
@@ -255,6 +257,7 @@ export async function screenProfilesForLeadSearchDetailed(
   if (candidates.length === 0) {
     return {
       selectedIds: [],
+      selectedReasons: new Map(),
       batchSummaries: [],
     };
   }
@@ -262,11 +265,13 @@ export async function screenProfilesForLeadSearchDetailed(
   if (prefilteredCandidates.length === 0) {
     return {
       selectedIds: [],
+      selectedReasons: new Map(),
       batchSummaries: [],
     };
   }
 
   const selectedScores = new Map<string, number>();
+  const selectedReasons = new Map<string, string>();
   const batchSummaries: Array<{
     candidateCount: number;
     includedCount: number;
@@ -276,12 +281,12 @@ export async function screenProfilesForLeadSearchDetailed(
   for (const batch of chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE)) {
     const validIds = new Set(batch.map((candidate) => candidate.xUserId));
     const result = await structuredResponseWithMeta<{
-      decisions: Array<{ profileId: string; include: boolean; score: number }>;
+      decisions: Array<{ profileId: string; include: boolean; score: number; reason: string }>;
     }>({
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
       instructions:
-        "Screen X/Twitter profiles for a search query. Include ONLY if the bio or posts contain specific text proving the person works in or actively discusses the query's niche.\n\nScoring:\n- 80-100: Bio explicitly references the niche AND posts discuss it.\n- 60-79: Bio references the niche OR at least 2 posts discuss it.\n- 40-59: At least one clear niche reference in bio or a post.\n- 0 (include=false): No specific niche text found in bio or posts.\n\nRules:\n- Follower count is a pre-filter only. Never use it in decisions.\n- Do NOT infer relevance from adjacent fields or generic terms. The bio/posts must contain text directly related to the search query's core topic.\n- If you cannot quote a specific phrase from bio or posts as proof, set include=false.\n- Translate the query into realistic terms people would use (the query may be informal).",
+        "Screen X/Twitter profiles for a search query. For each profile, decide include/exclude and provide a brief reason.\n\nScoring:\n- 80-100: Bio explicitly references the niche AND posts discuss it.\n- 60-79: Bio references the niche OR at least 2 posts discuss it.\n- 40-59: At least one clear niche reference in bio or a post.\n- 0 (include=false): No specific niche text found in bio or posts.\n\nReason field (REQUIRED for included profiles):\n- Quote the specific text from bio or posts that proves niche relevance. Keep it to 1-2 short sentences.\n- Example format: 'Bio says \"[exact quote]\". Posts discuss [topic].'\n- If include=false, reason should state what's missing.\n\nRules:\n- Follower count is a pre-filter only. Never use it in decisions or reasons.\n- Bio/posts must contain text directly related to the search query's core topic.\n- Translate informal queries into realistic terms people would use.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -307,6 +312,9 @@ export async function screenProfilesForLeadSearchDetailed(
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);
+        if (decision.reason) {
+          selectedReasons.set(decision.profileId, decision.reason);
+        }
       }
       includedCount += 1;
     }
@@ -334,6 +342,7 @@ export async function screenProfilesForLeadSearchDetailed(
     selectedIds: selectedIds.length > 0
       ? selectedIds
       : getFallbackScreenedIds(query, prefilteredCandidates, maxResults),
+    selectedReasons,
     batchSummaries,
   };
 }
