@@ -633,8 +633,7 @@ export async function searchAndAddLeads(
     }
 
     const screeningPool = buildScreeningPool(
-      discoveredCandidates
-        .sort(byRelevanceDesc),
+      discoveredCandidates.sort(byRelevanceDesc),
       targetLeadCount,
     );
 
@@ -643,30 +642,22 @@ export async function searchAndAddLeads(
       screeningPool.map(toScreeningCandidate),
       targetLeadCount,
     );
-    const selectedIds = screeningResult.selectedIds;
-    const selectedSet = new Set(selectedIds);
+    const selectedSet = new Set(screeningResult.selectedIds);
     const screenedCandidates = screeningPool.filter((candidate) =>
       selectedSet.has(candidate.account.xUserId ?? candidate.account.handle.replace(/^@/, "").toLowerCase())
       || selectedSet.has(candidate.account.handle.replace(/^@/, "").toLowerCase()),
     );
-    const targetSatisfiedAfterScreening = screenedCandidates.length >= Math.ceil(targetLeadCount * 0.8);
 
     trace.addStep(await emitStep(progress, {
       id: "screening",
       title: "AI Screening",
       summary: `The model kept ${screenedCandidates.length} leads from a pool of ${screeningPool.length}.`,
-      status:
-        screeningResult.batchSummaries.some((batch) => batch.usedFallback) || !targetSatisfiedAfterScreening
-          ? "warning"
-          : "success",
+      status: screenedCandidates.length >= Math.ceil(targetLeadCount * 0.8) ? "success" : "warning",
       model: process.env.OPENAI_MODEL ?? "gpt-5",
       bullets: [
         ...screeningResult.batchSummaries.map((batch, index) =>
           `Batch ${index + 1}: reviewed ${batch.candidateCount}, kept ${batch.includedCount}${batch.usedFallback ? " using fallback heuristics" : ""}.`,
         ),
-        screenedCandidates.length >= targetLeadCount
-          ? `Met the approximate target of ~${targetLeadCount} (soft target; the result may exceed the request).`
-          : `Approximate target was ~${targetLeadCount}; the bounded search retained ${screenedCandidates.length}. The target is approximate and results may vary.`,
       ],
       metrics: [
         { label: "Pool", value: screeningPool.length },

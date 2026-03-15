@@ -278,31 +278,42 @@ export async function screenProfilesForLeadSearchDetailed(
     usedFallback: boolean;
   }> = [];
 
-  for (const batch of chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE)) {
+  const screeningPrompt = "Screen X/Twitter profiles for a search query. Read each bio fully and decide if this person works in or is related to the niche.\n\nInclude if bio, posts, or linked website show this person works in the query's field. Exclude if unrelated.\n\nScore: 80-100 clearly in the field, 60-79 related, 40-59 tangential, 0 unrelated.\nReason: quote the relevant part of bio/posts/website. 1-2 sentences.\nNever mention follower count.";
+
+  const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
+
+  // Run all screening batches in parallel for speed
+  const batchResults = await Promise.all(batches.map(async (batch) => {
     const validIds = new Set(batch.map((candidate) => candidate.xUserId));
     const result = await structuredResponseWithMeta<{
       decisions: Array<{ profileId: string; include: boolean; score: number; reason: string }>;
     }>({
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
-      instructions:
-        "Screen X/Twitter profiles for a search query. Read each bio fully and decide if this person genuinely works in or is closely related to the niche.\n\nHow to decide:\n- Read the ENTIRE bio. Understand what the person does, not just whether a single keyword appears.\n- Include if the bio or posts show this person works in, practices, or is deeply involved in the query's field.\n- Exclude if the person's work is in a completely different field with no real connection.\n\nScoring:\n- 80-100: Clearly works in this field based on bio.\n- 60-79: Related to the field — close enough to be relevant.\n- 40-59: Tangentially connected.\n- 0 (include=false): Unrelated.\n\nReason (REQUIRED): Quote the part of their bio that shows relevance. 1-2 sentences max.\n\nRules:\n- Follower count is irrelevant. Never mention it.\n- Understand the query's intent — translate informal terms into what people actually do.",
+      instructions: screeningPrompt,
       input: JSON.stringify({
         query,
-        candidates: batch.map((candidate) => ({
-          id: candidate.xUserId,
-          handle: `@${candidate.username}`,
-          name: candidate.displayName,
-          bio: candidate.bio,
-          posts: candidate.samplePosts?.slice(0, 3) ?? [],
-        })),
+        candidates: batch.map((candidate) => {
+          const websiteMatch = candidate.bio.match(/https?:\/\/[^\s,)]+/i) ?? candidate.bio.match(/\b([a-z0-9][-a-z0-9]*\.(com|io|co|dev|app|xyz|ai|org|net|me))\b/i);
+          return {
+            id: candidate.xUserId,
+            handle: `@${candidate.username}`,
+            name: candidate.displayName,
+            bio: candidate.bio,
+            website: websiteMatch?.[0] ?? null,
+            posts: candidate.samplePosts?.slice(0, 2) ?? [],
+          };
+        }),
       }),
       fallback: {
         decisions: getFallbackScreeningDecisions(query, batch),
       },
-      maxOutputTokens: 3_000,
+      maxOutputTokens: 4_000,
     });
+    return { batch, validIds, result };
+  }));
 
+  for (const { batch, validIds, result } of batchResults) {
     let includedCount = 0;
 
     for (const decision of result.data.decisions) {
