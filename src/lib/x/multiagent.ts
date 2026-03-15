@@ -520,10 +520,8 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   // Posts with niche keywords show active participation, not just a bio claim
   const activePostSignal = postHits > 0 ? Math.min(12, postHits * 4) : (candidate.posts.length > 0 ? 3 : 0);
 
-  // Follower count is a minor signal — enough audience to be useful, but not the priority
-  const followerScore = candidate.account.followers >= 500
-    ? Math.min(10, Math.round(Math.log10(candidate.account.followers + 10) * 3))
-    : 2;
+  // Follower count is NOT a scoring signal — it's only a pre-filter.
+  const followerScore = 0;
 
   // Creator/operator bio signals: people likely to engage with promotion offers
   const creatorBioBonus = /(founder|ceo|cto|i build|building|shipping|creator|maker|indie|freelance|consultant|engineer|designer|operator|solopreneur|bootstrapped)/i.test(candidate.account.bio) ? 6 : 0;
@@ -535,14 +533,10 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
 
   const handlePenalty = /(support|official|news|updates|hq|team)/i.test(candidate.account.handle) ? 20 : 0;
   const brandPenalty = /\b(official|support|newsroom|company|inc|labs|hq)\b/i.test(candidate.account.bio) ? 16 : 0;
-  const largeCorporatePenalty = candidate.account.followers >= 500_000 && !/(founder|ceo|cto|i build|i'm|my |engineer|designer)/i.test(candidate.account.bio) ? 35 : 0;
-  // Penalty for accounts with huge followers but zero niche relevance (celebrity/influencer noise)
-  const irrelevantInfluencerPenalty = candidate.account.followers >= 100_000 && topicalHits === 0 ? 25 : 0;
-
   const score = clampScore(
     5 + topicScore + bioRelevanceScore + engagementScore + activePostSignal
     + followerScore + creatorBioBonus + engagementWillingnessBonus
-    - handlePenalty - brandPenalty - largeCorporatePenalty - irrelevantInfluencerPenalty,
+    - handlePenalty - brandPenalty,
   );
 
   const reasons: string[] = [];
@@ -551,11 +545,8 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   if (postHits > 0) reasons.push(`${postHits} recent posts discuss the niche`);
   if (creatorBioBonus > 0) reasons.push("Bio signals individual creator/operator");
   if (engagementWillingnessBonus > 0) reasons.push("Posts show reposting/engagement behavior");
-  if (candidate.account.followers >= 500 && candidate.account.followers < 100_000) reasons.push(`Mid-range audience (${candidate.account.followers.toLocaleString()} followers) — good promotion reach`);
   if (engagementScore >= 12) reasons.push("Active engagement signals");
   if (handlePenalty > 0 || brandPenalty > 0) reasons.push("Brand or support-account penalty applied");
-  if (largeCorporatePenalty > 0) reasons.push("Large corporate account — unlikely to engage for promotion");
-  if (irrelevantInfluencerPenalty > 0) reasons.push("High-follower account with no niche relevance");
 
   return {
     score,
@@ -630,22 +621,6 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
       source: "handle",
       snippet: `@${candidate.account.handle.replace(/^@/, "")}`,
       whyItAligns: `Handle contains "${handleHits.join('", "')}" — niche identity is part of their brand.`,
-    });
-  }
-
-  // Audience signal — contextualized for promotion value
-  if (candidate.account.followers >= 500) {
-    const audienceDescription = candidate.account.followers >= 100_000
-      ? "Large audience"
-      : candidate.account.followers >= 10_000
-        ? "Strong mid-tier audience"
-        : candidate.account.followers >= 1_000
-          ? "Solid niche audience"
-          : "Growing audience";
-    evidence.push({
-      source: "audience",
-      snippet: `${candidate.account.followers.toLocaleString()} followers`,
-      whyItAligns: `${audienceDescription} (${candidate.account.followers.toLocaleString()}) — their repost/interaction would reach a relevant segment for "${niche}" promotion.`,
     });
   }
 

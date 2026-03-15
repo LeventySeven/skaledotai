@@ -21,10 +21,19 @@ import type { XDataProvider } from "@/lib/x";
 
 const FOLLOWER_FLOOR_OPTIONS = [
   { label: "Any size", value: 0 },
-  { label: "500+", value: 500 },
   { label: "1k+", value: 1_000 },
+  { label: "2k+", value: 2_000 },
+  { label: "3k+", value: 3_000 },
+  { label: "4k+", value: 4_000 },
   { label: "5k+", value: 5_000 },
+  { label: "6k+", value: 6_000 },
+  { label: "7k+", value: 7_000 },
+  { label: "8k+", value: 8_000 },
+  { label: "9k+", value: 9_000 },
   { label: "10k+", value: 10_000 },
+  { label: "15k+", value: 15_000 },
+  { label: "20k+", value: 20_000 },
+  { label: "30k+", value: 30_000 },
   { label: "50k+", value: 50_000 },
   { label: "100k+", value: 100_000 },
 ] as const;
