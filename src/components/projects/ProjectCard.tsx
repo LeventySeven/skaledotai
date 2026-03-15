@@ -158,7 +158,7 @@ export function ProjectCard({
                   event.stopPropagation();
                   const params = new URLSearchParams({ importUsername: project.seedUsername!, project: project.id });
                   startTransition(() => {
-                    router.push(`/search?${params.toString()}`);
+                    router.push(`/search/refine?${params.toString()}`);
                   });
                 }}
               >
@@ -182,7 +182,7 @@ export function ProjectCard({
                     params.set("provider", project.latestRunParams.requestedProvider);
                   }
                   startTransition(() => {
-                    router.push(`/search?${params.toString()}`);
+                    router.push(`/search/refine?${params.toString()}`);
                   });
                 }}
               >
