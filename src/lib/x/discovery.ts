@@ -33,7 +33,7 @@ type CandidateAccumulator = {
 };
 
 function getCandidateTarget(limit: number): number {
-  return Math.min(SEARCH_CANDIDATE_POOL_LIMIT, limit * SEARCH_CANDIDATE_OVERFETCH_FACTOR);
+  return Math.min(SEARCH_CANDIDATE_POOL_LIMIT, Math.max(1, limit) * SEARCH_CANDIDATE_OVERFETCH_FACTOR);
 }
 
 function average(values: number[]): number {
