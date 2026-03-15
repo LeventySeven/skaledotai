@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRightIcon, CheckIcon } from "lucide-react";
+import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -21,8 +21,6 @@ export function SearchWorkspace() {
   const [query, setQuery] = useState("");
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
-  const [platform, setPlatform] = useState<"x" | "linkedin">("x");
-
   function handleContinue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!query.trim()) return;
@@ -70,7 +68,7 @@ export function SearchWorkspace() {
             </Button>
           </div>
 
-          <div className="mt-4 flex items-center justify-between">
+          <div className="mt-4">
             <label className="flex items-center gap-2.5 text-[0.9rem] text-muted-foreground">
               <Checkbox
                 checked={searchFollowersOnly}
@@ -78,34 +76,6 @@ export function SearchWorkspace() {
               />
               Search within my followers
             </label>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[0.9rem] text-muted-foreground">Search on</span>
-              <button
-                type="button"
-                onClick={() => setPlatform("x")}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.82rem] font-medium transition-colors ${
-                  platform === "x"
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border bg-background text-foreground hover:border-foreground/30"
-                }`}
-              >
-                X / Twitter
-                {platform === "x" ? <CheckIcon className="size-3" strokeWidth={3} /> : null}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlatform("linkedin")}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.82rem] font-medium transition-colors ${
-                  platform === "linkedin"
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border bg-background text-foreground hover:border-foreground/30"
-                }`}
-              >
-                LinkedIn
-                {platform === "linkedin" ? <CheckIcon className="size-3" strokeWidth={3} /> : null}
-              </button>
-            </div>
           </div>
 
           {searchFollowersOnly ? (
