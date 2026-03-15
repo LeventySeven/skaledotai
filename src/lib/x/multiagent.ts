@@ -312,20 +312,20 @@ function buildHeuristicGoalInterpretation(input: {
   niche: string;
   seedHandle?: string;
 }): GoalInterpretation {
-  const keywords = extractKeywords(input.niche);
-  const geoHints = input.niche.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
+  const niche = input.niche.trim();
+  const geoHints = niche.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
     ?.map((match) => match.replace(/\b(?:in|from|based in|located in)\s+/i, "").trim())
     .filter(Boolean) ?? [];
 
+  // Keep the full niche as the primary term — don't split into individual words
   return {
-    roleTerms: keywords.slice(0, 5),
-    bioTerms: keywords.slice(0, 6),
+    roleTerms: [niche],
+    bioTerms: [niche],
     geoHints,
     antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution", "dormant account", "bot"],
     userGoals: [
-      `Find individual X accounts who actively engage with ${input.niche} content and would repost/interact with promoted posts for payment.`,
-      `Prioritize people whose bios and recent posts demonstrate genuine involvement in ${input.niche}, not just large follower counts.`,
-      input.seedHandle ? `Prefer accounts adjacent to @${input.seedHandle.replace(/^@/, "")}.` : "",
+      `Find ${input.niche} on X.`,
+      input.seedHandle ? `Look within @${input.seedHandle.replace(/^@/, "")}'s network.` : "",
     ].filter(Boolean),
   };
 }
@@ -341,14 +341,14 @@ async function interpretLeadSearchGoals(input: {
     const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
       "Interpret this lead-search request. The user wants to find X/Twitter accounts that match this niche.",
       "",
-      "The user's query may be informal. Translate it into realistic terms that people actually write in their X bios.",
+      "Generate SYNONYMS and VARIATIONS of the query that mean the same thing. Every term you generate must describe the same type of person as the original query. Never split a multi-word concept into separate unrelated words.",
       "",
       "Extract:",
-      "- roleTerms: realistic job titles people use in bios for this niche (the exact words they'd write)",
-      "- bioTerms: realistic phrases from bios in this niche (what someone would literally say about themselves)",
-      "- geoHints: optional location signals",
+      "- roleTerms: synonyms and variations of the role the user is looking for. Each term must be a complete phrase that means the same thing as the query. Include the original query as-is, plus realistic variations people would write in their bios.",
+      "- bioTerms: how people in this niche describe themselves in bios. Each term must be a complete self-description that stays within the same niche as the query.",
+      "- geoHints: optional location signals from the query",
       "- antiGoals: account types to avoid",
-      "- userGoals: what the user is looking for",
+      "- userGoals: what the user is looking for (restate simply)",
       JSON.stringify(input),
     ].join("\n")));
 
@@ -401,9 +401,9 @@ function buildGoogleDorkQueries(input: {
     bioBlock ? `site:x.com ("${bioBlock}")` : "",
     // Geo-targeted
     geoBlock ? `site:x.com "${input.niche}" "${geoBlock}"` : "",
-    // Later attempts: broaden with individual terms
-    input.attempt >= 2 && roleBlock ? `site:x.com ${input.interpretation.roleTerms.slice(0, 2).join(" ")}` : "",
-    input.attempt >= 3 && bioBlock ? `site:twitter.com ${input.interpretation.bioTerms.slice(0, 2).join(" ")}` : "",
+    // Later attempts: try role/bio terms individually (each quoted)
+    input.attempt >= 2 && input.interpretation.roleTerms[1] ? `site:x.com "${input.interpretation.roleTerms[1]}"` : "",
+    input.attempt >= 3 && input.interpretation.bioTerms[1] ? `site:twitter.com "${input.interpretation.bioTerms[1]}"` : "",
   ]).slice(0, input.queryBudget);
 }
 
