@@ -62,8 +62,9 @@ const LEGACY_LEAD_SELECTION = {
 
 function isMissingLocationColumnError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const record = error as { code?: string; message?: string };
-  return record.code === "42703" && record.message?.includes("location") === true;
+  const code = "code" in error ? (error as Record<string, unknown>).code : undefined;
+  const message = "message" in error ? (error as Record<string, unknown>).message : undefined;
+  return code === "42703" && typeof message === "string" && message.includes("location");
 }
 
 export function rowToLead(
