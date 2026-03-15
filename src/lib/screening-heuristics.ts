@@ -178,10 +178,9 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
   const personSignal = hasPersonSignal(candidate, haystack);
   const companySignal = hasCompanySignal(haystack);
   const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
-  const followerScore = Math.min(8, Math.round(Math.log10(candidate.followersCount + 10) * 2));
   const postScore = candidate.samplePosts?.length ? 15 : 0;
 
-  let score = Math.min(45, matchedTerms * 15) + followerScore + postScore;
+  let score = Math.min(45, matchedTerms * 15) + postScore;
   if (personSignal) score += 22;
   if (companySignal) score += 14;
   if (!personSignal && !companySignal) score -= 4;
@@ -203,7 +202,7 @@ export function getFallbackScreenedIds(
       followers: candidate.followersCount,
     }))
     .filter((candidate) => candidate.score >= SEARCH_FALLBACK_SCORE_THRESHOLD)
-    .sort((a, b) => b.score - a.score || b.followers - a.followers)
+    .sort((a, b) => b.score - a.score)
     .map((candidate) => candidate.id);
 }
 

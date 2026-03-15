@@ -88,6 +88,7 @@ export type SourceFanoutAgentInput = {
   goalCount: number;
   limit: number;
   query: string;
+  seedHandle?: string;
 };
 
 export type ScraperAgentInput = {

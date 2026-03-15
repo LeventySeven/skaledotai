@@ -385,7 +385,20 @@ function buildGoogleDorkQueries(input: {
   const geoBlock = input.interpretation.geoHints[0]?.trim();
   const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
 
+  const seedDorkQueries = cleanSeed
+    ? [
+      // Primary: target the verified_followers page directly
+      `site:x.com/${cleanSeed}/verified_followers ${input.niche}`,
+      `site:x.com/${cleanSeed}/verified_followers`,
+      `site:x.com inurl:${cleanSeed}/verified_followers "${input.niche}"`,
+      // Secondary: find people adjacent to the seed
+      `site:x.com "${input.niche}" ("@${cleanSeed}" OR "replying to @${cleanSeed}")`,
+    ]
+    : [];
+
   return dedupeQueries([
+    // When we have a seed, prioritize verified_followers dorks
+    ...seedDorkQueries,
     // Bio-focused dorks: find people who identify with the niche
     `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""} ("building" OR "founder" OR "creator")`,
     `site:x.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""} ("shipping" OR "obsessed" OR "working on")`,
@@ -394,8 +407,6 @@ function buildGoogleDorkQueries(input: {
     `site:twitter.com "${input.niche}" ("I build" OR "I write about" OR "my project" OR "my startup")`,
     // Geo-targeted
     geoBlock ? `site:x.com "${input.niche}" "${geoBlock}" ("founder" OR "builder" OR "creator")` : "",
-    // Seed-adjacent
-    cleanSeed ? `site:x.com "${input.niche}" ("@${cleanSeed}" OR "replying to @${cleanSeed}")` : "",
     // Attempt escalation: broader engagement signals
     input.attempt >= 2 ? `site:x.com "${input.niche}" ("collab" OR "DM me" OR "open to" OR "available for")` : "",
     input.attempt >= 3 ? `site:x.com "${input.niche}" ("indie" OR "bootstrapped" OR "solopreneur" OR "freelance")` : "",
@@ -414,14 +425,22 @@ function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" |
 export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[] {
   const niche = input.niche.trim();
   const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
-  const queries = [
-    `${niche} founders creators builders actively posting on x`,
-    `${niche} people who repost share and engage on x`,
-    `${niche} indie makers operators shipping building on x`,
-    `${niche} engaged community members threads discussions on x`,
-    seedHandle ? `${niche} people interacting with @${seedHandle} on x` : "",
-    seedHandle ? `people replying to @${seedHandle} about ${niche} on x` : "",
-  ];
+  const queries = seedHandle
+    ? [
+      // When searching within a user's followers, prioritize the verified_followers page via Google dork
+      `site:x.com/${seedHandle}/verified_followers ${niche}`,
+      `site:x.com/${seedHandle}/verified_followers`,
+      `site:x.com "${niche}" inurl:${seedHandle}/verified_followers`,
+      `${niche} people interacting with @${seedHandle} on x`,
+      `people replying to @${seedHandle} about ${niche} on x`,
+      `${niche} followers of @${seedHandle} on x`,
+    ]
+    : [
+      `${niche} founders creators builders actively posting on x`,
+      `${niche} people who repost share and engage on x`,
+      `${niche} indie makers operators shipping building on x`,
+      `${niche} engaged community members threads discussions on x`,
+    ];
 
   return dedupeQueries(queries).slice(0, resolveMultiAgentQueryBudget(input));
 }
@@ -430,6 +449,9 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
   const cleanSeed = seedHandle?.replace(/^@/, "").trim();
 
   return dedupeQueries([
+    // When searching within a user's followers, keep targeting verified_followers
+    cleanSeed ? `site:x.com/${cleanSeed}/verified_followers ${niche}` : "",
+    cleanSeed ? `${niche} verified followers of @${cleanSeed} on x` : "",
     `${niche} people who actively promote and repost content on x`,
     `${niche} engaged creators sharing recommendations on x`,
     `${niche} community voices micro-influencers niche experts on x`,
@@ -520,10 +542,8 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   // Posts with niche keywords show active participation, not just a bio claim
   const activePostSignal = postHits > 0 ? Math.min(12, postHits * 4) : (candidate.posts.length > 0 ? 3 : 0);
 
-  // Follower count is a minor signal — enough audience to be useful, but not the priority
-  const followerScore = candidate.account.followers >= 500
-    ? Math.min(10, Math.round(Math.log10(candidate.account.followers + 10) * 3))
-    : 2;
+  // Follower count is NOT a scoring signal — it's only a pre-filter.
+  const followerScore = 0;
 
   // Creator/operator bio signals: people likely to engage with promotion offers
   const creatorBioBonus = /(founder|ceo|cto|i build|building|shipping|creator|maker|indie|freelance|consultant|engineer|designer|operator|solopreneur|bootstrapped)/i.test(candidate.account.bio) ? 6 : 0;
@@ -535,14 +555,10 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
 
   const handlePenalty = /(support|official|news|updates|hq|team)/i.test(candidate.account.handle) ? 20 : 0;
   const brandPenalty = /\b(official|support|newsroom|company|inc|labs|hq)\b/i.test(candidate.account.bio) ? 16 : 0;
-  const largeCorporatePenalty = candidate.account.followers >= 500_000 && !/(founder|ceo|cto|i build|i'm|my |engineer|designer)/i.test(candidate.account.bio) ? 35 : 0;
-  // Penalty for accounts with huge followers but zero niche relevance (celebrity/influencer noise)
-  const irrelevantInfluencerPenalty = candidate.account.followers >= 100_000 && topicalHits === 0 ? 25 : 0;
-
   const score = clampScore(
     5 + topicScore + bioRelevanceScore + engagementScore + activePostSignal
     + followerScore + creatorBioBonus + engagementWillingnessBonus
-    - handlePenalty - brandPenalty - largeCorporatePenalty - irrelevantInfluencerPenalty,
+    - handlePenalty - brandPenalty,
   );
 
   const reasons: string[] = [];
@@ -551,11 +567,8 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   if (postHits > 0) reasons.push(`${postHits} recent posts discuss the niche`);
   if (creatorBioBonus > 0) reasons.push("Bio signals individual creator/operator");
   if (engagementWillingnessBonus > 0) reasons.push("Posts show reposting/engagement behavior");
-  if (candidate.account.followers >= 500 && candidate.account.followers < 100_000) reasons.push(`Mid-range audience (${candidate.account.followers.toLocaleString()} followers) — good promotion reach`);
   if (engagementScore >= 12) reasons.push("Active engagement signals");
   if (handlePenalty > 0 || brandPenalty > 0) reasons.push("Brand or support-account penalty applied");
-  if (largeCorporatePenalty > 0) reasons.push("Large corporate account — unlikely to engage for promotion");
-  if (irrelevantInfluencerPenalty > 0) reasons.push("High-follower account with no niche relevance");
 
   return {
     score,
@@ -630,22 +643,6 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
       source: "handle",
       snippet: `@${candidate.account.handle.replace(/^@/, "")}`,
       whyItAligns: `Handle contains "${handleHits.join('", "')}" — niche identity is part of their brand.`,
-    });
-  }
-
-  // Audience signal — contextualized for promotion value
-  if (candidate.account.followers >= 500) {
-    const audienceDescription = candidate.account.followers >= 100_000
-      ? "Large audience"
-      : candidate.account.followers >= 10_000
-        ? "Strong mid-tier audience"
-        : candidate.account.followers >= 1_000
-          ? "Solid niche audience"
-          : "Growing audience";
-    evidence.push({
-      source: "audience",
-      snippet: `${candidate.account.followers.toLocaleString()} followers`,
-      whyItAligns: `${audienceDescription} (${candidate.account.followers.toLocaleString()}) — their repost/interaction would reach a relevant segment for "${niche}" promotion.`,
     });
   }
 
@@ -800,11 +797,23 @@ async function runSourceFanoutAgent(input: SourceFanoutAgentInput): Promise<{
 }> {
   try {
     const results = await searchTavily(input.query, input.limit);
+    const discoveredUrls = normalizeDiscoveredUrls(
+      results,
+      resolveMultiAgentUrlLimit(input.limit, input.goalCount),
+    );
+
+    // When searching within a user's followers, inject the verified_followers URL
+    // as a priority scrape target so AgentQL can extract profiles from it directly.
+    const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
+    if (cleanSeed) {
+      const verifiedFollowersUrl = `https://x.com/${cleanSeed}/verified_followers`;
+      if (!discoveredUrls.includes(verifiedFollowersUrl)) {
+        discoveredUrls.unshift(verifiedFollowersUrl);
+      }
+    }
+
     return {
-      candidateUrls: normalizeDiscoveredUrls(
-        results,
-        resolveMultiAgentUrlLimit(input.limit, input.goalCount),
-      ),
+      candidateUrls: discoveredUrls,
       errors: [],
     };
   } catch (error) {
@@ -1098,6 +1107,7 @@ const SourceResearchSubgraphState = Annotation.Root({
   goalCount: Annotation<number>,
   limit: Annotation<number>,
   query: Annotation<string>,
+  seedHandle: Annotation<string | undefined>,
   candidateUrls: Annotation<string[]>({
     reducer: mergeUniqueStrings,
     default: () => [],
@@ -1362,6 +1372,7 @@ const graph = new StateGraph(MultiAgentState)
         goalCount: state.goalCount,
         limit: state.limit,
         query,
+        seedHandle: state.seedHandle,
       } satisfies SourceFanoutAgentInput));
     }
 

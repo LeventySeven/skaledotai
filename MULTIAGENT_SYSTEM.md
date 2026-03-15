@@ -15,20 +15,24 @@ The implementation is split across:
 
 ## 1. High-Level Goal
 
-The system is built to find relevant X accounts for a lead-search query such as:
+The system is built to find **targeted promotion leads** on X — people who would potentially interact with, repost, or promote content about a specific niche in exchange for payment. Example queries:
 
-- `"best product designers"`
+- `"product designers working in startups"`
 - `"fintech founders"`
 - `"AI engineers building in public"`
 
+The system's core principle is **relevance over reach**: a 2k-follower creator who actively discusses the niche and shows engagement behavior is far more valuable than a 200k-follower account that never engages with the topic. Follower count is only a pre-filter (minimum threshold), never a scoring signal or evidence.
+
 It does not rely on one search call. Instead, it runs a bounded supervisor-style workflow that:
 
-1. Plans discovery queries.
-2. Fans those queries out to a search source.
-3. Scrapes discovered X profile URLs.
-4. Scores extracted candidates.
-5. Validates whether the graph has enough candidate coverage.
-6. Either terminates or enters a recovery lane and retries with adjusted parameters.
+1. Interprets the search goal to understand the essence of the ideal lead — who they are, what their bio says, how they engage.
+2. Plans discovery queries targeting engaged niche participants (bio identity + engagement behavior).
+3. Fans those queries out to Tavily with advanced search depth.
+4. Scrapes discovered X profile URLs with AgentQL (profile + tweets).
+5. Scores candidates purely by niche relevance: topic overlap, bio alignment, post evidence, creator signals, engagement willingness. Follower count = 0 score contribution.
+6. Extracts concrete evidence: exact bio quotes, post excerpts with engagement stats, handle identity signals.
+7. Validates whether the graph has enough candidate coverage.
+8. Either terminates or enters a recovery lane and retries with adjusted parameters.
 
 The graph is implemented with `@langchain/langgraph`. The model wrapper used by the planner is `@langchain/openai`, but orchestration, branching, fanout, recovery, and termination are owned by LangGraph.
 
@@ -210,11 +214,12 @@ The user may ask for `~40` final leads. The system deliberately over-fetches dis
 
 It computes:
 
-- `targetLeadCount`: desired final lead count
+- `targetLeadCount`: desired final lead count (soft target, not a hard cap)
 - `goalCount`: desired discovery candidate count
 - `parseAccountsTarget`: candidate parsing budget
+- `minFollowers`: minimum follower threshold (multiples of 1000) — used only as a pre-filter, never as a scoring signal or evidence
 
-This separation exists because discovery must usually gather more raw candidates than the final lead target in order to survive filtering and screening.
+This separation exists because discovery must usually gather more raw candidates than the final lead target in order to survive filtering and screening. The target is approximate — if more relevant leads pass evidence-based screening, they are all kept.
 
 ## 8. Discovery Provider: LangGraph-Owned Loop
 
@@ -308,7 +313,30 @@ The current graph is:
 
 ### 10.1 Planner
 
-The planner is responsible for deciding which search queries should be used for the current attempt.
+The planner is responsible for deciding which search queries should be used for the current attempt. It consists of two subagents:
+
+#### Goal Interpreter subagent
+
+The goal interpreter analyzes the search query to understand the **essence of the ideal lead** — a person who is actively engaged in the niche and would interact with, repost, or promote content for payment. It extracts:
+
+- **roleTerms**: who these people are (e.g. "product designer", "founder", "engineer")
+- **bioTerms**: what their bio would mention, including behavioral terms like "building", "shipping", "writing about", "obsessed with"
+- **geoHints**: optional location signals
+- **antiGoals**: account types to avoid (support, official, brand, institution, dormant, bot)
+- **userGoals**: short descriptions capturing the essence of the ideal lead for this niche, emphasizing relevance and engagement behavior over follower count
+
+The prompt explicitly states that a 2k-follower founder who actively discusses the niche is far more valuable than a 200k-follower account that never engages.
+
+#### Dork Planner subagent
+
+Generates Google dork queries and heuristic queries that target **engaged niche participants**, not just large accounts. Query patterns include:
+
+- Bio-focused dorks: `site:x.com "niche" ("building" OR "founder" OR "creator")`
+- Engagement-focused dorks: `site:x.com "niche" ("thread" OR "repost" OR "recommend")`
+- Identity dorks: `site:twitter.com "niche" ("I build" OR "my project" OR "my startup")`
+- Escalation dorks (later attempts): `"collab" OR "DM me" OR "open to"`, `"indie" OR "bootstrapped"`, `"just shipped" OR "check out"`
+
+Heuristic queries target: "people who repost share and engage", "engaged community members", "indie makers operators shipping building".
 
 Inputs include:
 
@@ -359,11 +387,11 @@ Those modes are driven by recovery state:
 
 `source_fanout` runs one branch per query.
 
-This node uses Tavily search to discover candidate X profile URLs related to each planned query.
+This node uses Tavily search (advanced depth) to discover candidate X profile URLs related to each planned query.
 
 Responsibilities:
 
-- execute Tavily search
+- execute Tavily search with `search_depth: "advanced"` for higher quality results
 - normalize URLs
 - enforce a bounded URL budget
 - attach query-scoped errors if Tavily fails
@@ -389,12 +417,12 @@ This is the map-reduce fanout stage for scraping.
 
 `scraper` runs one branch per URL batch.
 
-It uses AgentQL to extract profile and tweet payloads from X URLs.
+It uses AgentQL to extract profile **and tweet** payloads from X URLs using `profile_with_tweets` mode. This ensures the pipeline gets both bio content and recent post content for evidence extraction and relevance scoring.
 
 Responsibilities:
 
-- call AgentQL with bounded concurrency
-- accumulate raw payloads
+- call AgentQL with bounded concurrency in `profile_with_tweets` mode
+- accumulate raw payloads containing profile data + up to 5 recent tweets
 - record processed URLs
 - attach per-URL error records when a scrape fails
 
@@ -406,20 +434,43 @@ Failures here do not necessarily kill the run. They become structured error reco
 
 It does not call a model. Scoring is deterministic and cheap.
 
-Signals include:
+**Relevance-first scoring formula** (0-100 clamped):
 
-- keyword overlap between niche and bio/posts
-- follower count
-- engagement-derived signal
-- presence of recent posts
-- penalties for support/brand/official accounts
+| Signal | Max points | Description |
+|--------|-----------|-------------|
+| Topic relevance | 35 | Niche keyword hits across bio + posts (`topicalHits * 7`) |
+| Bio relevance | 15 | Niche keywords found specifically in bio (`bioHits * 5`) |
+| Engagement behavior | 20 | Log-scaled from likes, replies (x3 weight), reposts (x4 weight), views |
+| Active post signal | 12 | Posts that discuss niche keywords (`postHits * 4`), or 3 if posts exist but don't match |
+| Creator bio bonus | 6 | Bio contains creator/operator terms (founder, building, shipping, indie, freelance, etc.) |
+| Engagement willingness | 5 | Posts show reposting/collaboration behavior (RT, thread, collab, recommend, etc.) |
+| **Follower count** | **0** | **Not a scoring signal — only a pre-filter** |
+
+Penalties:
+
+| Penalty | Points | Trigger |
+|---------|--------|---------|
+| Handle penalty | -20 | Handle contains support/official/news/hq/team |
+| Brand penalty | -16 | Bio contains official/support/newsroom/company/inc/labs/hq |
 
 The score is clamped to `0-100`, and the node also stores human-readable reasons such as:
 
-- niche keyword hits
-- healthy engagement signals
-- follower base threshold
-- brand penalty applied
+- niche keyword hits across bio/posts
+- bio directly mentions niche terms
+- recent posts discuss the niche
+- bio signals individual creator/operator
+- posts show reposting/engagement behavior
+- active engagement signals
+- brand or support-account penalty applied
+
+**Evidence extraction** runs alongside scoring and produces concrete proof of niche relevance:
+
+- **Bio evidence**: exact bio quotes showing niche identity + creator/operator signals
+- **Post evidence**: exact post excerpts with engagement stats (likes, reposts, replies) proving active niche participation
+- **Engagement behavior evidence**: posts showing reposting, threading, collaboration, or recommendation behavior
+- **Handle evidence**: niche keywords found in the handle itself
+
+No follower-based evidence is generated. Audience size never appears as a reason for inclusion.
 
 ### 10.6 Validator
 
@@ -431,12 +482,12 @@ It decides whether the workflow:
 - terminates because the budget is exhausted
 - enters recovery and retries
 
-The validator computes:
+The validator keeps ALL scored candidates without capping at `goalCount` — more relevant leads = better. It computes:
 
-- sorted candidate pool
+- sorted candidate pool (sorted by relevance score, then evidence count, then post count — never followers)
 - attempt yield
 - attempt-scoped errors
-- whether goal count is satisfied
+- whether goal count is satisfied (determines whether to retry, not whether to cap)
 - whether all current work is exhausted
 - whether recovery is needed
 
@@ -556,7 +607,9 @@ After discovery completes, `searchAndAddLeads(...)` continues with additional st
 
 ### 14.1 Screening Pool Build
 
-The discovered candidates are sorted and trimmed into a screening pool. This is an over-fetched candidate set designed to give the AI screener enough surface area to choose from.
+ALL discovered candidates are sent to AI screening with no artificial cap. Candidates are sorted by relevance (post count > bio length > followers as last tiebreaker) and prioritized: candidates with posts first, then substantive bios, then discovery source variety.
+
+The philosophy is: more relevant leads = better. The AI screener handles rejection, not a pre-screening cap.
 
 ### 14.2 AI Screening
 
@@ -564,12 +617,18 @@ The screening stage calls:
 
 - `screenProfilesForLeadSearchDetailed(...)`
 
-This model-driven stage decides which discovered candidates are worth keeping as final leads for the user’s actual request.
+This model-driven stage decides which discovered candidates are genuinely relevant to the exact niche described in the query. The screening prompt enforces strict evidence-based decisions:
+
+- **ONLY include** a profile if specific bio/post text directly references the query’s core topic
+- **Follower count is NOT evidence** — it is explicitly excluded from reasoning. Profiles below the minimum follower threshold have already been removed before screening
+- Scoring requires exact bio/post quotes as proof: 80-100 (bio AND posts), 60-79 (bio OR posts), 40-59 (at least one clear reference), 0/reject (no specific evidence)
+- Vague connections, adjacent industries, or generic terms do NOT count as evidence
+- **No artificial result cap** — all leads that pass screening are kept. More relevant leads = better
 
 This is separate from graph scoring:
 
-- graph scoring: heuristic ranking to stabilize discovery
-- AI screening: semantic lead-fit selection for the final output
+- graph scoring: deterministic relevance ranking to stabilize discovery
+- AI screening: evidence-based lead-fit selection requiring exact bio/post proof
 
 ### 14.3 Canonicalization
 
