@@ -378,7 +378,11 @@ Exported functions:
 Internal helpers:
 
 - `dedupeCandidates`
+  Deduplicates candidates by handle. When the same handle appears twice, keeps the version with more posts (richer evidence of activity), then bio length as tiebreaker.
+- `byRelevanceDesc`
+  Sorts candidates by post count (active niche participation), then bio length (identity signal), then followers as last tiebreaker. Follower count is never the primary sort.
 - `buildScreeningPool`
+  Sends ALL discovered candidates to AI screening with no artificial cap. Prioritizes candidates with posts first, then substantive bios, then discovery source, then remaining. More relevant leads = better — the AI screener handles rejection.
 - `toScreeningCandidate`
 - `resolveProject`
 - `canonicalizeCandidates`
@@ -391,7 +395,8 @@ Exported functions:
   Main niche-discovery flow:
   - discover
   - retry with expanded queries when needed
-  - AI-screen
+  - AI-screen with evidence-based filtering (no follower-based decisions)
+  - keep ALL leads that pass screening (no artificial target cap)
   - canonicalize profiles
   - upsert leads
   - record provider run
@@ -611,11 +616,16 @@ Key exports:
 
 Implementation pattern:
 
-- OpenAI planner generates bounded query plans
-- Tavily finds candidate X URLs
+- OpenAI planner generates bounded query plans optimized for finding engaged niche participants (people who would interact/repost for paid promotion)
+- Goal interpreter extracts niche essence: role terms, bio terms, engagement behavior signals, geo hints, and anti-goals
+- Google dork queries target bio identity + engagement behavior (e.g. "building", "shipping", "collab", "DM me")
+- Tavily finds candidate X URLs using advanced search depth
 - URLs are normalized to canonical profile pages
-- AgentQL scrapes those pages
-- scraped data is normalized into candidates
+- AgentQL scrapes profile + tweets (profile_with_tweets mode) to get both bio and recent post content for evidence extraction
+- Relevance-first scoring: topic relevance (35 max) + bio relevance (15) + engagement behavior (20) + active posts (12) + creator bio signals (6) + engagement willingness (5). Follower count contributes zero to the score — it is only a pre-filter
+- Evidence extraction provides exact bio quotes, post excerpts with engagement stats, and handle identity signals — no vague or inferred reasoning
+- Candidate sorting prioritizes relevance score, then evidence count, then post count — never followers
+- Deduplication keeps the version with more posts (richer signal), not more followers
 - lookup calls and discovery scraping tolerate partial AgentQL failures
 - network operations are unsupported
 
@@ -659,8 +669,8 @@ Main job:
 
 - `rankProfilesForQuery`
   Ranks profile IDs by relevance.
-- `screenProfilesForLeadSearch`
-  High-recall filter that rejects obvious junk while keeping plausible leads.
+- `screenProfilesForLeadSearch` / `screenProfilesForLeadSearchDetailed`
+  Evidence-based screening that requires specific bio/post quotes as proof of niche relevance. Follower count is explicitly excluded from inclusion/exclusion decisions — it is only a pre-filter. The screener demands exact phrases from the candidate's bio or posts that match the search query's core topic. No artificial result cap — all leads that pass screening are kept.
 - `expandLeadSearchQueries`
   Produces broader query variants to improve recall.
 
@@ -706,7 +716,7 @@ Main job:
 - `SearchWorkspace.tsx`
   Page composition.
 - `SearchForm.tsx`
-  Search query form, project target selection, seed-follower option, and min-follower filter.
+  Search query form, project target selection, seed-follower option, and min-follower filter. Minimum follower options are multiples of 1000 (1k through 10k in 1k steps, then 15k, 20k, 30k, 50k, 100k). Follower count is a filter only — it does not influence scoring, evidence, or lead inclusion decisions.
 - `ImportNetworkForm.tsx`
   Full network import form.
 

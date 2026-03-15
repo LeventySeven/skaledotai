@@ -2,22 +2,25 @@
 
 `skaleai` is a Next.js application for discovering, organizing, scoring, and preparing outreach to X/Twitter leads.
 
+The core purpose is finding **targeted promotion leads** — real people on X who are actively engaged in a specific niche and would potentially interact with, repost, or promote content in exchange for payment. The system prioritizes **relevance over reach**: a 2k-follower creator who actively discusses the niche is more valuable than a 200k-follower account that never engages with the topic. Follower count is only a minimum threshold filter, never a scoring signal or evidence.
+
 The app is opinionated around one workflow:
 
 1. Pick an X data provider.
 2. Search for relevant X accounts or import a seed account's network.
-3. Store those profiles as leads inside a project.
-4. Refresh post stats and AI-derived priority signals.
-5. Queue leads for outreach and generate reusable outreach templates.
-6. Run AI analysis across multiple projects to create a new shortlist project.
+3. The multi-agent pipeline discovers candidates, scores them by niche relevance (not followers), extracts concrete evidence from bios and posts, and AI-screens with strict evidence requirements.
+4. Store those profiles as leads inside a project — all leads that pass evidence-based screening are kept (no artificial cap).
+5. Refresh post stats and AI-derived priority signals.
+6. Queue leads for outreach and generate reusable outreach templates.
+7. Run AI analysis across multiple projects to create a new shortlist project.
 
 ## What the product does
 
 The current codebase implements five major product areas:
 
-- Search: discover leads by niche query or by searching within a seed account's followers.
+- Search: discover leads by niche query or by searching within a seed account's followers. The multi-agent pipeline uses relevance-first scoring, evidence-based AI screening, and keeps all qualifying leads. Minimum follower filter uses multiples of 1000 (1k-100k) as a pre-filter only.
 - Projects: organize leads into project buckets and run AI analysis across projects.
-- Leads: store CRM-style lead records, edit pipeline fields, and track outreach state.
+- Leads: store CRM-style lead records, edit pipeline fields, and track outreach state. Leads table displays 20 leads per page.
 - Outreach: manage the outreach queue and generate/save message templates.
 - Settings: choose the global X data source and manage API keys.
 
@@ -31,9 +34,12 @@ The user runs `search.run` through the Search page.
 
 - The selected global X provider is sent in the `x-data-provider` header.
 - The backend asks the provider layer for discovery candidates.
-- The search service deduplicates and over-collects candidates.
+- For `multiagent`: the LangGraph pipeline interprets the search goal, generates relevance-focused queries (bio identity + engagement behavior), discovers URLs via Tavily (advanced depth), scrapes profiles + tweets via AgentQL, and scores by niche relevance (follower count = 0 score weight).
+- The search service deduplicates candidates (preferring versions with more posts, not more followers).
+- ALL discovered candidates are sent to AI screening — no artificial pool cap.
+- AI screening requires **exact bio/post quotes** as evidence of niche relevance. Follower count is explicitly excluded from inclusion/exclusion decisions. Vague or inferred connections are rejected.
+- **All leads that pass screening are kept** — no result cap at `targetLeadCount`. More relevant leads = better.
 - OpenAI is used to expand queries when recall is too low.
-- OpenAI is also used as a screening layer to keep plausible leads and reject obvious junk.
 - Canonical profile lookups run through the same provider when supported.
 - The final profiles are upserted into `leads`.
 - The selected project is created or reused, then linked through `project_leads`.
@@ -188,6 +194,13 @@ The app mints a short-lived signed token, and the browser streams `multiagent` N
   - limited discovered URL count
   - limited scrape concurrency
   - partial tolerance for upstream AgentQL failures
+- **Relevance-first design principles**:
+  - Follower count is ONLY a pre-filter (minimum threshold), never a scoring signal, evidence source, or sort criterion
+  - Minimum follower options are multiples of 1000 (1k through 100k)
+  - All scoring, sorting, deduplication, screening, and evidence extraction are based on niche relevance: topic keyword overlap, bio alignment, post content, engagement behavior
+  - AI screening demands exact bio/post quotes as proof — no vague reasoning accepted
+  - No artificial cap on results — all leads that pass evidence-based screening are kept
+  - Leads table displays 20 per page
 
 ## Development commands
 
