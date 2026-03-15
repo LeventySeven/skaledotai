@@ -38,8 +38,13 @@ export const DEFAULT_PAGE_SIZE = 20;
 
 // AI config
 export const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";
-export const DEFAULT_OPENAI_REASONING_EFFORT: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" =
-  (process.env.OPENAI_REASONING_EFFORT as "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined) ?? "medium";
+const REASONING_EFFORT_VALUES = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
+type ReasoningEffort = (typeof REASONING_EFFORT_VALUES)[number];
+const rawEffort = process.env.OPENAI_REASONING_EFFORT;
+export const DEFAULT_OPENAI_REASONING_EFFORT: ReasoningEffort =
+  rawEffort && (REASONING_EFFORT_VALUES as readonly string[]).includes(rawEffort)
+    ? (rawEffort as ReasoningEffort)
+    : "medium";
 
 // Storage keys
 export const GENERATED_TEMPLATES_STORAGE_KEY =
