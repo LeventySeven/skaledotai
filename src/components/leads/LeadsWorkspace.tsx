@@ -40,7 +40,7 @@ export function LeadsWorkspace() {
               <>
                 <Button
                   variant="outline"
-                  className="h-9 rounded-xl px-3.5 text-[0.92rem]"
+                  className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
                   onClick={workspace.selectEntireSheet}
                 >
                   Select entire sheet
@@ -48,7 +48,7 @@ export function LeadsWorkspace() {
                 {workspace.selectedCount > 0 ? (
                   <Button
                     variant="outline"
-                    className="h-9 rounded-xl px-3.5 text-[0.92rem]"
+                    className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
                     onClick={workspace.clearSelection}
                   >
                     Clear selection
@@ -59,7 +59,7 @@ export function LeadsWorkspace() {
 
             <Button
               variant="outline"
-              className="h-9 rounded-xl px-3.5 text-[0.92rem]"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
               disabled={workspace.isRefreshingStats || workspace.leads.length === 0}
               onClick={() => {
                 workspace.handleScanBios().catch((error: unknown) => {
@@ -73,7 +73,7 @@ export function LeadsWorkspace() {
 
             <Button
               variant="outline"
-              className="h-9 rounded-xl px-3.5 text-[0.92rem]"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
               disabled={workspace.isEnrichingEmails}
               onClick={() => {
                 workspace.handleEnrichEmails().catch((error: unknown) => {

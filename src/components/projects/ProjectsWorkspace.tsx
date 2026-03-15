@@ -160,7 +160,7 @@ export function ProjectsWorkspace() {
 
         <div className="flex flex-wrap items-center gap-3">
           {!analysisMode ? (
-            <Button className="h-10 rounded-xl px-4 text-[0.95rem]" onClick={enterAnalysisMode}>
+            <Button className="h-8 rounded-[10px] px-4 text-[0.88rem]" onClick={enterAnalysisMode}>
               <SparklesIcon className="size-4" />
               AI analysis
             </Button>
@@ -173,7 +173,7 @@ export function ProjectsWorkspace() {
                 placeholder="New campaign name"
               />
               <Button
-                className="h-10 rounded-xl px-4 text-[0.95rem]"
+                className="h-8 rounded-[10px] px-4 text-[0.88rem]"
                 disabled={analyzeMutation.isPending}
                 onClick={() => {
                   handleCreateAiProject().catch(() => undefined);
@@ -184,7 +184,7 @@ export function ProjectsWorkspace() {
               </Button>
               <Button
                 variant="outline"
-                className="h-10 rounded-xl px-4 text-[0.95rem]"
+                className="h-8 rounded-[10px] px-4 text-[0.88rem]"
                 onClick={() => {
                   setAnalysisMode(false);
                   setSelectedProjectIds([]);
@@ -227,14 +227,14 @@ export function ProjectsWorkspace() {
             <div className="flex flex-wrap gap-3">
               <Button
                 variant="outline"
-                className="h-10 rounded-xl px-4 text-[0.95rem]"
+                className="h-8 rounded-[10px] px-4 text-[0.88rem]"
                 onClick={() => setReasoningOpen(true)}
               >
                 View reasoning
               </Button>
               <Button
                 render={<Link href={`/leads?project=${analysisResult.project.id}`} />}
-                className="h-10 rounded-xl px-4 text-[0.95rem]"
+                className="h-8 rounded-[10px] px-4 text-[0.88rem]"
               >
                 Open created sheet
                 <ArrowRightIcon className="size-4" />
@@ -311,12 +311,12 @@ export function ProjectsWorkspace() {
             />
           </div>
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" className="h-9 rounded-xl px-4 text-[0.88rem]" />}>
+            <DialogClose render={<Button variant="outline" className="h-8 rounded-[10px] px-4 text-[0.88rem]" />}>
               Cancel
             </DialogClose>
             <Button
               variant="destructive"
-              className="h-9 rounded-xl px-4 text-[0.88rem] disabled:opacity-40"
+              className="h-8 rounded-[10px] px-4 text-[0.88rem] disabled:opacity-40"
               disabled={deleteConfirmText !== deleteTarget?.name || deleteMutation.isPending}
               onClick={confirmDelete}
             >

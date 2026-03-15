@@ -153,7 +153,7 @@ export function ProjectCard({
             {project.seedUsername ? (
               <Button
                 variant="ghost"
-                className="h-9 rounded-xl px-3 text-[0.88rem]"
+                className="h-8 rounded-[10px] px-3 text-[0.88rem]"
                 onClick={(event) => {
                   event.stopPropagation();
                   const params = new URLSearchParams({ importUsername: project.seedUsername!, project: project.id });
@@ -168,7 +168,7 @@ export function ProjectCard({
             ) : project.query ? (
               <Button
                 variant="ghost"
-                className="h-9 rounded-xl px-3 text-[0.88rem]"
+                className="h-8 rounded-[10px] px-3 text-[0.88rem]"
                 onClick={(event) => {
                   event.stopPropagation();
                   const params = new URLSearchParams({ project: project.id, query: project.query! });
@@ -192,7 +192,7 @@ export function ProjectCard({
             ) : null}
             <Button
               variant="outline"
-              className="h-9 rounded-xl px-3 text-[0.88rem]"
+              className="h-8 rounded-[10px] px-3 text-[0.88rem]"
               onClick={(event) => {
                 event.stopPropagation();
                 startTransition(() => {
@@ -205,7 +205,7 @@ export function ProjectCard({
             </Button>
             <Button
               variant="ghost"
-              className="h-9 w-9 rounded-xl px-0 text-muted-foreground hover:text-red-600"
+              className="h-8 w-8 rounded-[10px] px-0 text-muted-foreground hover:text-red-600"
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete(project.id);

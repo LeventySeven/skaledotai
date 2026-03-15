@@ -90,7 +90,7 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
         <h2 className="text-[1.95rem] font-semibold tracking-[-0.03em]">API Keys</h2>
         <Button
           variant="outline"
-          className="h-[40px] rounded-2xl px-5 text-[1rem]"
+          className="h-8 rounded-[10px] px-4 text-[0.88rem]"
           onClick={() => setShowCreateForm((current) => !current)}
         >
           <PlusIcon className="size-4" />
@@ -107,7 +107,7 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
             onChange={(event) => setName(event.target.value)}
             required
           />
-          <Button className="h-[44px] rounded-2xl px-5 text-[1rem]" disabled={createKey.isPending}>
+          <Button className="h-8 rounded-[10px] px-4 text-[0.88rem]" disabled={createKey.isPending}>
             {createKey.isPending ? "Generating..." : "Generate"}
           </Button>
         </form>

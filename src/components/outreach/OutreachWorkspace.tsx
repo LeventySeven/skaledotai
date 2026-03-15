@@ -83,7 +83,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[10px] text-[0.88rem]"
+            className="h-8 rounded-[10px] text-[0.88rem]"
             onClick={() => setCreateModalOpen(true)}
           >
             Create new
@@ -159,14 +159,14 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
             </select>
             <Button
               variant="outline"
-              className="h-10 rounded-xl px-4 text-[0.92rem]"
+              className="h-8 rounded-[10px] px-4 text-[0.88rem]"
               onClick={() => { handleImportFolder().catch(() => undefined); }}
             >
               Import folder
             </Button>
             <Button
               variant="outline"
-              className="h-10 rounded-xl px-4 text-[0.92rem]"
+              className="h-8 rounded-[10px] px-4 text-[0.88rem]"
               disabled={selectedLeadIds.length === 0 || isRemoving}
               onClick={() => { handleRemoveSelected().catch(() => undefined); }}
             >
@@ -232,7 +232,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           {selectedTemplateIds.length} templates selected • {selectedLeadIds.length} leads selected
         </div>
         <Button
-          className="h-11 rounded-xl px-5 text-[0.95rem]"
+          className="h-8 rounded-[10px] px-4 text-[0.88rem]"
           disabled={isSending}
           onClick={() => {
             handleSendSelected().catch((error: unknown) => {

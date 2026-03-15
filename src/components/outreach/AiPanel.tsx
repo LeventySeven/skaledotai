@@ -60,7 +60,7 @@ export function AiPanel({
           onChange={(e: ChangeEvent<HTMLInputElement>) => onStylePromptChange(e.target.value)}
         />
         <Button
-          className="h-9 rounded-xl px-4 text-[0.88rem]"
+          className="h-8 rounded-[10px] px-4 text-[0.88rem]"
           disabled={isGenerating}
           onClick={onGenerate}
         >

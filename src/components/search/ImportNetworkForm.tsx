@@ -89,7 +89,7 @@ export function ImportNetworkForm() {
           <Button
             type="button"
             variant="outline"
-            className="h-8 rounded-lg px-3 text-[0.82rem]"
+            className="h-8 rounded-[10px] px-3 text-[0.88rem]"
             onClick={() => router.replace("/search")}
           >
             Start fresh
@@ -118,7 +118,7 @@ export function ImportNetworkForm() {
         <Button
           type="submit"
           variant="outline"
-          className="h-[42px] w-full rounded-[10px] text-[1rem] font-medium"
+          className="h-8 w-full rounded-[10px] text-[0.88rem] font-medium"
           disabled={importMutation.isPending}
         >
           {importMutation.isPending ? <Spinner className="size-4" /> : null}

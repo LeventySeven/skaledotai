@@ -84,13 +84,13 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
         <div className="mt-6 flex justify-end gap-3">
           <Button
             variant="outline"
-            className="h-9 rounded-xl px-4 text-[0.9rem]"
+            className="h-8 rounded-[10px] px-4 text-[0.88rem]"
             onClick={onClose}
           >
             Cancel
           </Button>
           <Button
-            className="h-9 rounded-xl px-4 text-[0.9rem]"
+            className="h-8 rounded-[10px] px-4 text-[0.88rem]"
             onClick={handleSave}
           >
             {mode === "create" ? "Create" : mode === "fork" ? "Save to my templates" : "Save"}
