@@ -53,10 +53,10 @@ export function SearchWorkspace() {
           </h1>
         </div>
 
-        <form className="space-y-5" onSubmit={handleContinue}>
+        <form className="w-full space-y-5" onSubmit={handleContinue}>
           <div className="relative">
             <Input
-              className="h-[48px] items-center rounded-[12px] pr-12 text-[1.05rem]"
+              className="h-[64px] w-full rounded-full border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[1.05rem]"
               placeholder="e.g. best product designers"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -66,13 +66,13 @@ export function SearchWorkspace() {
             <Button
               type="submit"
               size="icon-bare"
-              className="absolute top-1/2 right-2.5 size-8 -translate-y-1/2 rounded-[8px] bg-foreground text-background hover:bg-foreground/90"
+              className="absolute top-1/2 right-3 size-10 -translate-y-1/2 rounded-full bg-foreground text-background hover:bg-foreground/90"
             >
               <ArrowRightIcon className="size-4" />
             </Button>
           </div>
 
-          <div className="space-y-2">
+          <div>
             <label className="flex items-center gap-3 text-[0.95rem]">
               <Checkbox
                 checked={searchFollowersOnly}
@@ -82,7 +82,7 @@ export function SearchWorkspace() {
             </label>
             {searchFollowersOnly ? (
               <Input
-                className="h-[42px] items-center rounded-[10px] text-[1rem]"
+                className="mt-3 h-[64px] w-full rounded-full border-[#dddddd] bg-[#f8f8f8] pt-3 pr-3 pb-3 pl-[29px] text-[1rem]"
                 placeholder="@markknd"
                 value={followerUsername}
                 onChange={(event) => setFollowerUsername(event.target.value)}
