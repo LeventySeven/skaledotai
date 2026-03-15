@@ -196,7 +196,14 @@ function getDiscoveryMinFollowers(provider: XDataProvider, minFollowers: number)
   return provider === "x-api" ? 0 : minFollowers;
 }
 
-function byFollowersDesc(a: XLeadCandidate, b: XLeadCandidate): number {
+function byRelevanceDesc(a: XLeadCandidate, b: XLeadCandidate): number {
+  // Prefer candidates with posts (active niche participation) over those with just a profile
+  const postDiff = b.posts.length - a.posts.length;
+  if (postDiff !== 0) return postDiff;
+  // Then prefer candidates with longer bios (more identity signal)
+  const bioDiff = b.account.bio.length - a.account.bio.length;
+  if (bioDiff !== 0) return bioDiff;
+  // Followers as last tiebreaker
   return b.account.followers - a.account.followers;
 }
 
@@ -206,7 +213,8 @@ function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
   for (const candidate of candidates) {
     const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
     const existing = byHandle.get(key);
-    if (!existing || candidate.account.followers > existing.account.followers) {
+    // Keep the version with more posts (evidence of activity), then more followers as tiebreaker
+    if (!existing || candidate.posts.length > existing.posts.length || (candidate.posts.length === existing.posts.length && candidate.account.followers > existing.account.followers)) {
       byHandle.set(key, candidate);
     }
   }
@@ -229,11 +237,16 @@ function buildScreeningPool(candidates: XLeadCandidate[], targetLeadCount: numbe
     pool.push(candidate);
   }
 
-  for (const candidate of candidates.slice(0, headCount)) push(candidate);
-  for (const candidate of candidates.filter((candidate) => candidate.posts.length > 0)) push(candidate);
+  // Priority 1: candidates with posts (evidence of active niche participation)
+  for (const candidate of candidates.filter((candidate) => candidate.posts.length > 0).slice(0, headCount)) push(candidate);
+  // Priority 2: candidates with substantive bios (identity signal)
+  for (const candidate of candidates.filter((candidate) => candidate.account.bio.trim().length >= 30).slice(0, headCount)) push(candidate);
+  // Priority 3: reply/profile search sources (direct niche discovery)
   for (const candidate of candidates.filter((candidate) => candidate.discoverySource === "profile_search" || candidate.discoverySource === "reply_search")) {
     push(candidate);
   }
+  // Priority 4: remaining candidates up to head count
+  for (const candidate of candidates.slice(0, headCount)) push(candidate);
   for (const candidate of candidates) push(candidate);
 
   return pool;
@@ -621,7 +634,7 @@ export async function searchAndAddLeads(
 
     const screeningPool = buildScreeningPool(
       discoveredCandidates
-        .sort(byFollowersDesc),
+        .sort(byRelevanceDesc),
       targetLeadCount,
     );
 

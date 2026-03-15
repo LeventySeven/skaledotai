@@ -281,7 +281,7 @@ export async function screenProfilesForLeadSearchDetailed(
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
       instructions:
-        "You are screening X/Twitter search results for an outreach CRM. A lead is someone you could realistically DM or email — founders, indie hackers, creators, freelancers, consultants, engineers, designers, small startup teams, and small reachable companies. NOT leads: large corporations (Apple, Google, Nike etc.), celebrity accounts with millions of followers, official brand accounts, support/news accounts, bots, parody accounts, media outlets, institutions. Use a high-recall filter. Keep plausible leads that are relevant to the niche. Reject clearly unusable accounts and large companies that would never respond to outreach. When uncertain, keep the account and give it a moderate score.",
+        "You are screening X/Twitter profiles to find TARGETED PROMOTION LEADS — people who would potentially interact with, repost, or promote a post about this niche in exchange for payment. Score by RELEVANCE and ENGAGEMENT POTENTIAL, not follower count. The ideal lead: (1) has a bio showing genuine involvement in the niche, (2) posts actively about the topic, (3) shows engagement behavior (reposts, threads, recommendations), (4) has a relevant audience even if small (500-50k is fine). High score = strong niche fit + active engagement. Moderate score = relevant but less active. Low score = tangentially relevant. REJECT: large corporations, celebrities, official brand accounts, bots, news outlets, dormant accounts, and accounts with high followers but zero niche relevance. When uncertain, keep the account with a moderate score. IMPORTANT: a 2k-follower creator who actively discusses the niche is MORE valuable than a 200k-follower account that never engages with the topic.",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -322,7 +322,10 @@ export async function screenProfilesForLeadSearchDetailed(
     .filter((candidate) => selectedScores.has(candidate.xUserId))
     .sort((a, b) => {
       const scoreDiff = (selectedScores.get(b.xUserId) ?? 0) - (selectedScores.get(a.xUserId) ?? 0);
-      return scoreDiff || b.followersCount - a.followersCount;
+      if (scoreDiff !== 0) return scoreDiff;
+      // Tiebreaker: prefer candidates with sample posts (active niche participation)
+      const postDiff = (b.samplePosts?.length ?? 0) - (a.samplePosts?.length ?? 0);
+      return postDiff || b.bio.length - a.bio.length;
     })
     .slice(0, maxResults)
     .map((candidate) => candidate.xUserId);

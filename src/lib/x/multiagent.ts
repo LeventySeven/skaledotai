@@ -104,7 +104,7 @@ const mergeScoredCandidates = (left: ScoredCandidate[], right: ScoredCandidate[]
   for (const item of right) {
     const key = item.candidate.account.handle.replace(/^@/, "").toLowerCase();
     const existing = byHandle.get(key);
-    if (!existing || item.score > existing.score || item.candidate.account.followers > existing.candidate.account.followers) {
+    if (!existing || item.score > existing.score || (item.score === existing.score && (item.evidence?.length ?? 0) > (existing.evidence?.length ?? 0))) {
       byHandle.set(key, item);
     }
   }
@@ -121,7 +121,8 @@ const mergeCandidates = (left: XLeadCandidate[], right: XLeadCandidate[]): XLead
   for (const item of right) {
     const key = item.account.handle.replace(/^@/, "").toLowerCase();
     const existing = byHandle.get(key);
-    if (!existing || item.account.followers > existing.account.followers) {
+    // Keep the version with more posts (richer signal), then bio length, then followers
+    if (!existing || item.posts.length > existing.posts.length || (item.posts.length === existing.posts.length && item.account.bio.length > existing.account.bio.length)) {
       byHandle.set(key, item);
     }
   }
@@ -320,9 +321,10 @@ function buildHeuristicGoalInterpretation(input: {
     roleTerms: keywords.slice(0, 5),
     bioTerms: keywords.slice(0, 6),
     geoHints,
-    antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution"],
+    antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution", "dormant account", "bot"],
     userGoals: [
-      `Find individual X accounts aligned with ${input.niche}.`,
+      `Find individual X accounts who actively engage with ${input.niche} content and would repost/interact with promoted posts for payment.`,
+      `Prioritize people whose bios and recent posts demonstrate genuine involvement in ${input.niche}, not just large follower counts.`,
       input.seedHandle ? `Prefer accounts adjacent to @${input.seedHandle.replace(/^@/, "")}.` : "",
     ].filter(Boolean),
   };
@@ -337,15 +339,21 @@ async function interpretLeadSearchGoals(input: {
   try {
     const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
     const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
-      "Interpret this lead-search request for a multi-agent X discovery system.",
+      "Interpret this lead-search request for a multi-agent X discovery system that finds TARGETED PROMOTION LEADS.",
       "",
-      "WHAT IS A LEAD: A lead is a real person or small reachable company that you could actually DM or email for outreach. Think founders, indie hackers, solo creators, small startup teams, freelancers, consultants, engineers, designers, operators — people who would realistically read and respond to a cold message.",
+      "WHAT IS A LEAD: A lead is a real person on X/Twitter who is ACTIVELY ENGAGED in this niche and would potentially interact with, repost, or promote a post in exchange for payment. The ideal lead:",
+      "- Has a bio that clearly shows they work in or are passionate about this specific niche",
+      "- Actively posts about the niche (not just a stale bio claim)",
+      "- Engages with others' content — reposts, replies, threads, recommendations",
+      "- Has a relevant audience that would see their repost (doesn't need to be huge — 500-50k followers in the right niche is ideal)",
+      "- Is an individual creator, founder, operator, freelancer, engineer, designer — someone approachable for paid collaboration",
       "",
-      "NOT A LEAD: Large corporations (Apple, Google, Nike), celebrity/public-figure accounts with millions of followers, brand accounts, official support/news accounts, bots, parody accounts, media outlets, and institutions. These are NOT leads because they won't respond to outreach.",
+      "NOT A LEAD: Large corporations, celebrities, official brand accounts, bots, news outlets, institutions, parody accounts. Also NOT leads: people with huge followings but zero niche relevance, or dormant accounts with no recent activity.",
       "",
-      "Extract target role terms, useful bio terms, optional geo hints, anti-goals, and short user goals.",
-      "Favor individual creators, operators, founders, designers, engineers, and practitioners over brand/support/news accounts.",
-      "Add anti-goals for large companies, corporations, official brand accounts, and celebrity accounts.",
+      "IMPORTANT: Focus on RELEVANCE and ENGAGEMENT BEHAVIOR over raw follower counts. A 2k-follower founder who actively discusses the niche and reposts related content is far more valuable than a 200k-follower account that never engages with the topic.",
+      "",
+      "Extract target role terms (who these people are), bio terms (what their bio would mention), optional geo hints, anti-goals, and short user goals that capture the ESSENCE of the ideal lead for this niche.",
+      "For bioTerms, include behavioral terms like: 'building', 'shipping', 'writing about', 'obsessed with', 'exploring', plus niche-specific terms.",
       JSON.stringify(input),
     ].join("\n")));
 
@@ -378,14 +386,20 @@ function buildGoogleDorkQueries(input: {
   const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
 
   return dedupeQueries([
-    `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""}`,
-    `site:twitter.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""}`,
-    roleBlock ? `site:x.com (${input.interpretation.roleTerms.slice(0, 3).join(" OR ")}) "${input.niche}"` : "",
-    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}"` : "",
-    cleanSeed ? `site:x.com "${input.niche}" ("@${cleanSeed}" OR "similar to @${cleanSeed}")` : "",
-    input.attempt >= 2 ? `site:x.com "${input.niche}" ("bio" OR "designer" OR "founder" OR "engineer")` : "",
-    input.attempt >= 3 ? `site:x.com "${input.niche}" ("shipping" OR "building" OR "threads")` : "",
-    input.attempt >= 4 ? `site:twitter.com "${input.niche}" ("creator" OR "operator" OR "maker")` : "",
+    // Bio-focused dorks: find people who identify with the niche
+    `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""} ("building" OR "founder" OR "creator")`,
+    `site:x.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""} ("shipping" OR "obsessed" OR "working on")`,
+    // Engagement-focused dorks: find people who actively discuss and share
+    roleBlock ? `site:x.com (${input.interpretation.roleTerms.slice(0, 3).join(" OR ")}) "${input.niche}" ("thread" OR "repost" OR "recommend")` : "",
+    `site:twitter.com "${input.niche}" ("I build" OR "I write about" OR "my project" OR "my startup")`,
+    // Geo-targeted
+    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}" ("founder" OR "builder" OR "creator")` : "",
+    // Seed-adjacent
+    cleanSeed ? `site:x.com "${input.niche}" ("@${cleanSeed}" OR "replying to @${cleanSeed}")` : "",
+    // Attempt escalation: broader engagement signals
+    input.attempt >= 2 ? `site:x.com "${input.niche}" ("collab" OR "DM me" OR "open to" OR "available for")` : "",
+    input.attempt >= 3 ? `site:x.com "${input.niche}" ("indie" OR "bootstrapped" OR "solopreneur" OR "freelance")` : "",
+    input.attempt >= 4 ? `site:twitter.com "${input.niche}" ("sharing my" OR "launched" OR "just shipped" OR "check out")` : "",
   ]).slice(0, input.queryBudget);
 }
 
@@ -401,11 +415,11 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
   const niche = input.niche.trim();
   const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
   const queries = [
-    niche,
-    `${niche} founders builders engineers creators on x`,
-    `${niche} real people personal accounts on x`,
-    `${niche} operators shipping threads on x`,
-    seedHandle ? `${niche} accounts similar to @${seedHandle} on x` : "",
+    `${niche} founders creators builders actively posting on x`,
+    `${niche} people who repost share and engage on x`,
+    `${niche} indie makers operators shipping building on x`,
+    `${niche} engaged community members threads discussions on x`,
+    seedHandle ? `${niche} people interacting with @${seedHandle} on x` : "",
     seedHandle ? `people replying to @${seedHandle} about ${niche} on x` : "",
   ];
 
@@ -416,12 +430,12 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
   const cleanSeed = seedHandle?.replace(/^@/, "").trim();
 
   return dedupeQueries([
-    `${niche} founders builders operators threads on x`,
-    `${niche} engineers creators practitioners sharing wins on x`,
-    `${niche} startup teams makers people to follow on x`,
-    cleanSeed ? `${niche} mutuals around @${cleanSeed} on x` : "",
-    attempt >= 3 ? `${niche} hiring building shipping on x` : "",
-    attempt >= 4 ? `${niche} devtools saas founders on x` : "",
+    `${niche} people who actively promote and repost content on x`,
+    `${niche} engaged creators sharing recommendations on x`,
+    `${niche} community voices micro-influencers niche experts on x`,
+    cleanSeed ? `${niche} mutuals and collaborators of @${cleanSeed} on x` : "",
+    attempt >= 3 ? `${niche} open to collabs partnerships promotions on x` : "",
+    attempt >= 4 ? `${niche} thought leaders small audience high engagement on x` : "",
   ]);
 }
 
@@ -480,6 +494,8 @@ function clampScore(value: number): number {
 
 function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): { score: number; reasons: string[] } {
   const keywords = extractKeywords(niche);
+  const bioText = normalizeText(candidate.account.bio);
+  const postTexts = candidate.posts.slice(0, 5).map((post) => normalizeText(post.text));
   const profileText = normalizeText([
     candidate.account.name,
     candidate.account.bio,
@@ -487,30 +503,63 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   ].join(" "));
 
   const topicalHits = keywords.filter((keyword) => profileText.includes(keyword)).length;
-  const followerScore = Math.min(28, Math.round(Math.log10(candidate.account.followers + 10) * 8));
+  const bioHits = keywords.filter((keyword) => bioText.includes(keyword)).length;
+  const postHits = postTexts.filter((text) => keywords.some((keyword) => text.includes(keyword))).length;
+
+  // Relevance-first scoring: topical alignment is the dominant signal
+  const topicScore = Math.min(35, topicalHits * 7);
+  const bioRelevanceScore = Math.min(15, bioHits * 5);
+
+  // Engagement behavior: people who actively repost/reply are better promotion leads
   const engagementBase = candidate.metrics.avgLikes
-    + (candidate.metrics.avgReplies * 2)
-    + (candidate.metrics.avgReposts * 2)
+    + (candidate.metrics.avgReplies * 3)
+    + (candidate.metrics.avgReposts * 4)
     + ((candidate.metrics.avgViews ?? 0) / 500);
-  const engagementScore = Math.min(30, Math.round(Math.log10(engagementBase + 10) * 10));
-  const postSignal = candidate.posts.length > 0 ? 10 : 0;
-  const topicScore = Math.min(24, topicalHits * 6);
-  const handlePenalty = /(support|official|news|updates|hq|team)/i.test(candidate.account.handle) ? 18 : 0;
-  const brandPenalty = /\b(official|support|newsroom|company|inc|labs|hq)\b/i.test(candidate.account.bio) ? 14 : 0;
-  const largeCorporatePenalty = candidate.account.followers >= 500_000 && !/(founder|ceo|cto|i build|i'm|my |engineer|designer)/i.test(candidate.account.bio) ? 30 : 0;
-  const score = clampScore(12 + followerScore + engagementScore + postSignal + topicScore - handlePenalty - brandPenalty - largeCorporatePenalty);
+  const engagementScore = Math.min(20, Math.round(Math.log10(engagementBase + 10) * 7));
+
+  // Posts with niche keywords show active participation, not just a bio claim
+  const activePostSignal = postHits > 0 ? Math.min(12, postHits * 4) : (candidate.posts.length > 0 ? 3 : 0);
+
+  // Follower count is a minor signal — enough audience to be useful, but not the priority
+  const followerScore = candidate.account.followers >= 500
+    ? Math.min(10, Math.round(Math.log10(candidate.account.followers + 10) * 3))
+    : 2;
+
+  // Creator/operator bio signals: people likely to engage with promotion offers
+  const creatorBioBonus = /(founder|ceo|cto|i build|building|shipping|creator|maker|indie|freelance|consultant|engineer|designer|operator|solopreneur|bootstrapped)/i.test(candidate.account.bio) ? 6 : 0;
+
+  // Engagement willingness signals from posts: retweets, threads, interactions
+  const engagementWillingnessBonus = candidate.posts.some((post) =>
+    /(RT @|repost|thread|🧵|collab|promo|shill|check out|recommend)/i.test(post.text),
+  ) ? 5 : 0;
+
+  const handlePenalty = /(support|official|news|updates|hq|team)/i.test(candidate.account.handle) ? 20 : 0;
+  const brandPenalty = /\b(official|support|newsroom|company|inc|labs|hq)\b/i.test(candidate.account.bio) ? 16 : 0;
+  const largeCorporatePenalty = candidate.account.followers >= 500_000 && !/(founder|ceo|cto|i build|i'm|my |engineer|designer)/i.test(candidate.account.bio) ? 35 : 0;
+  // Penalty for accounts with huge followers but zero niche relevance (celebrity/influencer noise)
+  const irrelevantInfluencerPenalty = candidate.account.followers >= 100_000 && topicalHits === 0 ? 25 : 0;
+
+  const score = clampScore(
+    5 + topicScore + bioRelevanceScore + engagementScore + activePostSignal
+    + followerScore + creatorBioBonus + engagementWillingnessBonus
+    - handlePenalty - brandPenalty - largeCorporatePenalty - irrelevantInfluencerPenalty,
+  );
 
   const reasons: string[] = [];
   if (topicalHits > 0) reasons.push(`${topicalHits} niche keyword hits across bio/posts`);
-  if (candidate.account.followers >= 5_000) reasons.push(`Follower base ${candidate.account.followers.toLocaleString()}`);
-  if (candidate.posts.length > 0) reasons.push(`${candidate.posts.length} recent sample posts`);
-  if (engagementScore >= 16) reasons.push("Healthy engagement signals");
+  if (bioHits > 0) reasons.push(`Bio directly mentions ${bioHits} niche terms`);
+  if (postHits > 0) reasons.push(`${postHits} recent posts discuss the niche`);
+  if (creatorBioBonus > 0) reasons.push("Bio signals individual creator/operator");
+  if (engagementWillingnessBonus > 0) reasons.push("Posts show reposting/engagement behavior");
+  if (candidate.account.followers >= 500 && candidate.account.followers < 100_000) reasons.push(`Mid-range audience (${candidate.account.followers.toLocaleString()} followers) — good promotion reach`);
+  if (engagementScore >= 12) reasons.push("Active engagement signals");
   if (handlePenalty > 0 || brandPenalty > 0) reasons.push("Brand or support-account penalty applied");
-  if (largeCorporatePenalty > 0) reasons.push("Large corporate account — unlikely to respond to outreach");
+  if (largeCorporatePenalty > 0) reasons.push("Large corporate account — unlikely to engage for promotion");
+  if (irrelevantInfluencerPenalty > 0) reasons.push("High-follower account with no niche relevance");
 
   return {
     score,
-    reasons: reasons.length > 0 ? reasons : ["Baseline creator-fit heuristic score"],
+    reasons: reasons.length > 0 ? reasons : ["Baseline relevance heuristic score"],
   };
 }
 
@@ -518,13 +567,59 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
   const keywords = extractKeywords(niche);
   const evidence: SelectionEvidence[] = [];
 
-  // Profile signal extraction: name
-  const nameHits = keywords.filter((kw) => normalizeText(candidate.account.name).includes(kw));
-  if (nameHits.length > 0) {
+  // Bio relevance — the strongest signal of who this person is
+  if (candidate.account.bio.trim().length > 0) {
+    const bioHits = keywords.filter((kw) => normalizeText(candidate.account.bio).includes(kw));
+    const bioSnippet = candidate.account.bio.length > 180
+      ? candidate.account.bio.slice(0, 180) + "..."
+      : candidate.account.bio;
+    const isCreator = /(founder|ceo|cto|i build|building|shipping|creator|maker|indie|freelance|consultant|engineer|designer|operator|solopreneur|bootstrapped)/i.test(candidate.account.bio);
+
+    if (bioHits.length > 0 || isCreator) {
+      evidence.push({
+        source: "bio",
+        snippet: bioSnippet,
+        whyItAligns: bioHits.length > 0
+          ? `Bio directly references ${bioHits.map((h) => `"${h}"`).join(", ")} — this person identifies with the "${niche}" space.${isCreator ? " Bio also signals an individual creator/operator who would engage with promotion offers." : ""}`
+          : `Bio signals an individual creator/operator (${candidate.account.bio.slice(0, 60)}...) who could be approached for paid engagement in "${niche}".`,
+      });
+    }
+  }
+
+  // Post evidence — shows active niche participation, not just a stale bio
+  const nicheMatchingPosts = candidate.posts
+    .filter((post) => keywords.some((kw) => normalizeText(post.text).includes(kw)))
+    .slice(0, 3);
+  const engagementPosts = candidate.posts
+    .filter((post) => /(RT @|repost|thread|🧵|collab|promo|shill|check out|recommend|love this|great post)/i.test(post.text))
+    .slice(0, 2);
+
+  for (const post of nicheMatchingPosts) {
+    const postSnippet = post.text.length > 180
+      ? post.text.slice(0, 180) + "..."
+      : post.text;
+    const postHits = keywords.filter((kw) => normalizeText(post.text).includes(kw));
+    const engagementStats = [
+      post.likes > 0 ? `${post.likes} likes` : "",
+      post.reposts > 0 ? `${post.reposts} reposts` : "",
+      post.replies > 0 ? `${post.replies} replies` : "",
+    ].filter(Boolean).join(", ");
     evidence.push({
-      source: "name",
-      snippet: candidate.account.name,
-      whyItAligns: `Found "${nameHits.join('", "')}" in name, which aligns with "${niche}".`,
+      source: "post",
+      snippet: postSnippet,
+      whyItAligns: `Post discusses ${postHits.map((h) => `"${h}"`).join(", ")} — proves active participation in "${niche}".${engagementStats ? ` (${engagementStats})` : ""}`,
+    });
+  }
+
+  // Engagement behavior evidence — shows willingness to promote/interact
+  for (const post of engagementPosts.filter((p) => !nicheMatchingPosts.includes(p))) {
+    const postSnippet = post.text.length > 160
+      ? post.text.slice(0, 160) + "..."
+      : post.text;
+    evidence.push({
+      source: "post",
+      snippet: postSnippet,
+      whyItAligns: `This post shows engagement/promotion behavior — this person actively reposts, recommends, or collaborates, making them a strong candidate for paid promotion.`,
     });
   }
 
@@ -534,47 +629,23 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
     evidence.push({
       source: "handle",
       snippet: `@${candidate.account.handle.replace(/^@/, "")}`,
-      whyItAligns: `Found "${handleHits.join('", "')}" in handle, which aligns with "${niche}".`,
+      whyItAligns: `Handle contains "${handleHits.join('", "')}" — niche identity is part of their brand.`,
     });
   }
 
-  // Bio signal
-  if (candidate.account.bio.trim().length > 0) {
-    const bioHits = keywords.filter((kw) => normalizeText(candidate.account.bio).includes(kw));
-    if (bioHits.length > 0) {
-      const bioSnippet = candidate.account.bio.length > 140
-        ? candidate.account.bio.slice(0, 140) + "..."
-        : candidate.account.bio;
-      evidence.push({
-        source: "bio",
-        snippet: bioSnippet,
-        whyItAligns: `Found "${bioHits.join('", "')}" in bio, which aligns with "${niche}".`,
-      });
-    }
-  }
-
-  // Post signal extraction: up to 2 posts
-  const matchingPosts = candidate.posts
-    .filter((post) => keywords.some((kw) => normalizeText(post.text).includes(kw)))
-    .slice(0, 2);
-  for (const post of matchingPosts) {
-    const postSnippet = post.text.length > 160
-      ? post.text.slice(0, 160) + "..."
-      : post.text;
-    const postHits = keywords.filter((kw) => normalizeText(post.text).includes(kw));
-    evidence.push({
-      source: "post",
-      snippet: postSnippet,
-      whyItAligns: `Found "${postHits.join('", "')}" in post, which aligns with "${niche}".`,
-    });
-  }
-
-  // Audience signal
-  if (candidate.account.followers >= 1_000) {
+  // Audience signal — contextualized for promotion value
+  if (candidate.account.followers >= 500) {
+    const audienceDescription = candidate.account.followers >= 100_000
+      ? "Large audience"
+      : candidate.account.followers >= 10_000
+        ? "Strong mid-tier audience"
+        : candidate.account.followers >= 1_000
+          ? "Solid niche audience"
+          : "Growing audience";
     evidence.push({
       source: "audience",
       snippet: `${candidate.account.followers.toLocaleString()} followers`,
-      whyItAligns: `Reachable audience size suggests this is someone worth contacting about "${niche}".`,
+      whyItAligns: `${audienceDescription} (${candidate.account.followers.toLocaleString()}) — their repost/interaction would reach a relevant segment for "${niche}" promotion.`,
     });
   }
 
@@ -585,7 +656,11 @@ function sortScoredCandidates(items: ScoredCandidate[]): ScoredCandidate[] {
   return [...items].sort((left, right) => {
     const scoreDiff = right.score - left.score;
     if (scoreDiff !== 0) return scoreDiff;
-    return right.candidate.account.followers - left.candidate.account.followers;
+    // Tiebreaker: prefer candidates with more evidence pieces (deeper niche fit)
+    const evidenceDiff = (right.evidence?.length ?? 0) - (left.evidence?.length ?? 0);
+    if (evidenceDiff !== 0) return evidenceDiff;
+    // Final tiebreaker: prefer candidates with posts (active participation)
+    return right.candidate.posts.length - left.candidate.posts.length;
   });
 }
 
@@ -811,13 +886,20 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
 
       const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
       const existing = byHandle.get(key);
-      if (!existing || candidate.account.followers > existing.account.followers) {
+      if (!existing || candidate.posts.length > existing.posts.length || (candidate.posts.length === existing.posts.length && candidate.account.bio.length > existing.account.bio.length)) {
         byHandle.set(key, candidate);
       }
     }
   }
 
-  return [...byHandle.values()].sort((left, right) => right.account.followers - left.account.followers);
+  // Sort by bio/post relevance to the niche, not by follower count
+  const keywords = extractKeywords(state.niche);
+  return [...byHandle.values()].sort((left, right) => {
+    const leftRelevance = keywords.filter((kw) => normalizeText([left.account.bio, ...left.posts.map((p) => p.text)].join(" ")).includes(kw)).length;
+    const rightRelevance = keywords.filter((kw) => normalizeText([right.account.bio, ...right.posts.map((p) => p.text)].join(" ")).includes(kw)).length;
+    if (rightRelevance !== leftRelevance) return rightRelevance - leftRelevance;
+    return right.posts.length - left.posts.length;
+  });
 }
 
 function mergeCandidateWithProfile(candidate: XLeadCandidate, profile: XProfile): XLeadCandidate {

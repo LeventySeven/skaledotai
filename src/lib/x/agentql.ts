@@ -102,7 +102,7 @@ export async function queryAgentQl(
       },
       body: JSON.stringify(buildAgentQlQueryRequest(
         url,
-        capability === "tweets" ? "tweets" : "profile",
+        capability === "tweets" ? "tweets" : "profile_with_tweets",
       )),
       cache: "no-store",
       signal: controller.signal,

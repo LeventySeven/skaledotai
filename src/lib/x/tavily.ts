@@ -30,7 +30,7 @@ export function buildTavilySearchRequest(query: string, limit: number): Record<s
   return {
     api_key: requireEnv("TAVILY_API_KEY"),
     query,
-    search_depth: "basic",
+    search_depth: "advanced",
     include_domains: ["x.com", "twitter.com"],
     max_results: Math.max(10, Math.min(20, Math.ceil(limit / 2))),
   };
