@@ -146,7 +146,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Select value={importProjectId} onValueChange={(val) => setImportProjectId(val as string)}>
-              <SelectTrigger className="h-10 min-w-[220px] rounded-[10px] text-[0.92rem]">
+              <SelectTrigger className="h-8 w-[220px] rounded-[10px] text-[0.88rem]">
                 <span className="flex-1 truncate">
                   {projects.find((p) => p.id === importProjectId)?.name ?? "Select folder"}
                 </span>
