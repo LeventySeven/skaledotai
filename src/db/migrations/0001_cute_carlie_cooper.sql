@@ -2,7 +2,7 @@ CREATE TABLE "internal_leads" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,
 	"name" text NOT NULL,
-	"social" text NOT NULL,
+	"handle" text NOT NULL,
 	"platform" text DEFAULT 'twitter' NOT NULL,
 	"deliverables" text[] DEFAULT '{}' NOT NULL,
 	"url" text,
