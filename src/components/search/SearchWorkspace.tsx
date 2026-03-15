@@ -60,7 +60,7 @@ export function SearchWorkspace() {
             />
             <button
               type="submit"
-              className="ml-3 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#111111]"
+              className="ml-3 flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#111111] transition-transform duration-150 hover:scale-110 active:scale-95"
             >
               <svg width="12" height="10" viewBox="0 0 14 12" fill="none"><path d="M0.75 5.75H12.75M12.75 5.75L7.95 0.75M12.75 5.75L7.95 10.75" stroke="#F4F4F4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
