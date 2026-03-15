@@ -91,7 +91,7 @@ export function ImportNetworkForm() {
         <div>
           <h2 className="text-[1.45rem] font-semibold tracking-[-0.03em]">Import verified followers</h2>
           <p className="mt-1.5 text-[0.98rem] text-muted-foreground">
-            Import verified followers &amp; following from an X account directly into your leads.
+            Import an X account&apos;s verified followers directly into your leads. No AI filtering — 1:1 import via X API.
           </p>
         </div>
 

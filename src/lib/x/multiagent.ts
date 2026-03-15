@@ -385,20 +385,23 @@ function buildGoogleDorkQueries(input: {
   const geoBlock = input.interpretation.geoHints[0]?.trim();
   const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
 
-  const seedDorkQueries = cleanSeed
-    ? [
-      // Primary: target the verified_followers page directly
-      `site:x.com/${cleanSeed}/verified_followers ${input.niche}`,
-      `site:x.com/${cleanSeed}/verified_followers`,
-      `site:x.com inurl:${cleanSeed}/verified_followers "${input.niche}"`,
-      // Secondary: find people adjacent to the seed
-      `site:x.com "${input.niche}" ("@${cleanSeed}" OR "replying to @${cleanSeed}")`,
-    ]
-    : [];
+  // When searching within a user's followers, ALL queries scope to verified_followers page
+  if (cleanSeed) {
+    const vf = `site:x.com/${cleanSeed}/verified_followers`;
+    return dedupeQueries([
+      `${vf} ${input.niche}`,
+      `${vf}`,
+      `${vf} ${input.niche} ${roleBlock ? `("${roleBlock}")` : ""}`,
+      `${vf} ${input.niche} ${bioBlock ? `("${bioBlock}")` : ""}`,
+      `${vf} ("building" OR "founder" OR "creator") ${input.niche}`,
+      `${vf} ("shipping" OR "working on" OR "obsessed") ${input.niche}`,
+      geoBlock ? `${vf} "${geoBlock}" ${input.niche}` : "",
+      input.attempt >= 2 ? `${vf} ("collab" OR "DM me" OR "open to") ${input.niche}` : "",
+      input.attempt >= 3 ? `${vf} ("indie" OR "bootstrapped" OR "freelance") ${input.niche}` : "",
+    ]).slice(0, input.queryBudget);
+  }
 
   return dedupeQueries([
-    // When we have a seed, prioritize verified_followers dorks
-    ...seedDorkQueries,
     // Bio-focused dorks: find people who identify with the niche
     `site:x.com "${input.niche}" ${roleBlock ? `("${roleBlock}")` : ""} ("building" OR "founder" OR "creator")`,
     `site:x.com "${input.niche}" ${bioBlock ? `("${bioBlock}")` : ""} ("shipping" OR "obsessed" OR "working on")`,
@@ -425,37 +428,47 @@ function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" |
 export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[] {
   const niche = input.niche.trim();
   const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
-  const queries = seedHandle
-    ? [
-      // When searching within a user's followers, prioritize the verified_followers page via Google dork
-      `site:x.com/${seedHandle}/verified_followers ${niche}`,
-      `site:x.com/${seedHandle}/verified_followers`,
-      `site:x.com "${niche}" inurl:${seedHandle}/verified_followers`,
-      `${niche} people interacting with @${seedHandle} on x`,
-      `people replying to @${seedHandle} about ${niche} on x`,
-      `${niche} followers of @${seedHandle} on x`,
-    ]
-    : [
-      `${niche} founders creators builders actively posting on x`,
-      `${niche} people who repost share and engage on x`,
-      `${niche} indie makers operators shipping building on x`,
-      `${niche} engaged community members threads discussions on x`,
-    ];
 
-  return dedupeQueries(queries).slice(0, resolveMultiAgentQueryBudget(input));
+  // When searching within a user's followers, ALL queries scope to verified_followers
+  if (seedHandle) {
+    const vf = `site:x.com/${seedHandle}/verified_followers`;
+    return dedupeQueries([
+      `${vf} ${niche}`,
+      `${vf}`,
+      `${vf} ${niche} founders creators builders`,
+      `${vf} ${niche} people who repost share engage`,
+      `${vf} ${niche} indie makers operators`,
+      `${vf} ${niche} engaged community members`,
+    ]).slice(0, resolveMultiAgentQueryBudget(input));
+  }
+
+  return dedupeQueries([
+    `${niche} founders creators builders actively posting on x`,
+    `${niche} people who repost share and engage on x`,
+    `${niche} indie makers operators shipping building on x`,
+    `${niche} engaged community members threads discussions on x`,
+  ]).slice(0, resolveMultiAgentQueryBudget(input));
 }
 
 function buildAttemptVariantQueries(niche: string, seedHandle: string | undefined, attempt: number): string[] {
   const cleanSeed = seedHandle?.replace(/^@/, "").trim();
 
+  // When searching within a user's followers, ALL queries scope to verified_followers
+  if (cleanSeed) {
+    const vf = `site:x.com/${cleanSeed}/verified_followers`;
+    return dedupeQueries([
+      `${vf} ${niche} promote repost content`,
+      `${vf} ${niche} engaged creators recommendations`,
+      `${vf} ${niche} micro-influencers niche experts`,
+      attempt >= 3 ? `${vf} ${niche} collab partnerships` : "",
+      attempt >= 4 ? `${vf} ${niche} small audience high engagement` : "",
+    ]);
+  }
+
   return dedupeQueries([
-    // When searching within a user's followers, keep targeting verified_followers
-    cleanSeed ? `site:x.com/${cleanSeed}/verified_followers ${niche}` : "",
-    cleanSeed ? `${niche} verified followers of @${cleanSeed} on x` : "",
     `${niche} people who actively promote and repost content on x`,
     `${niche} engaged creators sharing recommendations on x`,
     `${niche} community voices micro-influencers niche experts on x`,
-    cleanSeed ? `${niche} mutuals and collaborators of @${cleanSeed} on x` : "",
     attempt >= 3 ? `${niche} open to collabs partnerships promotions on x` : "",
     attempt >= 4 ? `${niche} thought leaders small audience high engagement on x` : "",
   ]);

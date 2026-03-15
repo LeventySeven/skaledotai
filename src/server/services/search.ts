@@ -800,46 +800,33 @@ export async function importAccountNetwork(
 
     const candidates = new Map<string, CanonicalCandidate>();
     let nextFollowers: string | undefined;
-    let nextFollowing: string | undefined;
     let fetched = 0;
 
+    // Only import the user's verified followers — not accounts they follow
     while (fetched < NETWORK_TARGET) {
-      const [followersPage, followingPage] = await Promise.all([
-        network.client.getFollowersPage({
-          userId: seed.xUserId,
-          username: seed.username,
-          paginationToken: nextFollowers,
-          maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
-        }),
-        network.client.getFollowingPage({
-          userId: seed.xUserId,
-          username: seed.username,
-          paginationToken: nextFollowing,
-          maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
-        }),
-      ]);
+      const followersPage = await network.client.getFollowersPage({
+        userId: seed.xUserId,
+        username: seed.username,
+        paginationToken: nextFollowers,
+        maxResults: X_PROVIDER_NETWORK_PAGE_SIZE,
+      });
 
       for (const profile of followersPage.profiles) {
         if (!profile.verified) continue;
         candidates.set(profile.username.toLowerCase(), { ...profile, samplePosts: [], source: "followers" });
       }
-      for (const profile of followingPage.profiles) {
-        if (!profile.verified) continue;
-        candidates.set(profile.username.toLowerCase(), { ...profile, samplePosts: [], source: "following" });
-      }
 
-      fetched += followersPage.profiles.length + followingPage.profiles.length;
+      fetched += followersPage.profiles.length;
       nextFollowers = followersPage.nextToken;
-      nextFollowing = followingPage.nextToken;
 
-      if ((!nextFollowers && !nextFollowing) || (followersPage.profiles.length === 0 && followingPage.profiles.length === 0)) {
+      if (!nextFollowers || followersPage.profiles.length === 0) {
         break;
       }
     }
 
     trace.addStep({
       title: "Network Sweep",
-      summary: `Collected ${candidates.size} verified accounts from the followers and following graph.`,
+      summary: `Collected ${candidates.size} verified followers of @${cleanHandle}.`,
       status: network.resolution.usedFallback ? "warning" : "success",
       provider: network.resolution.effectiveProvider,
       bullets: [
