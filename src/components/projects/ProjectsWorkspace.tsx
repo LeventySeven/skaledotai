@@ -287,9 +287,9 @@ export function ProjectsWorkspace() {
             </DialogDescription>
             <div className="mt-1 flex items-center gap-1.5">
               <span className="text-[0.95rem] font-semibold text-foreground">{deleteTarget?.name}</span>
-              <button
-                type="button"
-                className="inline-flex items-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => {
                   if (deleteTarget?.name) {
                     navigator.clipboard.writeText(deleteTarget.name);
@@ -298,7 +298,7 @@ export function ProjectsWorkspace() {
                 }}
               >
                 <CopyIcon className="size-3.5" />
-              </button>
+              </Button>
             </div>
           </DialogHeader>
           <div className="px-6 pb-2">

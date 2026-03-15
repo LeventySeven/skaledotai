@@ -154,13 +154,13 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
                   <TableCell>{formatDate(key.createdAt)}</TableCell>
                   <TableCell>{formatDate(key.lastUsed)}</TableCell>
                   <TableCell>
-                    <button
-                      type="button"
-                      className="inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => deleteKey.mutate({ id: key.id })}
                     >
                       <Trash2Icon className="size-4.5" />
-                    </button>
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

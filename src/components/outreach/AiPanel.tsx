@@ -38,18 +38,15 @@ export function AiPanel({
           {projects.map((project) => {
             const selected = selectedProjectIds.includes(project.id);
             return (
-              <button
+              <Button
                 key={project.id}
-                type="button"
+                variant={selected ? "default" : "outline"}
+                size="sm"
+                className="rounded-full px-3 text-[0.83rem]"
                 onClick={() => onToggleProject(project.id)}
-                className={`rounded-full border px-3 py-1 text-[0.83rem] transition-colors ${
-                  selected
-                    ? "border-foreground/20 bg-foreground text-background"
-                    : "border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground"
-                }`}
               >
                 {project.name}
-              </button>
+              </Button>
             );
           })}
         </div>

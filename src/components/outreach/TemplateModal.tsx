@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { XIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toastManager } from "@/components/ui/toast";
 
 interface TemplateModalProps {
@@ -42,9 +43,9 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
           <h2 className="text-[18px] font-medium">
             {mode === "create" ? "New template" : mode === "fork" ? "Save as your template" : "Edit template"}
           </h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon-xs" onClick={onClose}>
             <XIcon className="size-4" />
-          </button>
+          </Button>
         </div>
 
         <div className="flex flex-col gap-4">
@@ -81,20 +82,19 @@ export function TemplateModal({ mode, initialTitle = "", initialBody = "", onClo
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            className="h-9 rounded-xl px-4 text-[0.9rem]"
             onClick={onClose}
-            className="h-9 rounded-xl border border-input px-4 text-[0.9rem] text-muted-foreground hover:text-foreground"
           >
             Cancel
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            className="h-9 rounded-xl px-4 text-[0.9rem]"
             onClick={handleSave}
-            className="h-9 rounded-xl bg-foreground px-4 text-[0.9rem] text-background hover:opacity-90"
           >
             {mode === "create" ? "Create" : mode === "fork" ? "Save to my templates" : "Save"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

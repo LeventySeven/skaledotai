@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { LangGraphIcon } from "@/components/ui/langgraph-icon";
 import { XLogoIcon } from "@/components/ui/x-icon";
 import { cn } from "@/lib/utils";
@@ -23,21 +24,21 @@ export function XDataSourceSummaryCard({
         const active = provider === option.value;
 
         return (
-          <button
+          <Button
             key={option.value}
-            type="button"
-            onClick={() => setProvider(option.value as XDataProvider)}
+            variant="outline"
             className={cn(
-              "flex items-center gap-1.5 rounded-[10px] border px-3 py-2 text-[0.85rem] font-semibold shadow-sm transition-colors",
+              "rounded-[10px] px-3 py-2 text-[0.85rem] font-semibold",
               active
-                ? "border-[#e43420] bg-card"
-                : "border-border/70 bg-card text-muted-foreground hover:border-foreground/20",
+                ? "border-[#e43420]"
+                : "text-muted-foreground",
             )}
+            onClick={() => setProvider(option.value as XDataProvider)}
           >
             {option.value === "x-api" ? <><XLogoIcon className="size-3.5" /> API</> : null}
             {option.value === "multiagent" ? <><LangGraphIcon className="size-5" /> {option.label}</> : null}
             {active ? <CheckCircle2Icon className="size-3.5 text-[#e43420]" /> : null}
-          </button>
+          </Button>
         );
       })}
     </div>

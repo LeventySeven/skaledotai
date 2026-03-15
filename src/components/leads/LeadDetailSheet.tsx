@@ -308,18 +308,20 @@ export function LeadDetailSheet({
               <span className="w-36 shrink-0 text-sm text-muted-foreground">Priority</span>
               <div className="flex gap-1.5">
                 {(["P0", "P1"] as const).map((p) => (
-                  <button
+                  <Button
                     key={p}
-                    onClick={() => onPatch(lead.id, { priority: p })}
+                    variant="ghost"
+                    size="xs"
                     className={cn(
-                      "rounded px-2 py-0.5 text-xs font-semibold transition-colors",
+                      "font-semibold",
                       lead.priority === p
-                        ? p === "P0" ? "bg-orange-100 text-orange-700" : "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-muted"
+                        ? p === "P0" ? "bg-orange-100 text-orange-700 hover:bg-orange-100" : "bg-muted text-foreground"
+                        : "text-muted-foreground"
                     )}
+                    onClick={() => onPatch(lead.id, { priority: p })}
                   >
                     {p}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { LangGraphIcon } from "@/components/ui/langgraph-icon";
@@ -32,21 +33,18 @@ export function XDataProviderSelector({
         const active = provider === option.value;
 
         return (
-          <button
+          <Button
             key={option.value}
-            type="button"
-            onClick={() => {
-              if (!disabled) setProvider(option.value);
-            }}
+            variant="outline"
             className={cn(
-              "flex items-center justify-between rounded-[10px] border bg-card px-4 py-3 text-left shadow-sm transition-colors",
-              active
-                ? "border-[#e43420]"
-                : "border-border/70 hover:border-foreground/20",
-              disabled && "cursor-not-allowed opacity-50",
+              "flex h-auto items-center justify-between rounded-[10px] px-4 py-3 text-left",
+              active && "border-[#e43420]",
             )}
             aria-pressed={active}
             disabled={disabled}
+            onClick={() => {
+              if (!disabled) setProvider(option.value);
+            }}
           >
             <div className="flex items-center gap-1.5 text-[0.95rem] font-semibold">
               {option.value === "x-api" ? <><XLogoIcon className="size-3.5" /> API</> : null}
@@ -58,7 +56,7 @@ export function XDataProviderSelector({
             ) : (
               <span className="size-[18px] shrink-0 rounded-full border border-border/70" />
             )}
-          </button>
+          </Button>
         );
       })}
     </div>

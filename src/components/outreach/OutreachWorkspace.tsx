@@ -80,16 +80,17 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
               You can select multiple templates to randomise the outreach.
             </div>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-[10px] text-[0.88rem]"
             onClick={() => setCreateModalOpen(true)}
-            className="flex h-8 min-w-8 items-center gap-0.5 rounded-[10px] border border-[#00000014] bg-[#00000009] px-1.5 text-[0.88rem] font-medium whitespace-nowrap transition-colors hover:bg-[#00000015] hover:border-[#00000025] active:bg-[#00000022]"
           >
-            <span className="px-1">Create new</span>
+            Create new
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="shrink-0">
               <path d="M9 3.75V14.25M3.75 9H14.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-          </button>
+          </Button>
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fill,minmax(271px,1fr))] items-stretch gap-5">

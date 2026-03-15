@@ -3,6 +3,7 @@
 import { MoreHorizontalIcon, SearchIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -161,13 +162,13 @@ export function LeadsTable({
                 </TableCell>
                 <TableCell className="border-r border-border/45 text-center text-[0.82rem] text-muted-foreground">{lead.email ?? "—"}</TableCell>
                 <TableCell className="text-center" onClick={(event) => event.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="inline-flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() => onOpenLead(lead)}
                   >
                     <MoreHorizontalIcon className="size-5" />
-                  </button>
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
