@@ -99,9 +99,9 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
       </div>
 
       {showCreateForm && (
-        <form className="mt-6 flex gap-3" onSubmit={handleCreate}>
+        <form className="mt-6 flex items-center gap-3" onSubmit={handleCreate}>
           <Input
-            className="h-[44px] rounded-2xl text-[1rem]"
+            className="h-8 rounded-[10px] text-[0.88rem]"
             placeholder="Name"
             value={name}
             onChange={(event) => setName(event.target.value)}
