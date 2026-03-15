@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
@@ -27,40 +26,12 @@ export function LeadsWorkspace() {
         <div className="flex w-full items-start justify-between pb-6">
           <div className="flex flex-col">
             <div className="text-[18px] font-medium text-[#111111]/40">Spreadsheet</div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-[28px] font-medium tracking-[-0.04em]">
-                {workspace.currentProject?.name ?? "Leads"}
-              </h1>
-              {workspace.selectedCount > 0 ? (
-                <Badge variant="outline" className="h-8 rounded-full px-3 text-sm font-semibold">
-                  {workspace.selectedCount} selected
-                </Badge>
-              ) : null}
-            </div>
+            <h1 className="text-[28px] font-medium tracking-[-0.04em]">
+              {workspace.currentProject?.name ?? "Leads"}
+            </h1>
           </div>
 
           <div className="flex items-center gap-3">
-            {workspace.total > 0 ? (
-              <>
-                <Button
-                  variant="outline"
-                  className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
-                  onClick={workspace.selectEntireSheet}
-                >
-                  Select entire sheet
-                </Button>
-                {workspace.selectedCount > 0 ? (
-                  <Button
-                    variant="outline"
-                    className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
-                    onClick={workspace.clearSelection}
-                  >
-                    Clear selection
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-
             <Button
               variant="outline"
               className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
@@ -200,6 +171,31 @@ export function LeadsWorkspace() {
         projectId={workspace.currentProject?.id}
         enableReasoning={workspace.currentProject?.sourceProviders.includes("multiagent")}
       />
+
+      {workspace.selectedCount > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-6 pl-[var(--sidebar-width,280px)]">
+          <div className="flex items-center gap-3 rounded-[14px] border border-border/70 bg-background px-4 py-2.5 shadow-lg">
+            <span className="text-[0.88rem] font-medium">
+              {workspace.selectedCount} selected
+            </span>
+            <div className="h-4 w-px bg-border" />
+            <Button
+              variant="outline"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
+              onClick={workspace.selectEntireSheet}
+            >
+              Select all
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
+              onClick={workspace.clearSelection}
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
