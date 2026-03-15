@@ -87,7 +87,7 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
       <div className="-mx-8 mb-8 border-b border-border/70" />
 
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-[1.95rem] font-semibold tracking-[-0.03em]">API Keys</h2>
+        <div className="text-[18px] font-medium text-[#111111]">API Keys</div>
         <Button
           variant="outline"
           className="h-8 rounded-[10px] px-4 text-[0.88rem]"
@@ -99,7 +99,7 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
       </div>
 
       {showCreateForm && (
-        <form className="mt-6 flex items-center gap-3" onSubmit={handleCreate}>
+        <form className="mt-3 flex items-center gap-3" onSubmit={handleCreate}>
           <Input
             className="h-8 rounded-[10px] text-[0.88rem]"
             placeholder="Name"
