@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { ReasoningSheet, type LiveReasoningStep } from "@/components/runs/ReasoningSheet";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
-import { XLogoIcon } from "@/components/ui/x-icon";
 import { trpc } from "@/lib/trpc/client";
 import type { ProjectRunTrace } from "@/lib/validations/project-runs";
 
@@ -101,15 +100,8 @@ export function ImportNetworkForm() {
         <div>
           <h2 className="text-[1.45rem] font-semibold tracking-[-0.03em]">Import verified followers</h2>
           <p className="mt-1.5 text-[0.98rem] text-muted-foreground">
-            Import an X account&apos;s verified followers directly into your leads. No AI filtering — 1:1 import via X API.
+            Import an X account&apos;s verified followers directly into your leads.
           </p>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-[1.05rem] font-semibold">Data source</label>
-          <div className="flex items-center gap-1.5 rounded-[10px] border border-border/70 bg-card px-3 py-2 text-[0.85rem] font-semibold text-muted-foreground">
-            <XLogoIcon className="size-3.5" /> X API <span className="font-normal text-muted-foreground/60">(network import requires X API)</span>
-          </div>
         </div>
 
         <div className="space-y-2">
