@@ -38,18 +38,21 @@ export function AiPanel({
           {projects.map((project) => {
             const selected = selectedProjectIds.includes(project.id);
             return (
-              <button
+              <span
                 key={project.id}
-                type="button"
+                role="checkbox"
+                aria-checked={selected}
+                tabIndex={0}
                 onClick={() => onToggleProject(project.id)}
-                className={`rounded-full px-3 py-1 text-[0.83rem] font-medium transition-colors ${
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleProject(project.id); } }}
+                className={`inline-block cursor-pointer rounded-[8px] border px-2.5 py-1 text-[0.78rem] leading-tight transition-colors ${
                   selected
-                    ? "bg-foreground/10 text-foreground"
-                    : "bg-transparent text-muted-foreground hover:text-foreground"
+                    ? "border-border bg-card text-foreground shadow-xs"
+                    : "border-transparent text-muted-foreground hover:border-border hover:bg-card"
                 }`}
               >
                 {project.name}
-              </button>
+              </span>
             );
           })}
         </div>
