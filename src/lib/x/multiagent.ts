@@ -341,19 +341,24 @@ async function interpretLeadSearchGoals(input: {
     const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
       "Interpret this lead-search request for a multi-agent X discovery system that finds TARGETED PROMOTION LEADS.",
       "",
-      "WHAT IS A LEAD: A lead is a real person on X/Twitter who is ACTIVELY ENGAGED in this niche and would potentially interact with, repost, or promote a post in exchange for payment. The ideal lead:",
+      "WHAT IS A LEAD: A real person on X/Twitter who is ACTIVELY ENGAGED in this niche. The ideal lead:",
       "- Has a bio that clearly shows they work in or are passionate about this specific niche",
       "- Actively posts about the niche (not just a stale bio claim)",
       "- Engages with others' content — reposts, replies, threads, recommendations",
-      "- Has a relevant audience that would see their repost (doesn't need to be huge — 500-50k followers in the right niche is ideal)",
-      "- Is an individual creator, founder, operator, freelancer, engineer, designer — someone approachable for paid collaboration",
+      "- Is an individual — someone approachable for paid collaboration",
       "",
-      "NOT A LEAD: Large corporations, celebrities, official brand accounts, bots, news outlets, institutions, parody accounts. Also NOT leads: people with huge followings but zero niche relevance, or dormant accounts with no recent activity.",
+      "NOT A LEAD: Large corporations, celebrities, official brand accounts, bots, news outlets, institutions, parody accounts, dormant accounts.",
       "",
-      "IMPORTANT: Focus on RELEVANCE and ENGAGEMENT BEHAVIOR over raw follower counts. A 2k-follower founder who actively discusses the niche and reposts related content is far more valuable than a 200k-follower account that never engages with the topic.",
+      "IMPORTANT: Focus ONLY on whether the person's bio and posts demonstrate genuine involvement in the niche. Audience size is irrelevant — it's just a filter, not evidence.",
       "",
-      "Extract target role terms (who these people are), bio terms (what their bio would mention), optional geo hints, anti-goals, and short user goals that capture the ESSENCE of the ideal lead for this niche.",
-      "For bioTerms, include behavioral terms like: 'building', 'shipping', 'writing about', 'obsessed with', 'exploring', plus niche-specific terms.",
+      "CRITICAL: The user's query may be colloquial or informal. You MUST translate it into REALISTIC terms that people actually write in their X bios and posts. Think about what the ideal person would literally have written in their bio or tweeted about.",
+      "",
+      "Extract:",
+      "- roleTerms: realistic job titles and roles people actually use in bios — translate informal language into real professional terms",
+      "- bioTerms: realistic phrases people actually write in bios — what would someone in this niche say about themselves? Include action verbs they'd use",
+      "- geoHints: optional location signals",
+      "- antiGoals: account types to avoid",
+      "- userGoals: short descriptions of the ideal lead for this niche",
       JSON.stringify(input),
     ].join("\n")));
 
@@ -514,13 +519,36 @@ function normalizeText(input: string): string {
   return input.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
 }
 
+const NICHE_STOP_WORDS = new Set([
+  "the", "and", "for", "are", "but", "not", "you", "all", "can", "her", "was", "one",
+  "our", "out", "has", "had", "how", "its", "let", "may", "who", "did", "get", "got",
+  "him", "his", "she", "too", "use", "way", "each", "make", "like", "long", "look",
+  "many", "most", "some", "than", "them", "then", "very", "when", "come", "made",
+  "find", "here", "know", "take", "want", "does", "back", "been", "best", "from",
+  "good", "have", "just", "more", "much", "need", "only", "over", "such", "that",
+  "they", "this", "time", "what", "will", "with", "work", "your", "about", "being",
+  "could", "great", "might", "other", "their", "there", "these", "those", "which",
+  "would", "after", "every", "first", "still", "thing", "think", "where", "working",
+  "coolest", "awesome", "amazing", "top", "biggest", "most", "real", "people",
+]);
+
 function extractKeywords(niche: string): string[] {
-  return [...new Set(
-    normalizeText(niche)
-      .split(/\s+/)
-      .map((part) => part.trim())
-      .filter((part) => part.length >= 3),
-  )];
+  const normalized = normalizeText(niche);
+  const words = normalized.split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 3 && !NICHE_STOP_WORDS.has(w));
+
+  // Build meaningful multi-word phrases (bigrams) alongside filtered single words
+  const phrases: string[] = [];
+  for (let i = 0; i < words.length - 1; i++) {
+    phrases.push(`${words[i]} ${words[i + 1]}`);
+  }
+  // Full niche as a phrase (if multi-word)
+  if (words.length >= 2) {
+    phrases.push(words.join(" "));
+  }
+  // Include individual words but only domain-specific ones (not generic)
+  phrases.push(...words);
+
+  return [...new Set(phrases)];
 }
 
 function clampScore(value: number): number {
@@ -537,13 +565,20 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
     ...candidate.posts.slice(0, 5).map((post) => post.text),
   ].join(" "));
 
-  const topicalHits = keywords.filter((keyword) => profileText.includes(keyword)).length;
-  const bioHits = keywords.filter((keyword) => bioText.includes(keyword)).length;
-  const postHits = postTexts.filter((text) => keywords.some((keyword) => text.includes(keyword))).length;
+  // Phrase matches (multi-word) are worth more than single-word matches
+  const phraseHits = keywords.filter((kw) => kw.includes(" ") && profileText.includes(kw)).length;
+  const wordHits = keywords.filter((kw) => !kw.includes(" ") && profileText.includes(kw)).length;
+  const topicalHits = phraseHits * 3 + wordHits;
+
+  const bioPhraseHits = keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).length;
+  const bioWordHits = keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).length;
+  const bioHits = bioPhraseHits * 3 + bioWordHits;
+
+  const postHits = postTexts.filter((text) => keywords.some((kw) => kw.includes(" ") ? text.includes(kw) : text.includes(kw))).length;
 
   // Relevance-first scoring: topical alignment is the dominant signal
-  const topicScore = Math.min(35, topicalHits * 7);
-  const bioRelevanceScore = Math.min(15, bioHits * 5);
+  const topicScore = Math.min(35, topicalHits * 5);
+  const bioRelevanceScore = Math.min(15, bioHits * 4);
 
   // Engagement behavior: people who actively repost/reply are better promotion leads
   const engagementBase = candidate.metrics.avgLikes
@@ -593,69 +628,55 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
   const keywords = extractKeywords(niche);
   const evidence: SelectionEvidence[] = [];
 
-  // Bio relevance — the strongest signal of who this person is
+  // Bio evidence — only if niche keywords actually appear in the bio
   if (candidate.account.bio.trim().length > 0) {
-    const bioHits = keywords.filter((kw) => normalizeText(candidate.account.bio).includes(kw));
-    const bioSnippet = candidate.account.bio.length > 180
-      ? candidate.account.bio.slice(0, 180) + "..."
+    const bioText = normalizeText(candidate.account.bio);
+    const bioPhrasesFound = keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw));
+    const bioWordsFound = keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw));
+    const bioSnippet = candidate.account.bio.length > 200
+      ? candidate.account.bio.slice(0, 200) + "..."
       : candidate.account.bio;
-    const isCreator = /(founder|ceo|cto|i build|building|shipping|creator|maker|indie|freelance|consultant|engineer|designer|operator|solopreneur|bootstrapped)/i.test(candidate.account.bio);
 
-    if (bioHits.length > 0 || isCreator) {
+    // Only add bio evidence if actual niche terms were found — not generic creator signals
+    if (bioPhrasesFound.length > 0 || bioWordsFound.length >= 2) {
+      const matched = [...bioPhrasesFound, ...bioWordsFound].slice(0, 4);
       evidence.push({
         source: "bio",
         snippet: bioSnippet,
-        whyItAligns: bioHits.length > 0
-          ? `Bio directly references ${bioHits.map((h) => `"${h}"`).join(", ")} — this person identifies with the "${niche}" space.${isCreator ? " Bio also signals an individual creator/operator who would engage with promotion offers." : ""}`
-          : `Bio signals an individual creator/operator (${candidate.account.bio.slice(0, 60)}...) who could be approached for paid engagement in "${niche}".`,
+        whyItAligns: `Bio contains: ${matched.map((h) => `"${h}"`).join(", ")}`,
       });
     }
   }
 
-  // Post evidence — shows active niche participation, not just a stale bio
+  // Post evidence — only posts with actual niche keyword matches
   const nicheMatchingPosts = candidate.posts
-    .filter((post) => keywords.some((kw) => normalizeText(post.text).includes(kw)))
-    .slice(0, 3);
-  const engagementPosts = candidate.posts
-    .filter((post) => /(RT @|repost|thread|🧵|collab|promo|shill|check out|recommend|love this|great post)/i.test(post.text))
+    .filter((post) => {
+      const text = normalizeText(post.text);
+      return keywords.some((kw) => kw.includes(" ") ? text.includes(kw) : text.includes(kw));
+    })
     .slice(0, 2);
 
   for (const post of nicheMatchingPosts) {
     const postSnippet = post.text.length > 180
       ? post.text.slice(0, 180) + "..."
       : post.text;
-    const postHits = keywords.filter((kw) => normalizeText(post.text).includes(kw));
-    const engagementStats = [
-      post.likes > 0 ? `${post.likes} likes` : "",
-      post.reposts > 0 ? `${post.reposts} reposts` : "",
-      post.replies > 0 ? `${post.replies} replies` : "",
-    ].filter(Boolean).join(", ");
+    const postText = normalizeText(post.text);
+    const matched = keywords.filter((kw) => postText.includes(kw)).slice(0, 3);
     evidence.push({
       source: "post",
       snippet: postSnippet,
-      whyItAligns: `Post discusses ${postHits.map((h) => `"${h}"`).join(", ")} — proves active participation in "${niche}".${engagementStats ? ` (${engagementStats})` : ""}`,
+      whyItAligns: `Post contains: ${matched.map((h) => `"${h}"`).join(", ")}`,
     });
   }
 
-  // Engagement behavior evidence — shows willingness to promote/interact
-  for (const post of engagementPosts.filter((p) => !nicheMatchingPosts.includes(p))) {
-    const postSnippet = post.text.length > 160
-      ? post.text.slice(0, 160) + "..."
-      : post.text;
-    evidence.push({
-      source: "post",
-      snippet: postSnippet,
-      whyItAligns: `This post shows engagement/promotion behavior — this person actively reposts, recommends, or collaborates, making them a strong candidate for paid promotion.`,
-    });
-  }
-
-  // Handle signal
-  const handleHits = keywords.filter((kw) => normalizeText(candidate.account.handle).includes(kw));
+  // Handle signal — only phrase-level matches (not single words)
+  const handleText = normalizeText(candidate.account.handle);
+  const handleHits = keywords.filter((kw) => handleText.includes(kw));
   if (handleHits.length > 0) {
     evidence.push({
       source: "handle",
       snippet: `@${candidate.account.handle.replace(/^@/, "")}`,
-      whyItAligns: `Handle contains "${handleHits.join('", "')}" — niche identity is part of their brand.`,
+      whyItAligns: `Handle contains: ${handleHits.map((h) => `"${h}"`).join(", ")}`,
     });
   }
 
@@ -1184,20 +1205,29 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
       hydrationTools: hydrated.tools,
     };
   })
-  .addNode("candidate_scorer", async (state) => ({
-    activeSubagent: "candidate_scorer" as const,
-    scored: state.candidates.map((candidate) => {
+  .addNode("candidate_scorer", async (state) => {
+    const scored: ScoredCandidate[] = [];
+    for (const candidate of state.candidates) {
       const heuristic = scoreCandidateHeuristically(state.niche, candidate);
       const evidence = extractSelectionEvidence(state.niche, candidate);
-      return {
+
+      // Inline relevance filter: reject candidates with no bio/post evidence during discovery
+      // This prevents irrelevant leads from ever reaching the screening stage
+      if (evidence.length === 0 && heuristic.score < 15) continue;
+
+      scored.push({
         candidate,
         score: heuristic.score,
         reasons: heuristic.reasons,
         attempt: state.attempt,
         evidence,
-      } satisfies ScoredCandidate;
-    }),
-  }))
+      });
+    }
+    return {
+      activeSubagent: "candidate_scorer" as const,
+      scored,
+    };
+  })
   .addEdge(START, "profile_hydrator")
   .addEdge("profile_hydrator", "candidate_scorer")
   .addEdge("candidate_scorer", END)

@@ -46,7 +46,7 @@ export type ScrapedPayload = {
 };
 
 export type SelectionEvidence = {
-  source: "name" | "handle" | "bio" | "post" | "audience";
+  source: "name" | "handle" | "bio" | "post";
   snippet: string;
   whyItAligns: string;
 };

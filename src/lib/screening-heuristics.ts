@@ -116,13 +116,23 @@ const SEARCH_COMPANY_TERMS = [
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 export function getSearchQueryTerms(query: string): string[] {
-  return [...new Set(
-    query
-      .toLowerCase()
-      .split(/[^a-z0-9+#.-]+/)
-      .map((term) => term.trim())
-      .filter((term) => term.length >= 3 && !SEARCH_QUERY_STOP_WORDS.has(term)),
-  )];
+  const words = query
+    .toLowerCase()
+    .split(/[^a-z0-9+#.-]+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 3 && !SEARCH_QUERY_STOP_WORDS.has(term));
+
+  // Build meaningful multi-word phrases alongside single words
+  const terms: string[] = [];
+  for (let i = 0; i < words.length - 1; i++) {
+    terms.push(`${words[i]} ${words[i + 1]}`);
+  }
+  if (words.length >= 2) {
+    terms.push(words.join(" "));
+  }
+  terms.push(...words);
+
+  return [...new Set(terms)];
 }
 
 function buildSearchCandidateText(candidate: SearchScreeningCandidate): string {

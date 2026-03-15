@@ -115,7 +115,7 @@ const LeadReasoningSchema = z.object({
   tools: z.array(z.string()).default([]),
   subagents: z.array(z.string()).default([]),
   evidence: z.array(z.object({
-    source: z.enum(["name", "handle", "bio", "post", "audience"]),
+    source: z.enum(["name", "handle", "bio", "post"]),
     snippet: z.string(),
     whyItAligns: z.string(),
   })).default([]),
@@ -281,7 +281,7 @@ export async function screenProfilesForLeadSearchDetailed(
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
       instructions:
-        "You are screening X/Twitter profiles for a specific search query. Your job: decide if each profile is genuinely relevant to the EXACT niche described in the query.\n\nTHE ONLY THING THAT MATTERS IS EVIDENCE. For each profile, look at their bio and posts. If you cannot find a direct, specific reference to the query's core topic in the bio or posts, set include=false. Vague connections, adjacent industries, or generic terms do NOT count.\n\nScoring:\n- 80-100: Bio explicitly references the niche AND posts actively discuss it. Exact quotes exist.\n- 60-79: Bio references the niche OR at least 2 posts discuss it directly.\n- 40-59: At least one clear, specific niche reference in bio or a post.\n- 0 (include=false): No specific niche evidence found in bio or posts. Do NOT include.\n\nFOLLOWER COUNT IS NOT EVIDENCE. It is only a pre-filter — profiles below the minimum follower threshold have already been removed before you see them. Do not use follower count as a reason to include or exclude anyone. A 1k-follower account with the niche keyword in their bio is a YES. A 1M-follower account whose bio and posts never mention the niche is a NO. Never mention followers in your reasoning.\n\nDo NOT infer relevance from job titles, company names, or adjacent topics unless the bio or posts explicitly mention the query's core subject. Be strict — only include profiles where you could quote a specific phrase from their bio or post as proof of niche relevance.",
+        "Screen X/Twitter profiles for a search query. Include ONLY if the bio or posts contain specific text proving the person works in or actively discusses the query's niche.\n\nScoring:\n- 80-100: Bio explicitly references the niche AND posts discuss it.\n- 60-79: Bio references the niche OR at least 2 posts discuss it.\n- 40-59: At least one clear niche reference in bio or a post.\n- 0 (include=false): No specific niche text found in bio or posts.\n\nRules:\n- Follower count is a pre-filter only. Never use it in decisions.\n- Do NOT infer relevance from adjacent fields or generic terms. The bio/posts must contain text directly related to the search query's core topic.\n- If you cannot quote a specific phrase from bio or posts as proof, set include=false.\n- Translate the query into realistic terms people would use (the query may be informal).",
       input: JSON.stringify({
         query,
         candidates: batch.map((candidate) => ({
@@ -565,38 +565,30 @@ export async function generateLeadReasoning(input: {
 }): Promise<LeadReasoningResult> {
   const fallbackEvidence: LeadReasoningResult["evidence"] = [];
   if (input.lead.bio.trim().length > 0) {
-    const bioSnippet = input.lead.bio.length > 140 ? input.lead.bio.slice(0, 140) + "..." : input.lead.bio;
+    const bioSnippet = input.lead.bio.length > 180 ? input.lead.bio.slice(0, 180) + "..." : input.lead.bio;
     fallbackEvidence.push({
       source: "bio",
       snippet: bioSnippet,
-      whyItAligns: `Found "${bioSnippet}" in bio, which aligns with "${input.query}".`,
-    });
-  }
-  if (input.lead.followers >= 1_000) {
-    fallbackEvidence.push({
-      source: "audience",
-      snippet: `${input.lead.followers.toLocaleString()} followers`,
-      whyItAligns: `Reachable audience size suggests this is someone worth contacting about "${input.query}".`,
+      whyItAligns: `Bio: "${bioSnippet}"`,
     });
   }
 
   const fallback = {
-    summary: `${input.lead.name} looks aligned with ${input.query} based on their profile and audience signals.`,
+    summary: input.lead.bio.trim().length > 0
+      ? `Bio: "${input.lead.bio.slice(0, 120)}${input.lead.bio.length > 120 ? "..." : ""}"`
+      : `No bio available for @${input.lead.handle}.`,
     alignmentBullets: [
       input.lead.bio.trim().length > 0
-        ? "Their profile bio overlaps with the project query."
-        : "The profile still shows relevant audience and identity signals.",
-      input.lead.location
-        ? `Their profile exposes a location: ${input.lead.location}.`
-        : "No explicit location was surfaced from the profile.",
+        ? `Bio says: "${input.lead.bio.slice(0, 160)}${input.lead.bio.length > 160 ? "..." : ""}"`
+        : "No bio text available.",
       input.stats?.topTopics?.length
-        ? `Recent posting topics include ${input.stats.topTopics.slice(0, 2).join(" and ")}.`
-        : "Recent post analysis is limited, so the fit leans more on the profile itself.",
+        ? `Posts about: ${input.stats.topTopics.slice(0, 3).join(", ")}.`
+        : "No post topics available.",
     ],
     userGoals: [
-      `Find leads aligned with ${input.query}.`,
+      `Search query: "${input.query}"`,
     ],
-    confidence: 72,
+    confidence: input.lead.bio.trim().length > 0 ? 40 : 10,
     tools: input.tools,
     subagents: input.subagents,
     evidence: fallbackEvidence,
@@ -606,7 +598,7 @@ export async function generateLeadReasoning(input: {
     schemaName: "lead_reasoning",
     schema: LeadReasoningSchema,
     instructions:
-      "Explain why this X/Twitter lead matches the user's original lead-search goals. A lead is a real person or small reachable company you could DM — founders, creators, freelancers, engineers, small teams. NOT large corporations or celebrities. Keep it concrete and grounded in the provided project query, profile bio, location, audience, and post topics. For each evidence entry, write the whyItAligns as: 'Found \"[exact text]\" in [source], which aligns with \"[search query]\".' Use actual text from their profile/posts. Return concise reasoning only, not outreach copy.",
+      "Analyze whether this profile matches the search query. Be honest.\n\nRules:\n- Summary: one sentence stating what the person does, from their bio. No filler.\n- alignmentBullets: quote exact text from bio or post topics. No vague statements.\n- Evidence snippets: exact quotes from bio or posts. whyItAligns: state what niche term was found.\n- If bio/posts don't mention the query's topic, say so. Set confidence below 30.\n- Follower count is not evidence. Never mention it.\n- No filler text. Every sentence must reference a specific fact from the profile.\n- Translate the search query into realistic terms — the query may be informal but match against what people actually write.\n- confidence: 80+ if bio explicitly references the niche, 50-79 if only posts do, below 50 if neither.",
     input: JSON.stringify(input),
     fallback,
     maxOutputTokens: 500,

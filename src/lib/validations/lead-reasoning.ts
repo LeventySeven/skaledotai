@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const LeadEvidenceSourceSchema = z.enum(["name", "handle", "bio", "post", "audience"]);
+export const LeadEvidenceSourceSchema = z.enum(["name", "handle", "bio", "post"]);
 export type LeadEvidenceSource = z.infer<typeof LeadEvidenceSourceSchema>;
 
 export const LeadEvidenceEntrySchema = z.object({
