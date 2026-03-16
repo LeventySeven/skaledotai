@@ -63,6 +63,10 @@ export type MultiAgentStateSnapshot = {
   plannerFallbackUsed?: boolean;
   userGoals?: string[];
   geoHints?: string[];
+  /** Planner-interpreted search context — NOT streamed to client, used internally */
+  roleTerms?: string[];
+  bioTerms?: string[];
+  antiGoals?: string[];
   traceQuery?: string;
   traceBatchUrls?: string[];
   recoveryNote?: string;

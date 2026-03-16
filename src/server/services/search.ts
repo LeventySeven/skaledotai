@@ -58,6 +58,12 @@ type SearchProgressHandlers = {
 type DiscoveryStopReason = "goal_reached" | "max_attempts" | "query_exhausted";
 type DiscoveryRecoveryState = SearchRunStreamSnapshot["recoveryState"];
 
+type SearchInterpretation = {
+  roleTerms: string[];
+  bioTerms: string[];
+  antiGoals: string[];
+};
+
 type DiscoveryResult = {
   candidates: XLeadCandidate[];
   firstPassCount: number;
@@ -69,6 +75,8 @@ type DiscoveryResult = {
   satisfied: boolean;
   stopReason: DiscoveryStopReason;
   recoveryState?: DiscoveryRecoveryState;
+  /** Interpreted search context from the planner — propagated to screening */
+  interpretation?: SearchInterpretation;
 };
 
 function aggregateDiscoverySnapshots(
@@ -489,6 +497,7 @@ async function discoverCandidatesWithProviderOwnedLoop(
     firstPassCount?: number;
   };
   let latestSnapshot: DiscoverySnapshotSummary | null = null;
+  let capturedInterpretation: SearchInterpretation | undefined;
 
   const candidates = await discoveryProvider.discoverCandidates({
     niche: query,
@@ -503,6 +512,9 @@ async function discoverCandidatesWithProviderOwnedLoop(
     snapshotRecorder: async (snapshot) => {
       latestSnapshot = snapshot;
       await progress?.onSnapshot?.(snapshot);
+    },
+    interpretationRecorder: (interpretation) => {
+      capturedInterpretation = interpretation;
     },
   });
   const finalSnapshot = latestSnapshot as DiscoverySnapshotSummary | null | undefined;
@@ -527,6 +539,7 @@ async function discoverCandidatesWithProviderOwnedLoop(
     satisfied,
     stopReason,
     recoveryState: finalSnapshot?.recoveryState,
+    interpretation: capturedInterpretation,
   };
 }
 
@@ -641,6 +654,7 @@ export async function searchAndAddLeads(
       input.query,
       screeningPool.map(toScreeningCandidate),
       targetLeadCount,
+      discoveryResult.interpretation,
     );
     const selectedSet = new Set(screeningResult.selectedIds);
     const screenedCandidates = screeningPool.filter((candidate) =>

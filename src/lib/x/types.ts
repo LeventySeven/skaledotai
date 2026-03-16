@@ -100,6 +100,8 @@ export type XDiscoveryInput = {
   maxAttempts?: number;
   traceRecorder?: (step: ProjectRunTraceStep) => void | Promise<void>;
   snapshotRecorder?: (snapshot: SearchRunStreamSnapshot) => void | Promise<void>;
+  /** Callback to capture the planner's interpreted search context (roleTerms, bioTerms, antiGoals) */
+  interpretationRecorder?: (interpretation: { roleTerms: string[]; bioTerms: string[]; antiGoals: string[] }) => void;
 };
 
 export interface XDiscoveryProvider {

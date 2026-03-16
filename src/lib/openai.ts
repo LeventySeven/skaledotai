@@ -241,10 +241,17 @@ export async function screenProfilesForLeadSearch(
   return result.selectedIds;
 }
 
+export type ScreeningInterpretation = {
+  roleTerms: string[];
+  bioTerms: string[];
+  antiGoals: string[];
+};
+
 export async function screenProfilesForLeadSearchDetailed(
   query: string,
   candidates: SearchScreeningCandidate[],
   maxResults: number,
+  interpretation?: ScreeningInterpretation,
 ): Promise<{
   selectedIds: string[];
   selectedReasons: Map<string, string>;
@@ -278,18 +285,30 @@ export async function screenProfilesForLeadSearchDetailed(
     usedFallback: boolean;
   }> = [];
 
-  const screeningPrompt = `Screen X/Twitter profiles for a lead search query. Your job is to find people who ACTUALLY hold the exact role or job described in the query — not adjacent roles, not tangentially related people.
+  // Build context-aware screening prompt with roleTerms/bioTerms/antiGoals when available
+  const contextBlock = interpretation && (interpretation.roleTerms.length > 0 || interpretation.antiGoals.length > 0)
+    ? [
+      "",
+      "SEARCH CONTEXT (use this to make accurate decisions):",
+      interpretation.roleTerms.length > 0 ? `Roles that MATCH: ${interpretation.roleTerms.slice(0, 12).join(", ")}` : "",
+      interpretation.bioTerms.length > 0 ? `Bio phrases that MATCH: ${interpretation.bioTerms.slice(0, 10).join(", ")}` : "",
+      interpretation.antiGoals.length > 0 ? `Roles/types to EXCLUDE: ${interpretation.antiGoals.join(", ")}` : "",
+    ].filter(Boolean).join("\n")
+    : "";
 
-STRICT RULES:
-1. The query describes a SPECIFIC role/profession. Only include people who clearly hold that role or a very close synonym. For example, "product designers" means people who do product design — NOT product managers, NOT heads of product, NOT CEOs who work on products, NOT AI researchers, NOT recruiters, NOT community platforms.
-2. NEVER use partial keyword matches as evidence. If the query is "product designers", the word "product" alone in a bio is NOT evidence. The person must actually BE a designer. Similarly "design" in "design thinking" or "designed a company" does NOT make someone a designer.
-3. EXCLUDE organizations, companies, communities, newsletters, job boards, and non-individual accounts. Only include real people with a personal profile.
-4. EXCLUDE people whose role is clearly different even if they work in an adjacent field. A "Head of Product" is NOT a "Product Designer". A "CEO" is NOT a "Product Designer". A "UX Researcher" is NOT a "Product Designer" (unless their bio also says they do design).
-5. Follower count is IRRELEVANT. Do not let popularity influence your decision.
+  const screeningPrompt = `Confirm whether pre-screened X/Twitter profiles match the search query. These candidates have already passed an initial relevance check — your job is to verify and score them accurately.
 
-Score: 80-100 person clearly holds the exact role described in the query, 60-79 very close role synonym (e.g. "UX designer" for "product designers"), 0-59 does NOT match — different role, organization, or insufficient evidence.
-Reason: quote the specific part of bio/posts that proves they hold this exact role. 1-2 sentences.
-If you cannot find clear evidence they hold the exact role, score 0 and set include to false.`;
+RULES:
+1. Include people who clearly hold the queried role OR a close synonym of it. For "product designers": product designer, UX designer, UI/UX designer, interaction designer = YES. Product manager, CEO, Head of Product = NO.
+2. Do NOT use partial keyword matches as evidence. The word "product" alone is not evidence of being a product designer. The word "design" in "designed a company" is not evidence.
+3. Exclude organizations, companies, communities, newsletters, job boards — only real individual people.
+4. Exclude people whose role is clearly different, even if adjacent.
+5. Follower count is irrelevant.
+${contextBlock}
+
+Score: 80-100 clearly holds the exact role or very close synonym, 50-79 likely match with reasonable evidence, 0-49 does NOT match.
+Reason: quote the specific part of bio/posts that shows they hold this role. 1-2 sentences.
+When in doubt about a borderline candidate, lean toward including them with a lower score rather than excluding — the pre-screen already filtered obvious mismatches.`;
 
   const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
 
@@ -329,8 +348,8 @@ If you cannot find clear evidence they hold the exact role, score 0 and set incl
 
     for (const decision of result.data.decisions) {
       if (!validIds.has(decision.profileId) || !decision.include) continue;
-      // Require minimum score of 60 — reject tangential/weak matches
-      if (decision.score < 60) continue;
+      // Require minimum score of 50 — pre-screening already filtered obvious mismatches
+      if (decision.score < 50) continue;
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);

@@ -123,6 +123,28 @@ const SEARCH_COMPANY_TERMS = [
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
+/**
+ * Common person-suffix to discipline mappings for generating role variants.
+ * E.g. "designer" -> "design", "founder" -> "founding"
+ */
+const ROLE_DISCIPLINE_MAP: Record<string, string> = {
+  designer: "design", designers: "design",
+  developer: "development", developers: "development",
+  engineer: "engineering", engineers: "engineering",
+  founder: "founding", founders: "founding",
+  marketer: "marketing", marketers: "marketing",
+  manager: "management", managers: "management",
+  researcher: "research", researchers: "research",
+  consultant: "consulting", consultants: "consulting",
+  architect: "architecture", architects: "architecture",
+  strategist: "strategy", strategists: "strategy",
+  writer: "writing", writers: "writing",
+  analyst: "analytics", analysts: "analytics",
+  creator: "creation", creators: "creation",
+  photographer: "photography", photographers: "photography",
+  illustrator: "illustration", illustrators: "illustration",
+};
+
 export function getSearchQueryTerms(query: string): string[] {
   const words = query
     .toLowerCase()
@@ -132,12 +154,31 @@ export function getSearchQueryTerms(query: string): string[] {
 
   // Build meaningful multi-word phrases alongside single words
   const terms: string[] = [];
+
+  // Full phrase + singular/plural
+  if (words.length >= 2) {
+    const fullPhrase = words.join(" ");
+    terms.push(fullPhrase);
+    // Singular/plural variant of the full phrase
+    const lastWord = words[words.length - 1];
+    if (lastWord.endsWith("s") && !lastWord.endsWith("ss")) {
+      terms.push([...words.slice(0, -1), lastWord.slice(0, -1)].join(" "));
+    } else {
+      terms.push([...words.slice(0, -1), lastWord + "s"].join(" "));
+    }
+    // Discipline form: "product designers" -> "product design"
+    const discipline = ROLE_DISCIPLINE_MAP[lastWord];
+    if (discipline) {
+      terms.push([...words.slice(0, -1), discipline].join(" "));
+    }
+  }
+
+  // Bigrams
   for (let i = 0; i < words.length - 1; i++) {
     terms.push(`${words[i]} ${words[i + 1]}`);
   }
-  if (words.length >= 2) {
-    terms.push(words.join(" "));
-  }
+
+  // Individual words (kept for weak-signal fallback, weighted low by callers)
   terms.push(...words);
 
   return [...new Set(terms)];

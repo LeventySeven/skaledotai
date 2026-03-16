@@ -32,6 +32,7 @@ import {
   normalizeProfilesFromPayload,
   normalizeTweetsFromPayload,
 } from "./agentql";
+import { NICHE_EXAMPLES } from "./niche-examples";
 import {
   MULTIAGENT_NODE_TITLES,
   MULTIAGENT_MAX_QUERIES,
@@ -308,6 +309,55 @@ function dedupeQueries(queries: string[]): string[] {
 
 type GoalInterpretation = z.infer<typeof GoalInterpretationSchema>;
 
+/**
+ * Build singular, plural, and discipline-form variants of a role phrase.
+ * E.g. "product designers" -> ["product designers", "product designer", "product design"]
+ *      "startup founder"   -> ["startup founder", "startup founders", "startup founding"]
+ */
+function buildRoleVariants(role: string): string[] {
+  const trimmed = role.trim().toLowerCase();
+  const variants = new Set<string>([trimmed]);
+
+  // Singular / plural of the full phrase
+  for (const v of pluralVariants(trimmed)) variants.add(v);
+
+  // Discipline form: strip the person suffix to get the field name
+  // "product designers" -> "product design", "startup founders" -> "startup founding"
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) {
+    const lastWord = words[words.length - 1];
+    const prefix = words.slice(0, -1).join(" ");
+
+    // Common person-suffix → discipline mappings
+    const disciplineMappings: Record<string, string> = {
+      designer: "design", designers: "design",
+      developer: "development", developers: "development",
+      engineer: "engineering", engineers: "engineering",
+      founder: "founding", founders: "founding",
+      marketer: "marketing", marketers: "marketing",
+      manager: "management", managers: "management",
+      researcher: "research", researchers: "research",
+      consultant: "consulting", consultants: "consulting",
+      architect: "architecture", architects: "architecture",
+      strategist: "strategy", strategists: "strategy",
+      writer: "writing", writers: "writing",
+      analyst: "analytics", analysts: "analytics",
+      creator: "creation", creators: "creation",
+      educator: "education", educators: "education",
+      photographer: "photography", photographers: "photography",
+      illustrator: "illustration", illustrators: "illustration",
+      animator: "animation", animators: "animation",
+    };
+
+    const discipline = disciplineMappings[lastWord];
+    if (discipline) {
+      variants.add(`${prefix} ${discipline}`);
+    }
+  }
+
+  return [...variants];
+}
+
 function buildHeuristicGoalInterpretation(input: {
   niche: string;
   seedHandle?: string;
@@ -317,10 +367,11 @@ function buildHeuristicGoalInterpretation(input: {
     ?.map((match) => match.replace(/\b(?:in|from|based in|located in)\s+/i, "").trim())
     .filter(Boolean) ?? [];
 
-  // Keep the full niche as the primary term — don't split into individual words
+  const roleVariants = buildRoleVariants(niche);
+
   return {
-    roleTerms: [niche],
-    bioTerms: [niche],
+    roleTerms: roleVariants,
+    bioTerms: roleVariants,
     geoHints,
     antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution", "dormant account", "bot"],
     userGoals: [
@@ -338,19 +389,42 @@ async function interpretLeadSearchGoals(input: {
 
   try {
     const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
-    const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
+    const promptParts = [
       "Interpret this lead-search request. The user wants to find X/Twitter accounts that match this niche.",
       "",
-      "Generate SYNONYMS and VARIATIONS of the query that mean the same thing. Every term you generate must describe the same type of person as the original query. Never split a multi-word concept into separate unrelated words.",
+      "People describe the same role in many ways on X/Twitter. Your job is to generate ALL realistic ways someone with this role would describe themselves in a bio or post.",
+      "",
+      "RULES:",
+      "- Always include BOTH singular and plural forms (e.g. 'product designer' AND 'product designers').",
+      "- Always include the DISCIPLINE/FIELD form (e.g. 'product design' for 'product designers', 'startup founding' for 'startup founders').",
+      "- Include close SYNONYMS that describe the SAME role (e.g. 'UX designer', 'UI/UX designer', 'digital product designer' for 'product designers').",
+      "- Include common bio phrasing like 'I design products', 'designing digital experiences' — how people actually write it.",
+      "- NEVER include adjacent but DIFFERENT roles. 'product manager', 'head of product', 'CEO', 'CTO' are NOT product designers. 'venture capitalist', 'investor' are NOT startup founders.",
+      "- NEVER output individual generic words like 'product', 'design', 'startup', 'founder' alone — these are too ambiguous and match unrelated profiles.",
+      "- Every term must be a meaningful phrase (2+ words) or a specific role title that unambiguously identifies the role.",
+    ];
+
+    if (NICHE_EXAMPLES) {
+      promptParts.push(
+        "",
+        "REFERENCE EXAMPLES (use these as guidance for the style and specificity of terms to generate — generalize the pattern to ANY niche, do not copy these literally unless the query matches):",
+        "",
+        NICHE_EXAMPLES,
+      );
+    }
+
+    promptParts.push(
       "",
       "Extract:",
-      "- roleTerms: synonyms and variations of the role the user is looking for. Each term must be a complete phrase that means the same thing as the query. Include the original query as-is, plus realistic variations people would write in their bios.",
-      "- bioTerms: how people in this niche describe themselves in bios. Each term must be a complete self-description that stays within the same niche as the query.",
+      "- roleTerms: the role itself in all forms — singular, plural, discipline, and close synonyms. Each must unambiguously mean the same role.",
+      "- bioTerms: realistic bio phrases people with this role write. Things like 'I design ...', 'designing at ...', 'lead designer at ...'. Must clearly identify the role.",
       "- geoHints: optional location signals from the query",
-      "- antiGoals: account types to avoid",
+      "- antiGoals: specific roles/account types that are DIFFERENT from the query and should be excluded (e.g. for 'product designers': 'product manager', 'head of product', 'CEO', 'engineering manager')",
       "- userGoals: what the user is looking for (restate simply)",
       JSON.stringify(input),
-    ].join("\n")));
+    );
+
+    const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke(promptParts.join("\n")));
 
     return {
       roleTerms: dedupeQueries(result.roleTerms ?? []),
@@ -541,10 +615,10 @@ function extractKeywords(niche: string): string[] {
 
   const phrases: string[] = [];
 
-  // Full niche phrase + singular/plural variants
+  // Full niche phrase + singular/plural + discipline variants (these are the highest-value matches)
   if (words.length >= 2) {
     const fullPhrase = words.join(" ");
-    phrases.push(...pluralVariants(fullPhrase));
+    phrases.push(...buildRoleVariants(fullPhrase));
   }
 
   // Bigrams + their variants
@@ -552,7 +626,8 @@ function extractKeywords(niche: string): string[] {
     phrases.push(...pluralVariants(`${words[i]} ${words[i + 1]}`));
   }
 
-  // Individual words + their variants
+  // Individual words + their variants — kept for weak-signal scoring but
+  // callers should weight these much lower than phrase matches
   for (const word of words) {
     phrases.push(...pluralVariants(word));
   }
@@ -1166,9 +1241,102 @@ const sourceResearchSubgraph = new StateGraph(SourceResearchSubgraphState)
   .addEdge("source_researcher", END)
   .compile();
 
+// ── Lightweight AI pre-screen ────────────────────────────────────────────────
+// Runs inside the scorer node to filter obvious non-matches BEFORE they
+// accumulate in the candidate pool and influence the validator's goal-reached
+// decision. Uses the planner model (already warm) with a small structured output.
+
+const PreScreenDecisionSchema = z.object({
+  decisions: z.array(z.object({
+    handle: z.string(),
+    relevant: z.boolean(),
+    confidence: z.number().min(0).max(100),
+  })),
+}).strict();
+
+type SearchContext = {
+  roleTerms: string[];
+  bioTerms: string[];
+  antiGoals: string[];
+};
+
+async function preScreenCandidates(
+  niche: string,
+  candidates: Array<{ candidate: XLeadCandidate; heuristic: { score: number; reasons: string[] }; evidence: SelectionEvidence[] }>,
+  context?: SearchContext,
+): Promise<Set<string>> {
+  if (candidates.length === 0) return new Set();
+
+  const model = getPlannerModel().withStructuredOutput(PreScreenDecisionSchema, { name: "lead_pre_screen" });
+
+  const candidateSummaries = candidates.map((c) => ({
+    handle: c.candidate.account.handle,
+    name: c.candidate.account.name,
+    bio: c.candidate.account.bio.slice(0, 200),
+    posts: c.candidate.posts.slice(0, 2).map((p) => p.text.slice(0, 120)),
+  }));
+
+  // Build context block so the pre-screen knows exactly what roles match and what to reject
+  const contextBlock = context && (context.roleTerms.length > 0 || context.antiGoals.length > 0)
+    ? [
+      "",
+      "SEARCH CONTEXT (use this to make decisions):",
+      context.roleTerms.length > 0 ? `Matching roles: ${context.roleTerms.slice(0, 10).join(", ")}` : "",
+      context.bioTerms.length > 0 ? `Matching bio phrases: ${context.bioTerms.slice(0, 8).join(", ")}` : "",
+      context.antiGoals.length > 0 ? `EXCLUDE these roles/types: ${context.antiGoals.join(", ")}` : "",
+    ].filter(Boolean).join("\n")
+    : "";
+
+  try {
+    const result = await withTimeout("OpenAI planner", 30_000, () => model.invoke([
+      `Quick relevance check: does each profile ACTUALLY match the role "${niche}"?`,
+      "",
+      "For each profile, decide if this person genuinely holds the queried role based on their bio and posts.",
+      "- relevant=true ONLY if the person clearly does this work (exact role or close synonym).",
+      "- relevant=false if they hold a different role, are an organization, or there's insufficient evidence.",
+      "- confidence: how sure you are (80-100 = clear match, 60-79 = likely match, below 60 = not a match).",
+      "",
+      "Common mistakes to avoid:",
+      "- A word from the query appearing in a different context is NOT a match (e.g. 'product' in 'head of product' does NOT match 'product designers').",
+      "- Organizations, communities, newsletters, job boards = always irrelevant.",
+      "- Adjacent senior roles (VP, Head of, Director of) are NOT the same as the IC role.",
+      contextBlock,
+      "",
+      JSON.stringify({ niche, candidates: candidateSummaries }),
+    ].join("\n")));
+
+    // Build set of handles that passed
+    const passed = new Set<string>();
+    for (const d of result.decisions) {
+      if (d.relevant && d.confidence >= 60) {
+        passed.add(d.handle.replace(/^@/, "").toLowerCase());
+      }
+    }
+    return passed;
+  } catch (error) {
+    console.warn("[multiagent][pre-screen] AI pre-screen failed, passing all candidates through:", describeUpstreamError(error));
+    // On failure, pass everyone through — the final screening will catch them
+    return new Set(candidates.map((c) => c.candidate.account.handle.replace(/^@/, "").toLowerCase()));
+  }
+}
+
 const HydrationScoringSubgraphState = Annotation.Root({
   niche: Annotation<string>,
   attempt: Annotation<number>,
+  // Shared search context — propagated from parent graph so every subagent
+  // (scorer, pre-screen, heuristic filter) can use the interpreted role terms
+  roleTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  bioTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  antiGoals: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
   candidates: Annotation<XLeadCandidate[]>({
     reducer: mergeCandidates,
     default: () => [],
@@ -1227,9 +1395,16 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
       });
     }
 
-    // Pass all candidates through — AI screening handles semantic relevance
-    // Candidates with keyword evidence get higher scores, but none are rejected here
+    // Phase 3: AI pre-screen — filter obvious non-matches before they enter the pool
+    // Pass roleTerms/bioTerms/antiGoals so the pre-screen has full interpreted context
+    const passedHandles = await preScreenCandidates(state.niche, prescoredCandidates, {
+      roleTerms: state.roleTerms,
+      bioTerms: state.bioTerms,
+      antiGoals: state.antiGoals,
+    });
+
     const scored: ScoredCandidate[] = prescoredCandidates
+      .filter((c) => passedHandles.has(c.candidate.account.handle.replace(/^@/, "").toLowerCase()))
       .map((c) => ({
         candidate: c.candidate,
         score: c.heuristic.score,
@@ -1331,6 +1506,9 @@ const graph = new StateGraph(MultiAgentState)
     const scoredSubgraph = await hydrationScoringSubgraph.invoke({
       niche: state.niche,
       attempt: state.attempt,
+      roleTerms: state.roleTerms,
+      bioTerms: state.bioTerms,
+      antiGoals: state.antiGoals,
       candidates: normalizeCandidatesFromScrapedState(state)
         .filter((candidate) => !knownHandles.has(candidate.account.handle.replace(/^@/, "").toLowerCase())),
     });
@@ -1521,6 +1699,15 @@ export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
           capability: "discovery",
           code: "UPSTREAM_REQUEST_FAILED",
           message: `Multi-agent workflow exhausted without candidates. ${errorSummary}`,
+        });
+      }
+
+      // Report the planner's interpreted search context so downstream screening can use it
+      if (input.interpretationRecorder && (latestState.roleTerms?.length || latestState.bioTerms?.length || latestState.antiGoals?.length)) {
+        input.interpretationRecorder({
+          roleTerms: latestState.roleTerms ?? [],
+          bioTerms: latestState.bioTerms ?? [],
+          antiGoals: latestState.antiGoals ?? [],
         });
       }
 
