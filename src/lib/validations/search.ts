@@ -56,7 +56,7 @@ export const SearchRunGraphNodeSchema = z.object({
 }).strict();
 export type SearchRunGraphNode = z.infer<typeof SearchRunGraphNodeSchema>;
 
-export const SearchRunRecoveryStateSchema = z.enum(["low_yield", "rate_limited", "json_repair"]);
+export const SearchRunRecoveryStateSchema = z.enum(["low_yield", "rate_limited", "json_repair", "precision_filtered"]);
 export type SearchRunRecoveryState = z.infer<typeof SearchRunRecoveryStateSchema>;
 
 export const SearchRunStopReasonSchema = z.enum(["goal_reached", "max_attempts", "query_exhausted"]);

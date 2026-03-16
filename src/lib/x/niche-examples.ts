@@ -7,6 +7,44 @@
  * To edit: modify the examples and redeploy.
  */
 
+/**
+ * Select the most relevant example sections for a given niche query.
+ * Returns at most `limit` sections (default 3) plus the structural patterns section.
+ * This keeps the prompt compact (~800-1200 tokens) instead of injecting all examples (~2200 tokens).
+ *
+ * Aligned with LangGraph handoff docs: "Balance context completeness against token costs."
+ */
+export function selectRelevantExamples(niche: string, limit = 3): string {
+  const nicheWords = niche.toLowerCase().split(/\s+/);
+  const sections = NICHE_EXAMPLES.split(/(?=^## )/m).filter((s) => s.trim());
+
+  // Separate the structural patterns section (always included) from niche examples
+  const patternsSection = sections.find((s) => s.startsWith("## Structural Patterns"));
+  const nicheSections = sections.filter((s) => !s.startsWith("## Structural Patterns") && !s.startsWith("---"));
+
+  // Score each section by keyword overlap with the query
+  const scored = nicheSections.map((section) => {
+    const sectionLower = section.toLowerCase();
+    const hits = nicheWords.filter((word) => word.length >= 3 && sectionLower.includes(word)).length;
+    // Bonus for exact phrase match
+    const phraseBonus = sectionLower.includes(niche.toLowerCase()) ? 10 : 0;
+    return { section, score: hits + phraseBonus };
+  });
+
+  // Sort by relevance, take top N
+  scored.sort((a, b) => b.score - a.score);
+  const selected = scored.slice(0, limit).map((s) => s.section);
+
+  // If no good matches, take the first 2 as generic examples
+  if (selected.length === 0) {
+    selected.push(...nicheSections.slice(0, 2));
+  }
+
+  const parts = [...selected];
+  if (patternsSection) parts.push(patternsSection);
+  return parts.join("\n");
+}
+
 export const NICHE_EXAMPLES = `
 ## Product Designers
 
@@ -374,12 +412,33 @@ antiGoals:
 
 ---
 
-## Key Principles
+## Structural Patterns to Extract (apply to ANY niche)
 
-1. **Singular + Plural + Discipline**: Always generate all three forms. "designer" / "designers" / "design". "founder" / "founders" / "founding".
-2. **Bio phrasing**: People rarely write their exact job title. They write "designing at @Figma" or "building @Stripe". Generate how people actually describe themselves.
-3. **Synonyms stay in-role**: UX designer IS a product designer. Product manager is NOT. The test: would this person be hired for the queried role?
-4. **Anti-goals are specific**: Don't just say "irrelevant". Name the exact adjacent roles that commonly get confused.
-5. **Exclude orgs**: Companies, communities, newsletters, job boards, conferences — always exclude unless searching for companies specifically.
-6. **No single generic words**: "product", "design", "startup", "engineer" alone are never valid terms. They match too broadly.
+These examples all follow the same structure. When you encounter a NEW query not listed above, apply these patterns:
+
+### Pattern 1: Role Form Coverage
+Every example generates singular + plural + discipline. Apply this to any role:
+- "blockchain developers" → "blockchain developer" / "blockchain developers" / "blockchain development"
+- "motion designers" → "motion designer" / "motion designers" / "motion design"
+- "technical writers" → "technical writer" / "technical writers" / "technical writing"
+
+### Pattern 2: Bio Language ≠ Job Titles
+People on X write casually. Study how each example's bioTerms differ from roleTerms:
+- roleTerms are formal: "product designer"
+- bioTerms are casual: "designing products at", "crafting user experiences"
+For YOUR query, think: how would someone in this role describe their daily work in a tweet-length bio?
+
+### Pattern 3: Synonym Test
+For each synonym candidate, ask: "Would this person be hired for the queried role?"
+- "UX designer" → hired as product designer? Yes → synonym
+- "product manager" → hired as product designer? No → antiGoal
+
+### Pattern 4: antiGoals Are Role-Specific
+Every example names the SPECIFIC adjacent roles that get confused with that niche. Don't reuse antiGoals from other examples. Think about what roles share keywords with YOUR query but are fundamentally different jobs.
+
+### Pattern 5: No Lone Words
+Never output a single generic word. "design", "product", "data", "engineer" alone match millions of unrelated profiles. Every term must be specific enough that matching it in a bio strongly implies the person holds this role.
+
+### Pattern 6: Org Exclusion
+Always include organizational account types in antiGoals: companies, communities, newsletters, job boards, bootcamps, conferences that operate in this niche.
 `.trim();

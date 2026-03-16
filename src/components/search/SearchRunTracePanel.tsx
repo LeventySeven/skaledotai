@@ -254,7 +254,7 @@ export function SearchRunTracePanel({
           </button>
 
           {reasoningOpen ? (
-            <div className="max-h-[600px] space-y-3 overflow-y-auto border-t border-border/60 p-4">
+            <div className="max-h-[600px] space-y-4 overflow-y-auto border-t border-border/60 px-5 py-5">
               {steps.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-border/80 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">
                   {isPending
@@ -270,7 +270,7 @@ export function SearchRunTracePanel({
                       key={step.id}
                       ref={isLast ? reasoningEndRef : undefined}
                       className={cn(
-                        "rounded-[18px] border px-4 py-4 transition-all duration-300",
+                        "rounded-[18px] border px-5 py-5 transition-all duration-300",
                         isActive
                           ? "trace-active-shimmer border-emerald-400/35 bg-emerald-50/90"
                           : "border-border/70 bg-background/80",
@@ -302,7 +302,7 @@ export function SearchRunTracePanel({
                       </div>
 
                       {step.metrics.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-4 flex flex-wrap gap-2">
                           {step.metrics.map((metric, i) => (
                             <Badge key={`${step.id}-metric-${i}`} variant="outline" className="rounded-full bg-card">
                               {metric.label}: {metric.value}
@@ -312,7 +312,7 @@ export function SearchRunTracePanel({
                       ) : null}
 
                       {step.tools.length > 0 ? (
-                        <div className="mt-3">
+                        <div className="mt-4">
                           <div className="mb-2 flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                             <WrenchIcon className="size-3.5" />
                             <span>Tools used</span>

@@ -156,6 +156,9 @@ export const projectRuns = pgTable("project_runs", {
   minFollowers: integer("min_followers"),
   targetLeadCount: integer("target_lead_count"),
   leadCount: integer("lead_count").notNull().default(0),
+  /** Full trace JSON for the search run — allows resuming/viewing progress after navigation */
+  traceData: jsonb("trace_data"),
+  status: text("status").notNull().default("completed"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("project_runs_project_id_idx").on(table.projectId),

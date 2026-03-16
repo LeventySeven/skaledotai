@@ -32,7 +32,7 @@ import {
   normalizeProfilesFromPayload,
   normalizeTweetsFromPayload,
 } from "./agentql";
-import { NICHE_EXAMPLES } from "./niche-examples";
+import { NICHE_EXAMPLES, selectRelevantExamples } from "./niche-examples";
 import {
   MULTIAGENT_NODE_TITLES,
   MULTIAGENT_MAX_QUERIES,
@@ -230,6 +230,11 @@ const MultiAgentState = Annotation.Root({
     reducer: (_left, right) => right,
     default: () => 0,
   }),
+  /** Raw candidates scraped this attempt before pre-screening */
+  lastAttemptRawCount: Annotation<number>({
+    reducer: (_left, right) => right,
+    default: () => 0,
+  }),
   plannerFallbackUsed: Annotation<boolean>({
     reducer: (_left, right) => right,
     default: () => false,
@@ -392,35 +397,73 @@ async function interpretLeadSearchGoals(input: {
     const promptParts = [
       "Interpret this lead-search request. The user wants to find X/Twitter accounts that match this niche.",
       "",
-      "People describe the same role in many ways on X/Twitter. Your job is to generate ALL realistic ways someone with this role would describe themselves in a bio or post.",
+      "## YOUR THINKING PROCESS",
       "",
-      "RULES:",
-      "- Always include BOTH singular and plural forms (e.g. 'product designer' AND 'product designers').",
-      "- Always include the DISCIPLINE/FIELD form (e.g. 'product design' for 'product designers', 'startup founding' for 'startup founders').",
-      "- Include close SYNONYMS that describe the SAME role (e.g. 'UX designer', 'UI/UX designer', 'digital product designer' for 'product designers').",
-      "- Include common bio phrasing like 'I design products', 'designing digital experiences' — how people actually write it.",
-      "- NEVER include adjacent but DIFFERENT roles. 'product manager', 'head of product', 'CEO', 'CTO' are NOT product designers. 'venture capitalist', 'investor' are NOT startup founders.",
-      "- NEVER output individual generic words like 'product', 'design', 'startup', 'founder' alone — these are too ambiguous and match unrelated profiles.",
-      "- Every term must be a meaningful phrase (2+ words) or a specific role title that unambiguously identifies the role.",
+      "Before generating terms, reason through these steps for the SPECIFIC query you received:",
+      "",
+      "1. IDENTIFY THE CORE ROLE: What job/role does this query describe? Strip qualifiers and understand the essence.",
+      "   - 'senior blockchain developers' → core role is 'blockchain developer'",
+      "   - 'freelance UX writers' → core role is 'UX writer'",
+      "   - 'AI startup founders in Europe' → core role is 'startup founder' with domain 'AI' and geo 'Europe'",
+      "",
+      "2. MAP THE ROLE FORMS: For this specific role, generate:",
+      "   - Singular: 'blockchain developer'",
+      "   - Plural: 'blockchain developers'",
+      "   - Discipline/field: 'blockchain development'",
+      "   - Abbreviations/slang people actually use: 'web3 dev', 'solidity dev'",
+      "",
+      "3. FIND THE REAL SYNONYMS: What other titles describe the SAME work?",
+      "   - Test: would someone with this title be hired for the queried role? If yes, it's a synonym.",
+      "   - If no, it's an antiGoal.",
+      "",
+      "4. THINK ABOUT BIOS: How do people in THIS specific role actually describe themselves on X?",
+      "   - They don't write 'I am a blockchain developer'. They write 'building on Ethereum', 'solidity smart contracts', 'web3 builder'.",
+      "   - Generate phrases as people actually write them, not formal job titles.",
+      "",
+      "5. IDENTIFY CONFUSABLE ROLES: What adjacent roles commonly get mixed up with this one?",
+      "   - These become antiGoals. Be specific to THIS query, not generic.",
+      "",
+      "## RULES",
+      "",
+      "- Every roleTerms entry must unambiguously identify the queried role. No single generic words.",
+      "- Every bioTerms entry must be a realistic phrase someone in THIS role would write in their X bio.",
+      "- antiGoals must name SPECIFIC adjacent roles that are NOT the same. Don't be generic ('irrelevant') — name the exact confusable titles.",
+      "- Include singular + plural + discipline forms for every role variant.",
+      "- NEVER output lone words ('product', 'design', 'data', 'engineer'). Always a phrase or compound title.",
+      "- Adapt entirely to the query. If the query is about a niche you've never seen in examples, reason from first principles about that niche.",
     ];
 
     if (NICHE_EXAMPLES) {
+      // Select only the 2-3 most relevant examples + structural patterns to stay within token budget.
+      // LangGraph docs: "Balance context completeness against token costs."
+      const relevantExamples = selectRelevantExamples(input.niche, 3);
       promptParts.push(
         "",
-        "REFERENCE EXAMPLES (use these as guidance for the style and specificity of terms to generate — generalize the pattern to ANY niche, do not copy these literally unless the query matches):",
+        "## REFERENCE EXAMPLES",
         "",
-        NICHE_EXAMPLES,
+        "Below are a few relevant examples. Study the PATTERNS, not the content:",
+        "- How roleTerms cover singular/plural/discipline/synonym forms",
+        "- How bioTerms reflect real bio language, not formal titles",
+        "- How antiGoals name specific confusable roles",
+        "",
+        "DO NOT copy terms from these examples unless the query exactly matches one.",
+        "For any other query, apply the same structural patterns but generate terms specific to that query's role.",
+        "",
+        relevantExamples,
       );
     }
 
     promptParts.push(
       "",
-      "Extract:",
-      "- roleTerms: the role itself in all forms — singular, plural, discipline, and close synonyms. Each must unambiguously mean the same role.",
-      "- bioTerms: realistic bio phrases people with this role write. Things like 'I design ...', 'designing at ...', 'lead designer at ...'. Must clearly identify the role.",
-      "- geoHints: optional location signals from the query",
-      "- antiGoals: specific roles/account types that are DIFFERENT from the query and should be excluded (e.g. for 'product designers': 'product manager', 'head of product', 'CEO', 'engineering manager')",
+      "## OUTPUT",
+      "",
+      "For the query below, generate:",
+      "- roleTerms: this role in all forms (singular, plural, discipline, synonyms). Every entry must unambiguously mean this role.",
+      "- bioTerms: realistic X bio phrases for someone in this role. How they actually describe themselves, not formal titles.",
+      "- geoHints: location signals extracted from the query (if any)",
+      "- antiGoals: specific roles/account types that look similar but are NOT this role. Name exact titles.",
       "- userGoals: what the user is looking for (restate simply)",
+      "",
       JSON.stringify(input),
     );
 
@@ -868,6 +911,29 @@ async function buildPlannerQueries(
     };
   }
 
+  if (input.recoveryState === "precision_filtered") {
+    // Candidates were found but almost all were the wrong role.
+    // Generate highly targeted queries using the exact role terms from interpretation.
+    const roleTargetedQueries = [
+      ...interpretation.roleTerms.slice(0, 5).map((term) => `site:x.com "${term}"`),
+      ...interpretation.bioTerms.slice(0, 3).map((term) => `site:x.com "${term}"`),
+      ...interpretation.roleTerms.slice(0, 2).map((term) => `site:twitter.com "${term}"`),
+    ];
+    const precisionQueries = withNewQueries(
+      [...roleTargetedQueries, ...dorkQueries],
+      input.plannedQueries,
+    ).slice(0, Math.min(MULTIAGENT_MAX_QUERIES, baseBudget + 2));
+
+    return {
+      queries: precisionQueries,
+      plannerMode: "precision",
+      usedFallback: false,
+      userGoals: interpretation.userGoals,
+      geoHints: interpretation.geoHints,
+      antiGoals: interpretation.antiGoals,
+    };
+  }
+
   if (input.recoveryState === "rate_limited") {
     const throttleQueries = withNewQueries(
       [...dorkQueries, ...heuristicQueries, ...variants],
@@ -1276,31 +1342,39 @@ async function preScreenCandidates(
     posts: c.candidate.posts.slice(0, 2).map((p) => p.text.slice(0, 120)),
   }));
 
-  // Build context block so the pre-screen knows exactly what roles match and what to reject
-  const contextBlock = context && (context.roleTerms.length > 0 || context.antiGoals.length > 0)
+  // Build context-specific rules from the planner's interpretation
+  const hasContext = context && (context.roleTerms.length > 0 || context.antiGoals.length > 0);
+
+  const contextRules = hasContext
     ? [
       "",
-      "SEARCH CONTEXT (use this to make decisions):",
-      context.roleTerms.length > 0 ? `Matching roles: ${context.roleTerms.slice(0, 10).join(", ")}` : "",
-      context.bioTerms.length > 0 ? `Matching bio phrases: ${context.bioTerms.slice(0, 8).join(", ")}` : "",
-      context.antiGoals.length > 0 ? `EXCLUDE these roles/types: ${context.antiGoals.join(", ")}` : "",
+      "DECISION CRITERIA (from planner — use these as your primary reference):",
+      context!.roleTerms.length > 0
+        ? `A person is relevant if their bio/posts indicate they are: ${context!.roleTerms.slice(0, 10).join(", ")}.`
+        : "",
+      context!.bioTerms.length > 0
+        ? `Look for these bio signals: ${context!.bioTerms.slice(0, 8).join(", ")}.`
+        : "",
+      context!.antiGoals.length > 0
+        ? `A person is NOT relevant if they are: ${context!.antiGoals.join(", ")}. These are different roles — reject them.`
+        : "",
     ].filter(Boolean).join("\n")
     : "";
 
   try {
     const result = await withTimeout("OpenAI planner", 30_000, () => model.invoke([
-      `Quick relevance check: does each profile ACTUALLY match the role "${niche}"?`,
+      `Quick relevance check: does each profile ACTUALLY hold the role "${niche}"?`,
       "",
-      "For each profile, decide if this person genuinely holds the queried role based on their bio and posts.",
-      "- relevant=true ONLY if the person clearly does this work (exact role or close synonym).",
-      "- relevant=false if they hold a different role, are an organization, or there's insufficient evidence.",
-      "- confidence: how sure you are (80-100 = clear match, 60-79 = likely match, below 60 = not a match).",
+      "For each profile, check their bio and posts to decide if they genuinely do this work.",
+      "- relevant=true: the person holds this exact role or a close synonym.",
+      "- relevant=false: different role, organization, or insufficient evidence.",
+      "- confidence: 80-100 clear match, 60-79 likely match, below 60 not a match.",
       "",
-      "Common mistakes to avoid:",
-      "- A word from the query appearing in a different context is NOT a match (e.g. 'product' in 'head of product' does NOT match 'product designers').",
+      "Key rules:",
+      "- A keyword from the query appearing in a different context is NOT a match.",
       "- Organizations, communities, newsletters, job boards = always irrelevant.",
-      "- Adjacent senior roles (VP, Head of, Director of) are NOT the same as the IC role.",
-      contextBlock,
+      "- Adjacent senior roles (VP, Head of, Director of) are NOT the same as the hands-on role unless the query specifically asks for them.",
+      contextRules,
       "",
       JSON.stringify({ niche, candidates: candidateSummaries }),
     ].join("\n")));
@@ -1346,6 +1420,11 @@ const HydrationScoringSubgraphState = Annotation.Root({
     default: () => [],
   }),
   hydratedCount: Annotation<number>({
+    reducer: (_left, right) => right,
+    default: () => 0,
+  }),
+  /** How many candidates existed before pre-screening filtered them */
+  rawCandidateCount: Annotation<number>({
     reducer: (_left, right) => right,
     default: () => 0,
   }),
@@ -1416,6 +1495,7 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
     return {
       activeSubagent: "candidate_scorer" as const,
       scored,
+      rawCandidateCount: prescoredCandidates.length,
     };
   })
   .addEdge(START, "profile_hydrator")
@@ -1519,6 +1599,7 @@ const graph = new StateGraph(MultiAgentState)
       completedNodes: ["scorer" as const],
       scored: scoredSubgraph.scored,
       hydratedCount: scoredSubgraph.hydratedCount,
+      lastAttemptRawCount: scoredSubgraph.rawCandidateCount,
       hydrationTools: scoredSubgraph.hydrationTools,
       traceBatchUrls: [],
       traceQuery: undefined,
@@ -1526,7 +1607,6 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("validator", async (state) => {
     const sortedScores = sortScoredCandidates(state.scored);
-    // Keep all scored candidates — don't cap. More relevant leads = better.
     const candidates = sortedScores.map((item) => item.candidate);
     const attemptYield = sortedScores.filter((item) => item.attempt === state.attempt).length;
     const attemptErrors = state.errors.filter((error) => error.attempt === state.attempt);
@@ -1538,6 +1618,12 @@ const graph = new StateGraph(MultiAgentState)
         .map((error) => error.url)
         .filter((value): value is string => Boolean(value)),
     ).slice(0, state.scrapeBatchSize);
+
+    // Detect precision filtering: many raw candidates scraped but few survived pre-screen
+    // This means the queries found people, but the WRONG people — need more targeted queries
+    const rawCount = state.lastAttemptRawCount;
+    const precisionFiltered = rawCount > 0 && attemptYield < Math.ceil(rawCount * 0.15);
+
     const satisfied = candidates.length >= state.goalCount;
     const queryExhausted = !satisfied
       && state.currentQueries.length === 0
@@ -1555,9 +1641,11 @@ const graph = new StateGraph(MultiAgentState)
         ? "rate_limited"
         : invalidResponses.length > 0 || state.plannerFallbackUsed
           ? "json_repair"
-          : attemptYield < resolveLowYieldThreshold(state.goalCount)
-            ? "low_yield"
-            : undefined;
+          : precisionFiltered
+            ? "precision_filtered"
+            : attemptYield < resolveLowYieldThreshold(state.goalCount)
+              ? "low_yield"
+              : undefined;
 
     return {
       activeNode: "validator" as const,
@@ -1573,19 +1661,26 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("recovery", async (state) => {
     const nextAttempt = Math.min(state.maxAttempts, state.attempt + 1);
-    const nextQueryBudget = state.recoveryState === "low_yield"
-      ? Math.min(MULTIAGENT_MAX_QUERIES, state.queryBudget + 1)
+    const nextQueryBudget = state.recoveryState === "low_yield" || state.recoveryState === "precision_filtered"
+      ? Math.min(MULTIAGENT_MAX_QUERIES, state.queryBudget + 2)
       : state.recoveryState === "rate_limited"
         ? Math.max(2, state.queryBudget - 1)
         : state.queryBudget;
     const nextScrapeBatchSize = state.recoveryState === "rate_limited" || state.recoveryState === "json_repair"
       ? Math.max(MULTIAGENT_MIN_BATCH_SIZE, Math.floor(state.scrapeBatchSize / 2))
       : state.scrapeBatchSize;
-    const note = state.recoveryState === "rate_limited"
-      ? "Rate limits detected, so the graph narrowed query breadth and cut scraper batch size before retrying."
-      : state.recoveryState === "json_repair"
-        ? "JSON repair mode engaged, so the planner will lean on deterministic heuristic queries and smaller scrape batches."
-        : "Low-yield recovery expanded the query pool for another bounded pass.";
+
+    let note: string;
+
+    if (state.recoveryState === "precision_filtered") {
+      note = "Pre-screening rejected most candidates as wrong role. Planner will generate roleTerms-targeted queries to find the exact role.";
+    } else if (state.recoveryState === "rate_limited") {
+      note = "Rate limits detected, so the graph narrowed query breadth and cut scraper batch size before retrying.";
+    } else if (state.recoveryState === "json_repair") {
+      note = "JSON repair mode engaged, so the planner will lean on deterministic heuristic queries and smaller scrape batches.";
+    } else {
+      note = "Low-yield recovery expanded the query pool for another bounded pass.";
+    }
 
     return {
       activeNode: "recovery" as const,

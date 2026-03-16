@@ -39,6 +39,8 @@ export async function recordProjectRun(input: {
   minFollowers?: number;
   targetLeadCount?: number;
   leadCount: number;
+  traceData?: unknown;
+  status?: string;
 }): Promise<void> {
   const now = new Date();
   const values = {
@@ -55,6 +57,8 @@ export async function recordProjectRun(input: {
     minFollowers: input.minFollowers,
     targetLeadCount: input.targetLeadCount,
     leadCount: input.leadCount,
+    traceData: input.traceData ?? null,
+    status: input.status ?? "completed",
     createdAt: now,
   };
 
@@ -75,9 +79,27 @@ export async function recordProjectRun(input: {
         minFollowers: values.minFollowers,
         targetLeadCount: values.targetLeadCount,
         leadCount: values.leadCount,
+        traceData: values.traceData,
+        status: values.status,
         createdAt: now,
       },
     });
+}
+
+export async function getProjectRunTrace(
+  projectId: string,
+): Promise<{ traceData: unknown; status: string } | null> {
+  const [row] = await db
+    .select({
+      traceData: projectRuns.traceData,
+      status: projectRuns.status,
+    })
+    .from(projectRuns)
+    .where(eq(projectRuns.projectId, projectId))
+    .orderBy(desc(projectRuns.createdAt))
+    .limit(1);
+
+  return row ?? null;
 }
 
 export async function getProjectSourceProvidersByProjectIds(

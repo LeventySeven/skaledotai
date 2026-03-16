@@ -364,6 +364,7 @@ function describeDiscoveryRecoveryState(reason: DiscoveryRecoveryState): string 
   if (reason === "rate_limited") return "The recovery lane throttled the graph after upstream rate limits.";
   if (reason === "json_repair") return "The recovery lane switched into JSON repair mode after brittle upstream output.";
   if (reason === "low_yield") return "The recovery lane expanded the search when the current pass came back light.";
+  if (reason === "precision_filtered") return "The recovery lane detected most candidates were wrong role and switched to roleTerms-targeted queries.";
   return "The graph stayed on the happy path without a recovery handoff.";
 }
 
@@ -580,6 +581,39 @@ export async function searchAndAddLeads(
     const seedHandle = input.followerUsername?.replace(/^@/, "");
     const minFollowers = input.minFollowers ?? 0;
     const parseAccountsTarget = getDiscoveryParseTarget(provider, targetLeadCount);
+
+    // Progressive trace persistence — save to DB periodically so progress survives navigation.
+    // Aligned with LangGraph checkpoint pattern: "save state at every super-step."
+    const collectedSteps: Array<unknown> = [];
+    let pendingSave: Promise<void> | null = null;
+    const progressWithPersistence: SearchProgressHandlers | undefined = progress ? {
+      onStep: async (step) => {
+        collectedSteps.push(step);
+        await progress.onStep?.(step);
+        // Debounced save: persist every 5 steps or on first step
+        if (collectedSteps.length === 1 || collectedSteps.length % 5 === 0) {
+          const stepsSnapshot = [...collectedSteps];
+          pendingSave = recordProjectRun({
+            projectId: project.id,
+            operationType: "search",
+            requestedProvider: provider,
+            discoveryProvider: discoveryProvider.provider,
+            lookupProvider: provider,
+            networkProvider: provider,
+            tweetsProvider: provider,
+            query: input.query,
+            seedUsername: input.followerUsername?.replace(/^@/, ""),
+            minFollowers: input.minFollowers,
+            targetLeadCount: input.targetLeadCount,
+            leadCount: 0,
+            traceData: { steps: stepsSnapshot, status: "running" },
+            status: "running",
+          }).catch(() => undefined);
+        }
+      },
+      onSnapshot: progress.onSnapshot,
+    } : undefined;
+
     const discoveryResult = discoveryProvider.provider === "multiagent"
       ? await discoverCandidatesWithProviderOwnedLoop(
         discoveryProvider,
@@ -588,7 +622,7 @@ export async function searchAndAddLeads(
         minFollowers,
         targetLeadCount,
         parseAccountsTarget,
-        progress,
+        progressWithPersistence,
       )
       : await discoverCandidatesUntilGoal(
         discoveryProvider,
@@ -597,7 +631,7 @@ export async function searchAndAddLeads(
         minFollowers,
         targetLeadCount,
         parseAccountsTarget,
-        progress,
+        progressWithPersistence,
       );
     const discoveredCandidates = discoveryResult.candidates;
 
@@ -657,7 +691,7 @@ export async function searchAndAddLeads(
       discoveryResult.interpretation,
     );
     const selectedSet = new Set(screeningResult.selectedIds);
-    const screenedCandidates = screeningPool.filter((candidate) =>
+    let screenedCandidates = screeningPool.filter((candidate) =>
       selectedSet.has(candidate.account.xUserId ?? candidate.account.handle.replace(/^@/, "").toLowerCase())
       || selectedSet.has(candidate.account.handle.replace(/^@/, "").toLowerCase()),
     );
@@ -681,10 +715,37 @@ export async function searchAndAddLeads(
     }));
 
     if (screenedCandidates.length === 0) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "No relevant X leads passed AI filtering for this query.",
-      });
+      // Fallback: if final screening rejected everyone, use the top candidates from the
+      // discovery pool sorted by relevance. The pre-screen in the multiagent scorer already
+      // filtered obviously wrong profiles — these are the best we have.
+      const fallbackCandidates = screeningPool
+        .sort(byRelevanceDesc)
+        .slice(0, Math.min(targetLeadCount, screeningPool.length));
+
+      if (fallbackCandidates.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No relevant X leads found for this query.",
+        });
+      }
+
+      trace.addStep(await emitStep(progress, {
+        id: "screening-fallback",
+        title: "Screening Fallback",
+        summary: `Final AI screening returned 0 matches. Using top ${fallbackCandidates.length} pre-screened candidates as fallback.`,
+        status: "warning",
+        bullets: [
+          "The final screening model rejected all candidates. This may indicate the screening threshold is too strict for this niche.",
+          `Falling back to ${fallbackCandidates.length} candidates that passed the multiagent pre-screen.`,
+        ],
+        metrics: [
+          { label: "Fallback", value: fallbackCandidates.length },
+        ],
+        tools: [],
+      }));
+
+      // Use fallback candidates for the rest of the pipeline
+      screenedCandidates = fallbackCandidates;
     }
 
     const { profiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, screenedCandidates);
@@ -778,6 +839,19 @@ export async function searchAndAddLeads(
     }));
 
     const operationProviders = resolveSearchOperationProviders(provider, lookupResolution.effectiveProvider);
+
+    const projectWithProviders = {
+      ...project,
+      sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
+    };
+    const hitLeadTarget = leadsList.length >= targetLeadCount;
+    const finalTrace = trace.build(
+      hitLeadTarget
+        ? `Added ${leadsList.length} leads to ${project.name}.`
+        : `Added ${leadsList.length} leads to ${project.name} against a target of ~${targetLeadCount}.`,
+      hitLeadTarget ? "success" : "warning",
+    );
+
     await recordProjectRun({
       projectId: project.id,
       operationType: "search",
@@ -791,19 +865,9 @@ export async function searchAndAddLeads(
       minFollowers: input.minFollowers,
       targetLeadCount: input.targetLeadCount,
       leadCount: leadsList.length,
+      traceData: finalTrace,
+      status: hitLeadTarget ? "completed" : "partial",
     });
-
-    const projectWithProviders = {
-      ...project,
-      sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
-    };
-    const hitLeadTarget = leadsList.length >= targetLeadCount;
-    const finalTrace = trace.build(
-      hitLeadTarget
-        ? `Added ${leadsList.length} leads to ${project.name}.`
-        : `Added ${leadsList.length} leads to ${project.name} against a target of ~${targetLeadCount}.`,
-      hitLeadTarget ? "success" : "warning",
-    );
 
     return {
       leads: leadsList,

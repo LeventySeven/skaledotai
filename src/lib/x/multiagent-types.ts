@@ -27,9 +27,9 @@ export const MULTIAGENT_MAX_QUERIES = 8;
 
 export type MultiAgentNodeName = keyof typeof MULTIAGENT_NODE_TITLES;
 export type MultiAgentSubagentName = keyof typeof MULTIAGENT_SUBAGENT_TITLES;
-export type MultiAgentRecoveryState = "low_yield" | "rate_limited" | "json_repair";
+export type MultiAgentRecoveryState = "low_yield" | "rate_limited" | "json_repair" | "precision_filtered";
 export type MultiAgentStopReason = "goal_reached" | "max_attempts" | "query_exhausted";
-export type MultiAgentPlannerMode = "initial" | "expansion" | "repair" | "throttle";
+export type MultiAgentPlannerMode = "initial" | "expansion" | "repair" | "throttle" | "precision";
 
 export type MultiAgentErrorRecord = {
   stage: "planner" | "source_fanout" | "scraper";

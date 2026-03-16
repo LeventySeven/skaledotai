@@ -285,30 +285,37 @@ export async function screenProfilesForLeadSearchDetailed(
     usedFallback: boolean;
   }> = [];
 
-  // Build context-aware screening prompt with roleTerms/bioTerms/antiGoals when available
-  const contextBlock = interpretation && (interpretation.roleTerms.length > 0 || interpretation.antiGoals.length > 0)
+  // Build context-specific decision criteria from the planner's interpretation
+  const hasInterpretation = interpretation && (interpretation.roleTerms.length > 0 || interpretation.antiGoals.length > 0);
+
+  const criteriaBlock = hasInterpretation
     ? [
       "",
-      "SEARCH CONTEXT (use this to make accurate decisions):",
-      interpretation.roleTerms.length > 0 ? `Roles that MATCH: ${interpretation.roleTerms.slice(0, 12).join(", ")}` : "",
-      interpretation.bioTerms.length > 0 ? `Bio phrases that MATCH: ${interpretation.bioTerms.slice(0, 10).join(", ")}` : "",
-      interpretation.antiGoals.length > 0 ? `Roles/types to EXCLUDE: ${interpretation.antiGoals.join(", ")}` : "",
+      "DECISION CRITERIA (from planner — these define what matches and what doesn't for THIS specific query):",
+      interpretation!.roleTerms.length > 0
+        ? `Include if the person is: ${interpretation!.roleTerms.slice(0, 12).join(", ")}.`
+        : "",
+      interpretation!.bioTerms.length > 0
+        ? `Bio signals that indicate a match: ${interpretation!.bioTerms.slice(0, 10).join(", ")}.`
+        : "",
+      interpretation!.antiGoals.length > 0
+        ? `REJECT if the person is: ${interpretation!.antiGoals.join(", ")}. These are different roles.`
+        : "",
     ].filter(Boolean).join("\n")
     : "";
 
-  const screeningPrompt = `Confirm whether pre-screened X/Twitter profiles match the search query. These candidates have already passed an initial relevance check — your job is to verify and score them accurately.
+  const screeningPrompt = `Confirm whether pre-screened X/Twitter profiles match the search query. These candidates already passed an initial check — verify and score accurately.
 
 RULES:
-1. Include people who clearly hold the queried role OR a close synonym of it. For "product designers": product designer, UX designer, UI/UX designer, interaction designer = YES. Product manager, CEO, Head of Product = NO.
-2. Do NOT use partial keyword matches as evidence. The word "product" alone is not evidence of being a product designer. The word "design" in "designed a company" is not evidence.
+1. Include people who clearly hold the queried role or a close synonym. Reject people in different roles, even adjacent ones.
+2. Do NOT use partial keyword matches as evidence. A query keyword in a different context is not a match.
 3. Exclude organizations, companies, communities, newsletters, job boards — only real individual people.
-4. Exclude people whose role is clearly different, even if adjacent.
-5. Follower count is irrelevant.
-${contextBlock}
+4. Follower count is irrelevant.
+${criteriaBlock}
 
-Score: 80-100 clearly holds the exact role or very close synonym, 50-79 likely match with reasonable evidence, 0-49 does NOT match.
+Score: 80-100 clearly holds the exact role or close synonym, 50-79 likely match with reasonable evidence, 0-49 does NOT match.
 Reason: quote the specific part of bio/posts that shows they hold this role. 1-2 sentences.
-When in doubt about a borderline candidate, lean toward including them with a lower score rather than excluding — the pre-screen already filtered obvious mismatches.`;
+When in doubt about a borderline candidate, lean toward including with a lower score — the pre-screen already filtered obvious mismatches.`;
 
   const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
 
