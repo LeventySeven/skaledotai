@@ -205,9 +205,9 @@ function byRelevanceDesc(a: XLeadCandidate, b: XLeadCandidate): number {
   if (postDiff !== 0) return postDiff;
   // Then prefer candidates with longer bios (more identity signal)
   const bioDiff = b.account.bio.length - a.account.bio.length;
-  if (bioDiff !== 0) return bioDiff;
-  // Followers as last tiebreaker
-  return b.account.followers - a.account.followers;
+  return bioDiff;
+  // NOTE: follower count is intentionally NOT used as a tiebreaker — it biases toward
+  // high-follower accounts that are often irrelevant (CEOs, companies, influencers).
 }
 
 function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
@@ -216,8 +216,8 @@ function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
   for (const candidate of candidates) {
     const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
     const existing = byHandle.get(key);
-    // Keep the version with more posts (evidence of activity), then more followers as tiebreaker
-    if (!existing || candidate.posts.length > existing.posts.length || (candidate.posts.length === existing.posts.length && candidate.account.followers > existing.account.followers)) {
+    // Keep the version with more posts (evidence of activity), then longer bio as tiebreaker
+    if (!existing || candidate.posts.length > existing.posts.length || (candidate.posts.length === existing.posts.length && candidate.account.bio.length > existing.account.bio.length)) {
       byHandle.set(key, candidate);
     }
   }

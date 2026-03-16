@@ -56,7 +56,7 @@ export const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
   "elonmusk",
 ]);
 
-export const SEARCH_FALLBACK_SCORE_THRESHOLD = 5;
+export const SEARCH_FALLBACK_SCORE_THRESHOLD = 30;
 
 const SEARCH_PERSON_TERMS = [
   "founder",
@@ -95,16 +95,24 @@ const SEARCH_ORG_TERMS = [
   "parody account",
   "fan account",
   "automated account",
+  "community",
+  "we help",
+  "we support",
+  "our mission",
+  "join us",
+  "official account",
+  "#laptops",
+  "job board",
+  "hiring platform",
+  "career platform",
 ];
 
 const SEARCH_COMPANY_TERMS = [
   "company",
   "startup",
   "software",
-  "product",
   "platform",
   "team",
-  "building",
   "we build",
   "we're building",
   "for developers",
@@ -174,6 +182,10 @@ export function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidat
   const personSignal = hasPersonSignal(candidate, haystack);
   if (SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())) return true;
   if (SEARCH_HARD_NON_LEAD_TERMS.some((term) => haystack.includes(term)) && !personSignal) return true;
+  // Hard-reject obvious organization/company accounts with no person signal
+  const displayName = candidate.displayName.trim();
+  const looksLikeOrgName = /\b(partners|capital|labs|ventures|foundation|institute|media|studio|fund|org|university)\b/i.test(displayName);
+  if (looksLikeOrgName && !personSignal) return true;
   return false;
 }
 
@@ -184,18 +196,26 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
 
   const queryTerms = getSearchQueryTerms(query);
   const haystack = buildSearchCandidateText(candidate);
-  const matchedTerms = queryTerms.filter((term) => haystack.includes(term)).length;
-  const personSignal = hasPersonSignal(candidate, haystack);
-  const companySignal = hasCompanySignal(haystack);
-  const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
-  const postScore = candidate.samplePosts?.length ? 15 : 0;
 
-  let score = Math.min(45, matchedTerms * 15) + postScore;
-  if (personSignal) score += 22;
-  if (companySignal) score += 14;
-  if (!personSignal && !companySignal) score -= 4;
-  if (hasWeakNonLeadSignal && !personSignal && !companySignal) score -= 12;
-  if (matchedTerms === 0 && !personSignal && !companySignal) score -= 8;
+  // Separate phrase matches (multi-word) from single-word matches
+  const phraseTerms = queryTerms.filter((term) => term.includes(" "));
+  const singleTerms = queryTerms.filter((term) => !term.includes(" "));
+  const matchedPhrases = phraseTerms.filter((term) => haystack.includes(term)).length;
+  const matchedSingleWords = singleTerms.filter((term) => haystack.includes(term)).length;
+
+  const personSignal = hasPersonSignal(candidate, haystack);
+  const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
+  const isOrgAccount = SEARCH_ORG_TERMS.some((term) => haystack.includes(term));
+  const postScore = candidate.samplePosts?.length ? 10 : 0;
+
+  // Phrase matches are worth much more than individual word matches
+  // Single words alone should NOT be enough to pass the threshold
+  let score = Math.min(50, matchedPhrases * 25) + Math.min(10, matchedSingleWords * 5) + postScore;
+  if (personSignal) score += 15;
+  if (!personSignal) score -= 10;
+  if (isOrgAccount) score -= 25;
+  if (hasWeakNonLeadSignal && !personSignal) score -= 15;
+  if (matchedPhrases === 0 && matchedSingleWords <= 1) score -= 15;
 
   return Math.max(0, Math.min(100, score));
 }

@@ -569,21 +569,23 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   const bioText = normalizeText(candidate.account.bio);
   const postTexts = candidate.posts.slice(0, 5).map((post) => normalizeText(post.text));
 
-  // Bio relevance — phrase matches count 3x
+  // Bio relevance — phrase matches are critical, single words are weak signals
   const bioPhraseHits = keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).length;
   const bioWordHits = keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).length;
-  const bioScore = Math.min(60, (bioPhraseHits * 3 + bioWordHits) * 10);
+  // Phrases worth 20 each, single words only 3 each (single words like "product" alone shouldn't drive scoring)
+  const bioScore = Math.min(60, bioPhraseHits * 20 + bioWordHits * 3);
 
-  // Post relevance — posts with niche keywords
-  const postHits = postTexts.filter((text) => keywords.some((kw) => text.includes(kw))).length;
-  const postScore = Math.min(40, postHits * 12);
+  // Post relevance — only count posts with phrase-level matches, not single keywords
+  const phraseKeywords = keywords.filter((kw) => kw.includes(" "));
+  const postPhraseHits = postTexts.filter((text) => phraseKeywords.some((kw) => text.includes(kw))).length;
+  const postScore = Math.min(30, postPhraseHits * 12);
 
   const score = clampScore(bioScore + postScore);
 
   const reasons: string[] = [];
   if (bioPhraseHits > 0) reasons.push(`Bio contains: ${keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
   else if (bioWordHits > 0) reasons.push(`Bio mentions: ${keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
-  if (postHits > 0) reasons.push(`${postHits} post(s) discuss the niche`);
+  if (postPhraseHits > 0) reasons.push(`${postPhraseHits} post(s) discuss the niche`);
 
   return { score, reasons };
 }

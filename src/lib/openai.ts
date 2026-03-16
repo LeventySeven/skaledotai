@@ -278,7 +278,18 @@ export async function screenProfilesForLeadSearchDetailed(
     usedFallback: boolean;
   }> = [];
 
-  const screeningPrompt = "Screen X/Twitter profiles for a search query. Read each bio fully and decide if this person works in or is related to the niche.\n\nInclude if bio, posts, or linked website show this person works in the query's field. Exclude if unrelated.\n\nScore: 80-100 clearly in the field, 60-79 related, 40-59 tangential, 0 unrelated.\nReason: quote the relevant part of bio/posts/website. 1-2 sentences.\nNever mention follower count.";
+  const screeningPrompt = `Screen X/Twitter profiles for a lead search query. Your job is to find people who ACTUALLY hold the exact role or job described in the query — not adjacent roles, not tangentially related people.
+
+STRICT RULES:
+1. The query describes a SPECIFIC role/profession. Only include people who clearly hold that role or a very close synonym. For example, "product designers" means people who do product design — NOT product managers, NOT heads of product, NOT CEOs who work on products, NOT AI researchers, NOT recruiters, NOT community platforms.
+2. NEVER use partial keyword matches as evidence. If the query is "product designers", the word "product" alone in a bio is NOT evidence. The person must actually BE a designer. Similarly "design" in "design thinking" or "designed a company" does NOT make someone a designer.
+3. EXCLUDE organizations, companies, communities, newsletters, job boards, and non-individual accounts. Only include real people with a personal profile.
+4. EXCLUDE people whose role is clearly different even if they work in an adjacent field. A "Head of Product" is NOT a "Product Designer". A "CEO" is NOT a "Product Designer". A "UX Researcher" is NOT a "Product Designer" (unless their bio also says they do design).
+5. Follower count is IRRELEVANT. Do not let popularity influence your decision.
+
+Score: 80-100 person clearly holds the exact role described in the query, 60-79 very close role synonym (e.g. "UX designer" for "product designers"), 0-59 does NOT match — different role, organization, or insufficient evidence.
+Reason: quote the specific part of bio/posts that proves they hold this exact role. 1-2 sentences.
+If you cannot find clear evidence they hold the exact role, score 0 and set include to false.`;
 
   const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
 
@@ -318,6 +329,8 @@ export async function screenProfilesForLeadSearchDetailed(
 
     for (const decision of result.data.decisions) {
       if (!validIds.has(decision.profileId) || !decision.include) continue;
+      // Require minimum score of 60 — reject tangential/weak matches
+      if (decision.score < 60) continue;
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);
@@ -368,7 +381,7 @@ export async function expandLeadSearchQueries(
     schemaName: "lead_search_query_expansion",
     schema: QueryExpansionSchema,
     instructions:
-      "Generate up to 5 X/Twitter search queries for lead discovery. Maximize recall on the first pass and avoid over-constraining. Keep the original meaning, add adjacent role and company variants when useful, and produce queries that can surface both individual and company leads in the niche. Prefer broad, useful search strings over narrow filters. Return plain query strings only.",
+      "Generate up to 5 X/Twitter search queries for lead discovery. Focus on finding INDIVIDUALS who hold the exact role described in the query. Keep the original meaning — do not broaden to adjacent or senior roles. For example if the query is 'product designers', search for product designers, UX designers, UI designers — NOT product managers, heads of product, or CEOs. Do not generate queries that would primarily surface companies or organizations. Return plain query strings only.",
     input: JSON.stringify({
       query: normalizedQuery,
       seedHandle,
@@ -616,7 +629,7 @@ export async function generateLeadReasoning(input: {
     schemaName: "lead_reasoning",
     schema: LeadReasoningSchema,
     instructions:
-      "Analyze whether this profile matches the search query. Read the full bio and understand what the person does.\n\nRules:\n- Summary: one sentence stating what the person does. No filler.\n- alignmentBullets: quote the relevant part of the bio. No vague statements.\n- Evidence: quote the bio text that shows relevance.\n- If the person's work is unrelated, set confidence below 30.\n- Never mention follower count.\n- Understand the query's intent and match against what the person actually does, not just exact keywords.",
+      "Analyze whether this profile matches the search query. Read the full bio and understand what the person actually does for a living.\n\nRules:\n- Summary: one sentence stating what the person does. No filler.\n- alignmentBullets: quote the specific part of the bio that proves they hold the exact role from the query. No vague statements.\n- Evidence: quote the bio text that shows they actually do this work.\n- If the person holds a DIFFERENT role (e.g. query is 'product designers' but person is a CEO, product manager, or researcher), set confidence below 20.\n- If the profile belongs to an organization/company/community, set confidence below 10.\n- Never mention follower count.\n- Match the ROLE described in the query, not just keywords. 'Product' alone does not mean 'product designer'. 'Design' in 'designed a company' does not mean designer.",
     input: JSON.stringify(input),
     fallback,
     maxOutputTokens: 500,
