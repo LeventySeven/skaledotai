@@ -56,7 +56,7 @@ export const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
   "elonmusk",
 ]);
 
-export const SEARCH_FALLBACK_SCORE_THRESHOLD = 30;
+export const SEARCH_FALLBACK_SCORE_THRESHOLD = 20;
 
 const SEARCH_PERSON_TERMS = [
   "founder",
@@ -249,16 +249,15 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
   const isOrgAccount = SEARCH_ORG_TERMS.some((term) => haystack.includes(term));
   const postScore = candidate.samplePosts?.length ? 10 : 0;
 
-  // Phrase matches are the primary signal. Single words are near-worthless.
-  // Without a phrase match, a candidate should almost never pass the threshold.
-  const hasPhraseMatch = matchedPhrases > 0;
-  let score = Math.min(50, matchedPhrases * 25) + Math.min(5, matchedSingleWords * 1) + postScore;
+  // Phrase matches are the primary signal. Single words are weaker but still count.
+  // Goal: keep ALL relevant leads. Only reject if there's truly no match.
+  let score = Math.min(55, matchedPhrases * 22) + Math.min(12, matchedSingleWords * 4) + postScore;
   if (personSignal) score += 12;
-  if (!personSignal) score -= 10;
+  if (!personSignal) score -= 8;
   if (isOrgAccount) score -= 25;
-  if (hasWeakNonLeadSignal && !personSignal) score -= 15;
-  // Hard cap: without any phrase match, score can't exceed 15 (won't pass threshold of 30)
-  if (!hasPhraseMatch) score = Math.min(15, score);
+  if (hasWeakNonLeadSignal && !personSignal) score -= 12;
+  // Without any phrase match AND very few word matches, reduce score but don't hard-cap
+  if (matchedPhrases === 0 && matchedSingleWords <= 1) score -= 10;
 
   return Math.max(0, Math.min(100, score));
 }

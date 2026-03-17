@@ -615,149 +615,164 @@ export async function searchAndAddLeads(
       onSnapshot: progress.onSnapshot,
     } : undefined;
 
-    const discoveryResult = discoveryProvider.provider === "multiagent"
-      ? await discoverCandidatesWithProviderOwnedLoop(
-        discoveryProvider,
-        input.query,
-        seedHandle,
-        minFollowers,
-        targetLeadCount,
-        parseAccountsTarget,
-        progressWithPersistence,
-      )
-      : await discoverCandidatesUntilGoal(
-        discoveryProvider,
-        input.query,
-        seedHandle,
-        minFollowers,
-        targetLeadCount,
-        parseAccountsTarget,
-        progressWithPersistence,
+    // ── Discover → Screen → Check → Loop architecture ──────────────────────────
+    // Screening happens IN THE MIDDLE of the pipeline, not at the end.
+    // After each pass: discover candidates → screen for relevance → check count.
+    // If not enough relevant leads, discover MORE (new ones, not duplicates).
+    // This ensures the user gets both ACCURACY and QUANTITY.
+
+    const MAX_SEARCH_PASSES = 3;
+    const knownHandles = new Set<string>();
+    let screenedCandidates: XLeadCandidate[] = [];
+    let latestInterpretation: SearchInterpretation | undefined;
+    let totalDiscovered = 0;
+    let totalScreenedPool = 0;
+    /** Collected screening reasons across all passes for inline reasoning persistence */
+    const allSelectedReasons = new Map<string, string>();
+
+    for (let pass = 1; pass <= MAX_SEARCH_PASSES; pass++) {
+      const remaining = targetLeadCount - screenedCandidates.length;
+      if (remaining <= 0) break;
+
+      // Scale discovery target based on how many we still need
+      const passTarget = pass === 1 ? targetLeadCount : remaining;
+      const passParseTarget = pass === 1
+        ? parseAccountsTarget
+        : Math.max(100, Math.ceil(remaining * 3));
+
+      const discoveryResult = discoveryProvider.provider === "multiagent"
+        ? await discoverCandidatesWithProviderOwnedLoop(
+          discoveryProvider,
+          input.query,
+          seedHandle,
+          minFollowers,
+          passTarget,
+          passParseTarget,
+          progressWithPersistence,
+        )
+        : await discoverCandidatesUntilGoal(
+          discoveryProvider,
+          input.query,
+          seedHandle,
+          minFollowers,
+          passTarget,
+          passParseTarget,
+          progressWithPersistence,
+        );
+
+      if (!latestInterpretation) {
+        latestInterpretation = discoveryResult.interpretation;
+      }
+
+      // Filter out handles we already found in previous passes
+      const newCandidates = discoveryResult.candidates.filter((c) => {
+        const key = c.account.handle.replace(/^@/, "").toLowerCase();
+        if (knownHandles.has(key)) return false;
+        knownHandles.add(key);
+        return true;
+      });
+
+      totalDiscovered += newCandidates.length;
+
+      trace.addStep(await emitStep(progress, {
+        id: `discovery-${pass}`,
+        title: pass === 1 ? "Discovery" : `Discovery Pass ${pass}`,
+        summary: pass === 1
+          ? `Collected ${newCandidates.length} candidate accounts.`
+          : `Supplementary pass found ${newCandidates.length} new candidates (needed ~${remaining} more leads).`,
+        status: newCandidates.length > 0 ? "success" : "warning",
+        provider: discoveryProvider.provider,
+        bullets: [
+          seedHandle ? `Seed handle: @${seedHandle}` : "No seed handle used.",
+          pass > 1 ? `Already have ${screenedCandidates.length} leads from previous passes.` : "",
+          describeDiscoveryStopReason(discoveryResult.stopReason),
+        ].filter(Boolean),
+        metrics: [
+          { label: "Lead target (approx)", value: `~${targetLeadCount}` },
+          { label: "New candidates", value: newCandidates.length },
+          { label: "Attempts", value: `${discoveryResult.attempts} / ${discoveryResult.maxAttempts}` },
+          ...(pass > 1 ? [{ label: "Leads so far", value: screenedCandidates.length }] : []),
+        ],
+        tools: discoveryProvider.provider === "multiagent"
+          ? ["OpenAI", "Tavily", "AgentQL"]
+          : [],
+      }));
+
+      if (newCandidates.length === 0) {
+        // No new candidates found — stop searching
+        if (pass === 1) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No relevant X leads found for this query.",
+          });
+        }
+        break;
+      }
+
+      // ── SCREEN in the middle — strict on relevance, generous on count ──────
+      const screeningPool = buildScreeningPool(
+        newCandidates.sort(byRelevanceDesc),
+        passTarget,
       );
-    const discoveredCandidates = discoveryResult.candidates;
+      totalScreenedPool += screeningPool.length;
 
-    trace.addStep(await emitStep(progress, {
-      id: "discovery-summary",
-      title: "Discovery",
-      summary: discoveryResult.satisfied
-        ? `Collected ${discoveredCandidates.length} candidate accounts and hit the bounded discovery goal.`
-        : `Collected ${discoveredCandidates.length} candidate accounts before the bounded search window closed.`,
-      status: discoveryResult.satisfied ? "success" : "warning",
-      provider: discoveryProvider.provider,
-      bullets: [
-        seedHandle ? `Seed handle: @${seedHandle}` : "No seed handle used.",
-        discoveryProvider.provider === "multiagent"
-          ? (discoveryResult.recoveryState
-            ? describeDiscoveryRecoveryState(discoveryResult.recoveryState)
-            : discoveryResult.attempts > 1
-              ? "The provider-owned graph completed multiple bounded passes without surfacing a recovery lane in the final state."
-              : "The provider-owned graph completed on its first bounded pass.")
-          : (discoveryResult.retryQueries.length > 0
-            ? `Expanded into ${discoveryResult.retryQueries.length} additional discovery queries after the first pass came back light.`
-            : "No additional discovery queries were required."),
-        describeDiscoveryStopReason(discoveryResult.stopReason),
-      ],
-      metrics: [
-        { label: "Lead target (approx)", value: `~${targetLeadCount}` },
-        { label: "Candidate goal", value: discoveryResult.goalCount },
-        { label: "Attempts", value: `${discoveryResult.attempts} / ${discoveryResult.maxAttempts}` },
-        { label: "Parse pool", value: parseAccountsTarget },
-        { label: "First pass", value: discoveryResult.firstPassCount },
-        { label: "Final candidates", value: discoveredCandidates.length },
-      ],
-      tools: discoveryProvider.provider === "multiagent"
-        ? ["OpenAI", "Tavily", "AgentQL"]
-        : [],
-    }));
+      const screeningResult = await screenProfilesForLeadSearchDetailed(
+        input.query,
+        screeningPool.map(toScreeningCandidate),
+        passTarget,
+        latestInterpretation,
+      );
+      const selectedSet = new Set(screeningResult.selectedIds);
+      const passScreened = screeningPool.filter((candidate) =>
+        selectedSet.has(candidate.account.xUserId ?? candidate.account.handle.replace(/^@/, "").toLowerCase())
+        || selectedSet.has(candidate.account.handle.replace(/^@/, "").toLowerCase()),
+      );
 
-    if (discoveredCandidates.length === 0) {
+      // Collect screening reasons across all passes
+      for (const [id, reason] of screeningResult.selectedReasons) {
+        allSelectedReasons.set(id, reason);
+      }
+
+      screenedCandidates = [...screenedCandidates, ...passScreened];
+
+      trace.addStep(await emitStep(progress, {
+        id: `screening-${pass}`,
+        title: pass === 1 ? "AI Screening" : `AI Screening Pass ${pass}`,
+        summary: `Kept ${passScreened.length} relevant leads from ${screeningPool.length} candidates. Total: ${screenedCandidates.length}.`,
+        status: screenedCandidates.length >= Math.ceil(targetLeadCount * 0.7) ? "success" : "warning",
+        model: process.env.OPENAI_MODEL ?? "gpt-5",
+        bullets: [
+          ...screeningResult.batchSummaries.map((batch, index) =>
+            `Batch ${index + 1}: reviewed ${batch.candidateCount}, kept ${batch.includedCount}${batch.usedFallback ? " using fallback heuristics" : ""}.`,
+          ),
+          screenedCandidates.length >= targetLeadCount
+            ? `Met the approximate target of ~${targetLeadCount}.`
+            : `${targetLeadCount - screenedCandidates.length} more leads needed to meet target.`,
+        ],
+        metrics: [
+          { label: "Pool", value: screeningPool.length },
+          { label: "Selected", value: passScreened.length },
+          { label: "Total leads", value: screenedCandidates.length },
+        ],
+        tools: ["OpenAI"],
+      }));
+
+      // Check if we have enough — if so, stop early
+      if (screenedCandidates.length >= targetLeadCount) break;
+
+      // If this pass produced very few new screened leads AND we've already done
+      // multiple passes, stop to avoid infinite loops
+      if (pass >= 2 && passScreened.length < 3) break;
+    }
+
+    if (screenedCandidates.length === 0) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message:
-          (input.minFollowers ?? 0) > 0
-            ? `No relevant X leads found for this query with at least ${input.minFollowers} followers.`
-            : "No relevant X leads found for this query.",
+        message: "No relevant X leads passed AI screening for this query.",
       });
     }
 
-    const screeningPool = buildScreeningPool(
-      discoveredCandidates.sort(byRelevanceDesc),
-      targetLeadCount,
-    );
-
-    const screeningResult = await screenProfilesForLeadSearchDetailed(
-      input.query,
-      screeningPool.map(toScreeningCandidate),
-      targetLeadCount,
-      discoveryResult.interpretation,
-    );
-    const selectedSet = new Set(screeningResult.selectedIds);
-    let screenedCandidates = screeningPool.filter((candidate) =>
-      selectedSet.has(candidate.account.xUserId ?? candidate.account.handle.replace(/^@/, "").toLowerCase())
-      || selectedSet.has(candidate.account.handle.replace(/^@/, "").toLowerCase()),
-    );
-
-    trace.addStep(await emitStep(progress, {
-      id: "screening",
-      title: "AI Screening",
-      summary: `The model kept ${screenedCandidates.length} leads from a pool of ${screeningPool.length}.`,
-      status: screenedCandidates.length >= Math.ceil(targetLeadCount * 0.8) ? "success" : "warning",
-      model: process.env.OPENAI_MODEL ?? "gpt-5",
-      bullets: [
-        ...screeningResult.batchSummaries.map((batch, index) =>
-          `Batch ${index + 1}: reviewed ${batch.candidateCount}, kept ${batch.includedCount}${batch.usedFallback ? " using fallback heuristics" : ""}.`,
-        ),
-      ],
-      metrics: [
-        { label: "Pool", value: screeningPool.length },
-        { label: "Selected", value: screenedCandidates.length },
-      ],
-      tools: ["OpenAI"],
-    }));
-
-    if (screenedCandidates.length === 0) {
-      // Fallback: if final screening rejected everyone, use the top candidates from the
-      // discovery pool sorted by relevance. The pre-screen in the multiagent scorer already
-      // filtered obviously wrong profiles — these are the best we have.
-      const fallbackCandidates = screeningPool
-        .sort(byRelevanceDesc)
-        .slice(0, Math.min(targetLeadCount, screeningPool.length));
-
-      if (fallbackCandidates.length === 0) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "No relevant X leads found for this query.",
-        });
-      }
-
-      trace.addStep(await emitStep(progress, {
-        id: "screening-fallback",
-        title: "Screening Fallback",
-        summary: `Final AI screening returned 0 matches. Using top ${fallbackCandidates.length} pre-screened candidates as fallback.`,
-        status: "warning",
-        bullets: [
-          "The final screening model rejected all candidates. This may indicate the screening threshold is too strict for this niche.",
-          `Falling back to ${fallbackCandidates.length} candidates that passed the multiagent pre-screen.`,
-        ],
-        metrics: [
-          { label: "Fallback", value: fallbackCandidates.length },
-        ],
-        tools: [],
-      }));
-
-      // Use fallback candidates for the rest of the pipeline
-      screenedCandidates = fallbackCandidates;
-    }
-
-    // Apply minFollowers as a post-screening filter — only the final output respects it.
-    // Discovery and screening focus purely on relevance, not popularity.
-    const followerFilteredCandidates = minFollowers > 0
-      ? screenedCandidates.filter((c) => c.account.followers >= minFollowers)
-      : screenedCandidates;
-    // If follower filter removes too many, fall back to unfiltered (relevance > popularity)
-    const finalCandidates = followerFilteredCandidates.length >= Math.ceil(targetLeadCount * 0.3)
-      ? followerFilteredCandidates
-      : screenedCandidates;
+    const finalCandidates = screenedCandidates;
 
     const { profiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, finalCandidates);
     trace.addStep(await emitStep(progress, {
@@ -785,13 +800,13 @@ export async function searchAndAddLeads(
     });
 
     // Persist screening reasons as inline reasoning — generated DURING search, not after
-    if (screeningResult.selectedReasons.size > 0 && leadsList.length > 0) {
+    if (allSelectedReasons.size > 0 && leadsList.length > 0) {
       try {
         const now = new Date();
         const insightRows = leadsList
           .map((lead) => {
-            const reason = screeningResult.selectedReasons.get(lead.xUserId ?? "")
-              ?? screeningResult.selectedReasons.get(lead.handle.replace(/^@/, "").toLowerCase());
+            const reason = allSelectedReasons.get(lead.xUserId ?? "")
+              ?? allSelectedReasons.get(lead.handle.replace(/^@/, "").toLowerCase());
             if (!reason) return null;
             return {
               projectId: project.id,

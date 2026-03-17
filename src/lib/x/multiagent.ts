@@ -766,32 +766,31 @@ function clampScore(value: number): number {
 
 function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): { score: number; reasons: string[] } {
   const keywords = extractKeywords(niche);
-  const bioText = normalizeText(candidate.account.bio);
-  // Examine more posts (up to 15) for better signal
+  // Include display name + bio + handle — display names like "Gaga | Product Designer" are strong signals
+  const profileText = normalizeText([candidate.account.name, candidate.account.bio, candidate.account.handle].join(" "));
   const postTexts = candidate.posts.slice(0, 15).map((post) => normalizeText(post.text));
 
-  // Bio relevance — phrase matches are the primary signal, single words are near-worthless
   const phraseKeywords = keywords.filter((kw) => kw.includes(" "));
   const singleKeywords = keywords.filter((kw) => !kw.includes(" "));
-  const bioPhraseHits = phraseKeywords.filter((kw) => bioText.includes(kw)).length;
-  const bioWordHits = singleKeywords.filter((kw) => bioText.includes(kw)).length;
+  const profilePhraseHits = phraseKeywords.filter((kw) => profileText.includes(kw)).length;
+  const profileWordHits = singleKeywords.filter((kw) => profileText.includes(kw)).length;
 
-  // Phrases worth 22 each. Single words are worth only 1pt — they should NEVER be enough alone.
-  // A CEO with "product" in bio gets 1pt. A "product designer" gets 22pts.
-  const bioScore = Math.min(60, bioPhraseHits * 22 + bioWordHits * 1);
+  // Phrases worth 20 each, single words worth 3 each
+  const profileScore = Math.min(60, profilePhraseHits * 20 + profileWordHits * 3);
 
   // Post relevance — phrase matches in posts confirm the role
   const postPhraseHits = postTexts.filter((text) => phraseKeywords.some((kw) => text.includes(kw))).length;
   const postScore = Math.min(30, postPhraseHits * 10);
 
-  // Require at least one phrase match (bio or posts) to score above 20
-  const hasAnyPhraseMatch = bioPhraseHits > 0 || postPhraseHits > 0;
-  const rawScore = bioScore + postScore;
-  const score = clampScore(hasAnyPhraseMatch ? rawScore : Math.min(15, rawScore));
+  const rawScore = profileScore + postScore;
+  // No phrase match → reduce score but don't hard-cap. A person with multiple word matches
+  // and person signals may still be relevant (e.g. truncated bio from scraping).
+  const hasAnyPhraseMatch = profilePhraseHits > 0 || postPhraseHits > 0;
+  const score = clampScore(hasAnyPhraseMatch ? rawScore : Math.max(0, rawScore - 10));
 
   const reasons: string[] = [];
-  if (bioPhraseHits > 0) reasons.push(`Bio contains: ${phraseKeywords.filter((kw) => bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
-  else if (bioWordHits > 0) reasons.push(`Bio mentions: ${singleKeywords.filter((kw) => bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  if (profilePhraseHits > 0) reasons.push(`Profile contains: ${phraseKeywords.filter((kw) => profileText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  else if (profileWordHits > 0) reasons.push(`Profile mentions: ${singleKeywords.filter((kw) => profileText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
   if (postPhraseHits > 0) reasons.push(`${postPhraseHits} post(s) discuss the niche`);
 
   return { score, reasons };
@@ -1485,10 +1484,12 @@ async function preScreenCandidates(
       JSON.stringify({ niche, candidates: candidateSummaries }),
     ].join("\n")));
 
-    // Build set of handles that passed
+    // Build set of handles that passed. The pre-screen is a COARSE filter —
+    // its job is to remove obvious non-matches (wrong role, orgs), not borderline ones.
+    // The final AI screening (in the middle of the pipeline loop) does the strict check.
     const passed = new Set<string>();
     for (const d of result.decisions) {
-      if (d.relevant && d.confidence >= 60) {
+      if (d.relevant && d.confidence >= 40) {
         passed.add(d.handle.replace(/^@/, "").toLowerCase());
       }
     }

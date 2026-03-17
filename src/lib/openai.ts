@@ -304,18 +304,20 @@ export async function screenProfilesForLeadSearchDetailed(
     ].filter(Boolean).join("\n")
     : "";
 
-  const screeningPrompt = `Confirm whether pre-screened X/Twitter profiles match the search query. These candidates already passed an initial check — verify and score accurately.
+  const screeningPrompt = `Verify pre-screened X/Twitter profiles against the search query. These candidates already passed an initial relevance check.
+
+YOUR GOAL: Keep as many RELEVANT leads as possible. Do NOT artificially limit the number. Every real match should be included.
 
 RULES:
-1. Include people who clearly hold the queried role or a close synonym. Reject people in different roles, even adjacent ones.
-2. Do NOT use partial keyword matches as evidence. A query keyword in a different context is not a match.
-3. Exclude organizations, companies, communities, newsletters, job boards — only real individual people.
+1. Include anyone who holds the queried role, a close synonym, or works directly in the queried niche. Cast a wide net — more relevant leads is always better.
+2. Only REJECT if the person clearly holds a DIFFERENT role, is an organization, or there is zero evidence of relevance.
+3. Do NOT use partial keyword matches as the sole evidence. But if someone's display name says "Product Designer" — that IS evidence even if the bio doesn't repeat it.
 4. Follower count is irrelevant.
+5. When in doubt, INCLUDE with a lower score. A borderline relevant lead is better than a missed one.
 ${criteriaBlock}
 
-Score: 80-100 clearly holds the exact role or close synonym, 50-79 likely match with reasonable evidence, 0-49 does NOT match.
-Reason: quote the specific part of bio/posts that shows they hold this role. 1-2 sentences.
-When in doubt about a borderline candidate, lean toward including with a lower score — the pre-screen already filtered obvious mismatches.`;
+Score: 80-100 clearly holds the exact role, 50-79 likely or adjacent match, 30-49 weak but possible match. Set include=false ONLY if score < 30.
+Reason: quote the specific part of bio/name/posts that shows relevance. 1-2 sentences.`;
 
   const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
 
@@ -355,8 +357,10 @@ When in doubt about a borderline candidate, lean toward including with a lower s
 
     for (const decision of result.data.decisions) {
       if (!validIds.has(decision.profileId) || !decision.include) continue;
-      // Require minimum score of 50 — pre-screening already filtered obvious mismatches
-      if (decision.score < 50) continue;
+      // Accept any lead the model marked as include — the goal is to keep ALL relevant
+      // leads, not filter aggressively. Pre-screening already removed obvious mismatches.
+      // Only reject if score is extremely low (clear model error).
+      if (decision.score < 30) continue;
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);
