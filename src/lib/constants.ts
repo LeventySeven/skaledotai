@@ -5,7 +5,7 @@ export const SEARCH_TARGET_MAX = 300;
 export const SEARCH_CANDIDATE_OVERFETCH_FACTOR = 3;
 export const SEARCH_CANDIDATE_POOL_LIMIT = 1200;
 export const SEARCH_POST_SEARCH_PAGE_LIMIT = 2;
-export const SEARCH_AI_BATCH_SIZE = 60;
+export const SEARCH_AI_BATCH_SIZE = 30;
 export const SEARCH_DISCOVERY_METADATA = {
   parseAccountsTarget: 350,
   retryParseAccountsTarget: 350,

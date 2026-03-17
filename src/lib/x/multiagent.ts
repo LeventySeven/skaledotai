@@ -586,21 +586,30 @@ function buildGoogleDorkQueries(input: {
     ]).slice(0, input.queryBudget);
   }
 
-  return dedupeQueries([
-    // Primary: search for the singular role term (how people write it in bios)
-    `site:x.com "${primaryTerm}"`,
-    // Secondary: try normalized query (may include plural or qualifiers)
-    primaryTerm !== normalized ? `site:x.com "${normalized}"` : `site:twitter.com "${primaryTerm}"`,
-    // With role terms OR block
-    roleBlock ? `site:x.com ("${roleBlock}")` : "",
-    // With bio terms OR block
-    bioBlock ? `site:x.com ("${bioBlock}")` : "",
-    // Geo-targeted
-    geoBlock ? `site:x.com "${primaryTerm}" "${geoBlock}"` : "",
-    // Later attempts: try individual role/bio terms
-    input.attempt >= 2 && input.interpretation.roleTerms[1] ? `site:x.com "${input.interpretation.roleTerms[1]}"` : "",
-    input.attempt >= 3 && input.interpretation.bioTerms[1] ? `site:twitter.com "${input.interpretation.bioTerms[1]}"` : "",
-  ]).slice(0, input.queryBudget);
+  // Generate targeted queries that find PROFILES, not articles or listicles.
+  // Each query uses roleTerms/bioTerms directly — these are how people describe
+  // themselves in bios, so Google will match the actual profile pages.
+  const queries: string[] = [];
+
+  // Primary: individual roleTerms as separate queries (each finds different profiles)
+  for (const term of input.interpretation.roleTerms.slice(0, 4)) {
+    queries.push(`site:x.com "${term}"`);
+  }
+
+  // Bio-phrase queries: find profiles where people wrote these specific phrases
+  for (const term of input.interpretation.bioTerms.slice(0, 3)) {
+    queries.push(`site:x.com "${term}"`);
+  }
+
+  // Geo-targeted variant
+  if (geoBlock) {
+    queries.push(`site:x.com "${primaryTerm}" "${geoBlock}"`);
+  }
+
+  // twitter.com variant for older indexed profiles
+  queries.push(`site:twitter.com "${primaryTerm}"`);
+
+  return dedupeQueries(queries).slice(0, input.queryBudget);
 }
 
 function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" | "targetLeadCount" | "limit">): number {
@@ -613,49 +622,42 @@ function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" |
 }
 
 export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[] {
-  const niche = input.niche.trim();
+  const normalized = heuristicNormalizeQuery(input.niche);
+  const variants = buildRoleVariants(normalized);
   const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
 
   // When searching within a user's followers, ALL queries scope to verified_followers
   if (seedHandle) {
     const vf = `site:x.com/${seedHandle}/verified_followers`;
     return dedupeQueries([
-      `${vf} ${niche}`,
+      `${vf} "${normalized}"`,
       `${vf}`,
-      `${vf} ${niche} founders creators builders`,
-      `${vf} ${niche} people who repost share engage`,
-      `${vf} ${niche} indie makers operators`,
-      `${vf} ${niche} engaged community members`,
+      ...variants.slice(0, 2).map((v) => `${vf} "${v}"`),
     ]).slice(0, resolveMultiAgentQueryBudget(input));
   }
 
+  // Use site:x.com with quoted role terms — finds actual profiles, not listicles.
+  // Each variant (singular, plural, discipline) finds different people.
   return dedupeQueries([
-    `${niche} on x`,
-    `${niche} x.com`,
-    `${niche} twitter`,
-    `best ${niche} on x`,
+    ...variants.slice(0, 3).map((v) => `site:x.com "${v}"`),
+    `site:twitter.com "${variants[0] || normalized}"`,
   ]).slice(0, resolveMultiAgentQueryBudget(input));
 }
 
-function buildAttemptVariantQueries(niche: string, seedHandle: string | undefined, attempt: number): string[] {
+function buildAttemptVariantQueries(niche: string, seedHandle: string | undefined, _attempt: number): string[] {
+  const normalized = heuristicNormalizeQuery(niche);
+  const variants = buildRoleVariants(normalized);
   const cleanSeed = seedHandle?.replace(/^@/, "").trim();
 
-  // When searching within a user's followers, ALL queries scope to verified_followers
   if (cleanSeed) {
     const vf = `site:x.com/${cleanSeed}/verified_followers`;
-    return dedupeQueries([
-      `${vf} ${niche}`,
-      attempt >= 3 ? `${vf}` : "",
-    ]);
+    return dedupeQueries(variants.slice(0, 2).map((v) => `${vf} "${v}"`));
   }
 
-  return dedupeQueries([
-    `site:x.com "${niche}"`,
-    `"${niche}" x.com`,
-    `${niche} site:twitter.com`,
-    attempt >= 3 ? `top ${niche} on x` : "",
-    attempt >= 4 ? `${niche} freelance independent` : "",
-  ]);
+  // Use role variants with site: prefix — each finds different profiles
+  return dedupeQueries(
+    variants.slice(0, 3).map((v) => `site:x.com "${v}"`),
+  );
 }
 
 function resolveMultiAgentUrlLimit(limit: number, goalCount?: number): number {

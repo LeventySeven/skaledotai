@@ -190,9 +190,10 @@ async function structuredResponseWithMeta<T>({
       usedFallback: true,
     };
   } catch (error) {
-    console.warn("[openai][structured-response]", JSON.stringify({
+    console.error("[openai][structured-response] FAILED — falling back to heuristics", JSON.stringify({
       schema: schemaName,
       message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack?.split("\n").slice(0, 3).join(" | ") : undefined,
     }));
     return {
       data: fallback,
@@ -347,7 +348,7 @@ Reason: quote the specific part of bio/name/posts that shows relevance. 1-2 sent
       fallback: {
         decisions: getFallbackScreeningDecisions(query, batch),
       },
-      maxOutputTokens: 4_000,
+      maxOutputTokens: 8_000,
     });
     return { batch, validIds, result };
   }));
