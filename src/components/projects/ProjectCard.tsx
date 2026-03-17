@@ -116,7 +116,7 @@ export function ProjectCard({
               />
             ) : (
               <div
-                className="group flex items-center gap-1.5 text-[1.15rem] font-semibold"
+                className="group flex min-w-0 items-center gap-1.5 text-[1.15rem] font-semibold"
                 onClick={(e) => {
                   if (!analysisMode) {
                     e.stopPropagation();
@@ -125,8 +125,8 @@ export function ProjectCard({
                   }
                 }}
               >
-                {project.name}
-                {!analysisMode ? <PencilIcon className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" /> : null}
+                <span className="truncate">{project.name}</span>
+                {!analysisMode ? <PencilIcon className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" /> : null}
               </div>
             )}
             {project.sourceProviders.map((provider) => (
