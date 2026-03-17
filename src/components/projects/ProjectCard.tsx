@@ -96,8 +96,8 @@ export function ProjectCard({
       }`}
     >
       <div className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
-        <div>
-          <div className="flex items-center gap-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2.5">
             {editing ? (
               <Input
                 ref={inputRef}
@@ -149,7 +149,7 @@ export function ProjectCard({
         </div>
 
         {!analysisMode ? (
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {project.seedUsername ? (
               <Button
                 variant="ghost"
