@@ -89,6 +89,8 @@ export type SourceFanoutAgentInput = {
   limit: number;
   query: string;
   seedHandle?: string;
+  /** AntiGoal terms from the planner — used as negative keywords in Tavily searches */
+  excludeTerms?: string[];
 };
 
 export type ScraperAgentInput = {

@@ -26,17 +26,49 @@ const TavilyResponseSchema = z.object({
   })).default([]),
 });
 
-export function buildTavilySearchRequest(query: string, limit: number): Record<string, unknown> {
+export function buildTavilySearchRequest(
+  query: string,
+  limit: number,
+  options?: { excludeTerms?: string[] },
+): Record<string, unknown> {
+  // If antiGoal exclusion terms are provided, append them as negative keywords
+  // to reduce irrelevant results at the source. This is cheaper than filtering later.
+  let enhancedQuery = query;
+  if (options?.excludeTerms?.length) {
+    // Take top 3 exclusions to avoid making the query too long for Tavily
+    const exclusions = options.excludeTerms
+      .slice(0, 3)
+      .map((term) => `-"${term}"`)
+      .join(" ");
+    enhancedQuery = `${query} ${exclusions}`;
+  }
+
   return {
     api_key: requireEnv("TAVILY_API_KEY"),
-    query,
+    query: enhancedQuery,
     search_depth: "advanced",
     include_domains: ["x.com", "twitter.com"],
     max_results: Math.max(10, Math.min(20, Math.ceil(limit / 2))),
   };
 }
 
+export async function searchTavilyWithExclusions(
+  query: string,
+  limit: number,
+  excludeTerms?: string[],
+): Promise<TavilyResult[]> {
+  return searchTavilyInternal(query, limit, { excludeTerms });
+}
+
 export async function searchTavily(query: string, limit: number): Promise<TavilyResult[]> {
+  return searchTavilyInternal(query, limit);
+}
+
+async function searchTavilyInternal(
+  query: string,
+  limit: number,
+  options?: { excludeTerms?: string[] },
+): Promise<TavilyResult[]> {
   let response: Response;
   try {
     const controller = new AbortController();
@@ -47,7 +79,7 @@ export async function searchTavily(query: string, limit: number): Promise<Tavily
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildTavilySearchRequest(query, limit)),
+      body: JSON.stringify(buildTavilySearchRequest(query, limit, options)),
       cache: "no-store",
       signal: controller.signal,
     }).finally(() => clearTimeout(timeoutId));
@@ -61,7 +93,8 @@ export async function searchTavily(query: string, limit: number): Promise<Tavily
 
   try {
     const payload = TavilyResponseSchema.parse(await parseUpstreamJson(response, "Tavily", "discovery"));
-    return payload.results;
+    // Sort by Tavily's relevance score when available (don't discard free signal)
+    return payload.results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   } catch (error) {
     if (error instanceof XProviderRuntimeError) throw error;
     throwInvalidResponse("discovery", "Tavily");

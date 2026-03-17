@@ -249,14 +249,16 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
   const isOrgAccount = SEARCH_ORG_TERMS.some((term) => haystack.includes(term));
   const postScore = candidate.samplePosts?.length ? 10 : 0;
 
-  // Phrase matches are worth much more than individual word matches
-  // Single words alone should NOT be enough to pass the threshold
-  let score = Math.min(50, matchedPhrases * 25) + Math.min(10, matchedSingleWords * 5) + postScore;
-  if (personSignal) score += 15;
+  // Phrase matches are the primary signal. Single words are near-worthless.
+  // Without a phrase match, a candidate should almost never pass the threshold.
+  const hasPhraseMatch = matchedPhrases > 0;
+  let score = Math.min(50, matchedPhrases * 25) + Math.min(5, matchedSingleWords * 1) + postScore;
+  if (personSignal) score += 12;
   if (!personSignal) score -= 10;
   if (isOrgAccount) score -= 25;
   if (hasWeakNonLeadSignal && !personSignal) score -= 15;
-  if (matchedPhrases === 0 && matchedSingleWords <= 1) score -= 15;
+  // Hard cap: without any phrase match, score can't exceed 15 (won't pass threshold of 30)
+  if (!hasPhraseMatch) score = Math.min(15, score);
 
   return Math.max(0, Math.min(100, score));
 }

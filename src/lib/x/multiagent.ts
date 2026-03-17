@@ -24,6 +24,7 @@ import {
 } from "./multiagent-shared";
 import {
   searchTavily,
+  searchTavilyWithExclusions,
   normalizeDiscoveredUrls,
 } from "./tavily";
 import {
@@ -763,24 +764,31 @@ function clampScore(value: number): number {
 function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): { score: number; reasons: string[] } {
   const keywords = extractKeywords(niche);
   const bioText = normalizeText(candidate.account.bio);
-  const postTexts = candidate.posts.slice(0, 5).map((post) => normalizeText(post.text));
+  // Examine more posts (up to 15) for better signal
+  const postTexts = candidate.posts.slice(0, 15).map((post) => normalizeText(post.text));
 
-  // Bio relevance — phrase matches are critical, single words are weak signals
-  const bioPhraseHits = keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).length;
-  const bioWordHits = keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).length;
-  // Phrases worth 20 each, single words only 3 each (single words like "product" alone shouldn't drive scoring)
-  const bioScore = Math.min(60, bioPhraseHits * 20 + bioWordHits * 3);
-
-  // Post relevance — only count posts with phrase-level matches, not single keywords
+  // Bio relevance — phrase matches are the primary signal, single words are near-worthless
   const phraseKeywords = keywords.filter((kw) => kw.includes(" "));
-  const postPhraseHits = postTexts.filter((text) => phraseKeywords.some((kw) => text.includes(kw))).length;
-  const postScore = Math.min(30, postPhraseHits * 12);
+  const singleKeywords = keywords.filter((kw) => !kw.includes(" "));
+  const bioPhraseHits = phraseKeywords.filter((kw) => bioText.includes(kw)).length;
+  const bioWordHits = singleKeywords.filter((kw) => bioText.includes(kw)).length;
 
-  const score = clampScore(bioScore + postScore);
+  // Phrases worth 22 each. Single words are worth only 1pt — they should NEVER be enough alone.
+  // A CEO with "product" in bio gets 1pt. A "product designer" gets 22pts.
+  const bioScore = Math.min(60, bioPhraseHits * 22 + bioWordHits * 1);
+
+  // Post relevance — phrase matches in posts confirm the role
+  const postPhraseHits = postTexts.filter((text) => phraseKeywords.some((kw) => text.includes(kw))).length;
+  const postScore = Math.min(30, postPhraseHits * 10);
+
+  // Require at least one phrase match (bio or posts) to score above 20
+  const hasAnyPhraseMatch = bioPhraseHits > 0 || postPhraseHits > 0;
+  const rawScore = bioScore + postScore;
+  const score = clampScore(hasAnyPhraseMatch ? rawScore : Math.min(15, rawScore));
 
   const reasons: string[] = [];
-  if (bioPhraseHits > 0) reasons.push(`Bio contains: ${keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
-  else if (bioWordHits > 0) reasons.push(`Bio mentions: ${keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  if (bioPhraseHits > 0) reasons.push(`Bio contains: ${phraseKeywords.filter((kw) => bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  else if (bioWordHits > 0) reasons.push(`Bio mentions: ${singleKeywords.filter((kw) => bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
   if (postPhraseHits > 0) reasons.push(`${postPhraseHits} post(s) discuss the niche`);
 
   return { score, reasons };
@@ -1046,7 +1054,9 @@ async function runSourceFanoutAgent(input: SourceFanoutAgentInput): Promise<{
   errors: MultiAgentErrorRecord[];
 }> {
   try {
-    const results = await searchTavily(input.query, input.limit);
+    const results = input.excludeTerms?.length
+      ? await searchTavilyWithExclusions(input.query, input.limit, input.excludeTerms)
+      : await searchTavily(input.query, input.limit);
     const discoveredUrls = normalizeDiscoveredUrls(
       results,
       resolveMultiAgentUrlLimit(input.limit, input.goalCount),
@@ -1141,7 +1151,10 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
         tweets.filter((tweet) => !tweet.authorId || tweet.authorId === profile.xUserId),
       );
 
-      if (candidate.account.followers < (state.minFollowers ?? 0)) continue;
+      // NOTE: minFollowers is intentionally NOT applied during discovery.
+      // Filtering by followers biases toward popularity over relevance — a real
+      // motion designer with 200 followers is more valuable than a CEO with 50K.
+      // The user can still filter by followers in the UI after leads are found.
 
       const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
       const existing = byHandle.get(key);
@@ -1796,6 +1809,7 @@ const graph = new StateGraph(MultiAgentState)
         limit: state.limit,
         query,
         seedHandle: state.seedHandle,
+        excludeTerms: state.antiGoals.slice(0, 5),
       } satisfies SourceFanoutAgentInput));
     }
 

@@ -439,9 +439,10 @@ async function discoverCandidatesUntilGoal(
     attemptedQueries.push(currentQuery);
     if (attempt === 1) firstPassCount = attemptCandidates.length;
 
+    // NOTE: minFollowers NOT applied during discovery — relevance > popularity.
+    // The user's minFollowers preference is applied AFTER screening, in the final lead list.
     combinedCandidates = dedupeCandidates(
-      [...combinedCandidates, ...attemptCandidates]
-        .filter((candidate) => candidate.account.followers >= minFollowers),
+      [...combinedCandidates, ...attemptCandidates],
     );
 
     if (!expansionLoaded && combinedCandidates.length < goalCount) {
@@ -748,7 +749,17 @@ export async function searchAndAddLeads(
       screenedCandidates = fallbackCandidates;
     }
 
-    const { profiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, screenedCandidates);
+    // Apply minFollowers as a post-screening filter — only the final output respects it.
+    // Discovery and screening focus purely on relevance, not popularity.
+    const followerFilteredCandidates = minFollowers > 0
+      ? screenedCandidates.filter((c) => c.account.followers >= minFollowers)
+      : screenedCandidates;
+    // If follower filter removes too many, fall back to unfiltered (relevance > popularity)
+    const finalCandidates = followerFilteredCandidates.length >= Math.ceil(targetLeadCount * 0.3)
+      ? followerFilteredCandidates
+      : screenedCandidates;
+
+    const { profiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, finalCandidates);
     trace.addStep(await emitStep(progress, {
       id: "canonicalization",
       title: "Canonicalization",
