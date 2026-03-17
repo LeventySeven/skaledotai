@@ -66,11 +66,11 @@ export type { MultiAgentStateSnapshot } from "./multiagent-trace";
 export { buildTavilySearchRequest, normalizeDiscoveredUrls } from "./tavily";
 export { buildAgentQlQueryRequest } from "./agentql";
 
-const MULTIAGENT_MIN_QUERIES = 3;
-const MULTIAGENT_MIN_URLS = 12;
-const MULTIAGENT_MAX_URLS = 96;
-const MULTIAGENT_MIN_BATCH_SIZE = 3;
-const MULTIAGENT_MAX_BATCH_SIZE = 12;
+const MULTIAGENT_MIN_QUERIES = 4;
+const MULTIAGENT_MIN_URLS = 20;
+const MULTIAGENT_MAX_URLS = 160;
+const MULTIAGENT_MIN_BATCH_SIZE = 4;
+const MULTIAGENT_MAX_BATCH_SIZE = 16;
 const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 45_000;
 const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
 const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 120_000;
@@ -605,9 +605,10 @@ function buildGoogleDorkQueries(input: {
 
 function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" | "targetLeadCount" | "limit">): number {
   const requestedCount = input.goalCount ?? input.targetLeadCount ?? input.limit;
-  if (requestedCount >= 220) return 8;
-  if (requestedCount >= 120) return 6;
-  if (requestedCount >= 60) return 4;
+  // More queries = more diverse candidate sources. Scale with target.
+  if (requestedCount >= 220) return 10;
+  if (requestedCount >= 120) return 8;
+  if (requestedCount >= 60) return 6;
   return MULTIAGENT_MIN_QUERIES;
 }
 
@@ -659,7 +660,9 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
 
 function resolveMultiAgentUrlLimit(limit: number, goalCount?: number): number {
   const requested = Math.max(limit, goalCount ?? 0);
-  return Math.max(MULTIAGENT_MIN_URLS, Math.min(MULTIAGENT_MAX_URLS, Math.ceil(requested * 0.22)));
+  // Scale URL budget with target: more leads requested → more URLs to scrape.
+  // Factor 0.4 means 100-lead target → 40 URLs, 300-lead target → 120 URLs.
+  return Math.max(MULTIAGENT_MIN_URLS, Math.min(MULTIAGENT_MAX_URLS, Math.ceil(requested * 0.4)));
 }
 
 function resolveMultiAgentScrapeBatchSize(limit: number, goalCount?: number): number {
