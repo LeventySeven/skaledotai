@@ -621,7 +621,7 @@ export async function searchAndAddLeads(
     // If not enough relevant leads, discover MORE (new ones, not duplicates).
     // This ensures the user gets both ACCURACY and QUANTITY.
 
-    const MAX_SEARCH_PASSES = 3;
+    const MAX_SEARCH_PASSES = 4;
     const knownHandles = new Set<string>();
     let screenedCandidates: XLeadCandidate[] = [];
     let latestInterpretation: SearchInterpretation | undefined;
@@ -632,13 +632,14 @@ export async function searchAndAddLeads(
 
     for (let pass = 1; pass <= MAX_SEARCH_PASSES; pass++) {
       const remaining = targetLeadCount - screenedCandidates.length;
+      // Stop if we've met the soft target
       if (remaining <= 0) break;
 
-      // Scale discovery target based on how many we still need
-      const passTarget = pass === 1 ? targetLeadCount : remaining;
+      // Scale discovery target: pass 1 = full target, pass 2+ = shortfall
+      const passTarget = pass === 1 ? targetLeadCount : Math.max(20, remaining);
       const passParseTarget = pass === 1
         ? parseAccountsTarget
-        : Math.max(100, Math.ceil(remaining * 3));
+        : Math.max(100, Math.ceil(passTarget * 3));
 
       const discoveryResult = discoveryProvider.provider === "multiagent"
         ? await discoverCandidatesWithProviderOwnedLoop(
@@ -757,11 +758,10 @@ export async function searchAndAddLeads(
         tools: ["OpenAI"],
       }));
 
-      // Check if we have enough — if so, stop early
+      // Stop conditions:
+      // 1. Hit the soft target — we have enough
       if (screenedCandidates.length >= targetLeadCount) break;
-
-      // If this pass produced very few new screened leads AND we've already done
-      // multiple passes, stop to avoid infinite loops
+      // 2. Diminishing returns — this pass found almost nothing new
       if (pass >= 2 && passScreened.length < 3) break;
     }
 

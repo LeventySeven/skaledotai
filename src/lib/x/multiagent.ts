@@ -1073,45 +1073,28 @@ async function runSourceFanoutAgent(input: SourceFanoutAgentInput): Promise<{
   const scraped: ScrapedPayload[] = [];
   let discoveredUrls: string[] = [];
 
-  // Extract the actual search term from the dork query
-  const searchTerm = extractSearchTermFromDork(input.query);
-
-  // Run BOTH in parallel:
-  // 1. X People search (primary — finds people by bio/name, high precision)
-  // 2. Tavily (supplementary — finds profiles indexed by Google)
-  const [peopleResult, tavilyResult] = await Promise.allSettled([
-    // X People search — directly scrapes x.com/search?q=...&f=user
-    searchTerm ? scrapeXPeopleSearch(searchTerm, { minFaves: 50 }) : Promise.resolve(null),
-    // Tavily — searches Google for x.com profiles
-    (input.excludeTerms?.length
-      ? searchTavilyWithExclusions(input.query, input.limit, input.excludeTerms)
-      : searchTavily(input.query, input.limit)
-    ).catch((error) => {
-      if (error instanceof XProviderRuntimeError) {
-        errors.push({
-          stage: "source_fanout",
-          attempt: input.attempt,
-          code: error.code,
-          message: error.message,
-          query: input.query,
-        });
-      }
-      return [] as Awaited<ReturnType<typeof searchTavily>>;
-    }),
-  ]);
-
-  // Process X People search results — these go directly to scraped (skip individual scraping)
-  if (peopleResult.status === "fulfilled" && peopleResult.value) {
-    const url = `https://x.com/search?q=${encodeURIComponent(searchTerm || input.query)}&f=user`;
-    scraped.push({ url, payload: peopleResult.value });
-  }
-
-  // Process Tavily results → URLs for individual scraping
-  if (tavilyResult.status === "fulfilled" && Array.isArray(tavilyResult.value)) {
+  // Tavily-only: X People Search is now handled by the dedicated people_search node.
+  // Source fanout focuses on finding supplementary profile URLs via Google.
+  try {
+    const results = input.excludeTerms?.length
+      ? await searchTavilyWithExclusions(input.query, input.limit, input.excludeTerms)
+      : await searchTavily(input.query, input.limit);
     discoveredUrls = normalizeDiscoveredUrls(
-      tavilyResult.value,
+      results,
       resolveMultiAgentUrlLimit(input.limit, input.goalCount),
     );
+  } catch (error) {
+    if (error instanceof XProviderRuntimeError) {
+      errors.push({
+        stage: "source_fanout",
+        attempt: input.attempt,
+        code: error.code,
+        message: error.message,
+        query: input.query,
+      });
+    } else {
+      throw error;
+    }
   }
 
   // When searching within a user's followers, inject the verified_followers URL
@@ -1850,8 +1833,77 @@ const graph = new StateGraph(MultiAgentState)
       traceBatchUrls: state.repairUrls,
     };
   })
+  // X People Search node — scrapes x.com/search?q=...&f=user for each roleTerm.
+  // This is the PRIMARY discovery source. Each roleTerm gets its own People Search
+  // page scraped, yielding 10-20 highly relevant profiles per term.
+  .addNode("people_search", async (state) => {
+    const terms = dedupeQueries([
+      // All roleTerms — each one finds different people
+      ...state.roleTerms.slice(0, 8),
+      // Top bioTerms for variety
+      ...state.bioTerms.slice(0, 3),
+    ]);
+
+    if (terms.length === 0 && state.normalizedQuery) {
+      terms.push(state.normalizedQuery);
+    }
+
+    // Skip terms whose People Search URLs were already scraped in a previous pass
+    const alreadyScraped = new Set(state.processedUrls.map((u) => u.toLowerCase()));
+    const newTerms = terms.filter((term) => {
+      // Check both variants (with and without min_faves)
+      const withFilter = `https://x.com/search?q=${encodeURIComponent(term + " min_faves:50")}&f=user`.toLowerCase();
+      const withoutFilter = `https://x.com/search?q=${encodeURIComponent(term)}&f=user`.toLowerCase();
+      return !alreadyScraped.has(withFilter) || !alreadyScraped.has(withoutFilter);
+    });
+
+    if (newTerms.length === 0) {
+      return {
+        activeNode: "people_search" as const,
+        activeSubagent: "source_researcher" as const,
+        completedNodes: ["people_search" as const],
+        traceQuery: undefined,
+        traceBatchUrls: [],
+      };
+    }
+
+    // Round 1: min_faves:50 — active, higher quality accounts
+    // Round 2: no filter — catches smaller/newer accounts that are still relevant
+    // Both rounds run for each term, giving us broad coverage across follower ranges.
+    const allScrapeJobs: Array<{ term: string; minFaves?: number }> = [
+      ...newTerms.map((term) => ({ term, minFaves: 50 })),
+      ...newTerms.map((term) => ({ term, minFaves: undefined })),
+    ];
+
+    const results = await mapWithConcurrency(
+      allScrapeJobs,
+      3,
+      async ({ term, minFaves }) => {
+        const payload = await scrapeXPeopleSearch(term, minFaves ? { minFaves } : undefined);
+        if (!payload) return null;
+        const queryStr = minFaves ? `${term} min_faves:${minFaves}` : term;
+        const url = `https://x.com/search?q=${encodeURIComponent(queryStr)}&f=user`;
+        return { url, payload } satisfies ScrapedPayload;
+      },
+    );
+
+    const scraped: ScrapedPayload[] = results.filter((r) => r !== null) as ScrapedPayload[];
+    const processedUrls = scraped.map((s) => s.url);
+
+    return {
+      activeNode: "people_search" as const,
+      activeSubagent: "source_researcher" as const,
+      completedNodes: ["people_search" as const],
+      scraped,
+      processedUrls,
+      traceQuery: undefined,
+      traceBatchUrls: [],
+    };
+  })
   .addEdge(START, "planner")
-  .addConditionalEdges("planner", (state) => {
+  .addEdge("planner", "people_search")
+  .addConditionalEdges("people_search", (state) => {
+    // After People Search, also run Tavily-based source fanout for supplementary profiles
     if (state.currentQueries.length > 0) {
       return state.currentQueries.map((query) => new Send("source_fanout", {
         attempt: state.attempt,
