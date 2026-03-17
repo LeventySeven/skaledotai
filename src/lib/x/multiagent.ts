@@ -30,6 +30,7 @@ import {
 import {
   queryAgentQl,
   queryAgentQlBestEffort,
+  scrapeXPeopleSearch,
   normalizeProfilesFromPayload,
   normalizeTweetsFromPayload,
 } from "./agentql";
@@ -1053,48 +1054,76 @@ async function buildPlannerQueries(
   };
 }
 
+/**
+ * Extract the quoted search term from a Google dork query.
+ * 'site:x.com "product designer"' → 'product designer'
+ * 'site:x.com ("product designer" OR "UX designer")' → 'product designer' (first term)
+ */
+function extractSearchTermFromDork(query: string): string | null {
+  const match = query.match(/"([^"]+)"/);
+  return match?.[1]?.trim() || null;
+}
+
 async function runSourceFanoutAgent(input: SourceFanoutAgentInput): Promise<{
   candidateUrls: string[];
+  scraped: ScrapedPayload[];
   errors: MultiAgentErrorRecord[];
 }> {
-  try {
-    const results = input.excludeTerms?.length
-      ? await searchTavilyWithExclusions(input.query, input.limit, input.excludeTerms)
-      : await searchTavily(input.query, input.limit);
-    const discoveredUrls = normalizeDiscoveredUrls(
-      results,
-      resolveMultiAgentUrlLimit(input.limit, input.goalCount),
-    );
+  const errors: MultiAgentErrorRecord[] = [];
+  const scraped: ScrapedPayload[] = [];
+  let discoveredUrls: string[] = [];
 
-    // When searching within a user's followers, inject the verified_followers URL
-    // as a priority scrape target so AgentQL can extract profiles from it directly.
-    const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
-    if (cleanSeed) {
-      const verifiedFollowersUrl = `https://x.com/${cleanSeed}/verified_followers`;
-      if (!discoveredUrls.includes(verifiedFollowersUrl)) {
-        discoveredUrls.unshift(verifiedFollowersUrl);
-      }
-    }
+  // Extract the actual search term from the dork query
+  const searchTerm = extractSearchTermFromDork(input.query);
 
-    return {
-      candidateUrls: discoveredUrls,
-      errors: [],
-    };
-  } catch (error) {
-    if (error instanceof XProviderRuntimeError) {
-      return {
-        candidateUrls: [],
-        errors: [{
+  // Run BOTH in parallel:
+  // 1. X People search (primary — finds people by bio/name, high precision)
+  // 2. Tavily (supplementary — finds profiles indexed by Google)
+  const [peopleResult, tavilyResult] = await Promise.allSettled([
+    // X People search — directly scrapes x.com/search?q=...&f=user
+    searchTerm ? scrapeXPeopleSearch(searchTerm, { minFaves: 50 }) : Promise.resolve(null),
+    // Tavily — searches Google for x.com profiles
+    (input.excludeTerms?.length
+      ? searchTavilyWithExclusions(input.query, input.limit, input.excludeTerms)
+      : searchTavily(input.query, input.limit)
+    ).catch((error) => {
+      if (error instanceof XProviderRuntimeError) {
+        errors.push({
           stage: "source_fanout",
           attempt: input.attempt,
           code: error.code,
           message: error.message,
           query: input.query,
-        }],
-      };
-    }
-    throw error;
+        });
+      }
+      return [] as Awaited<ReturnType<typeof searchTavily>>;
+    }),
+  ]);
+
+  // Process X People search results — these go directly to scraped (skip individual scraping)
+  if (peopleResult.status === "fulfilled" && peopleResult.value) {
+    const url = `https://x.com/search?q=${encodeURIComponent(searchTerm || input.query)}&f=user`;
+    scraped.push({ url, payload: peopleResult.value });
   }
+
+  // Process Tavily results → URLs for individual scraping
+  if (tavilyResult.status === "fulfilled" && Array.isArray(tavilyResult.value)) {
+    discoveredUrls = normalizeDiscoveredUrls(
+      tavilyResult.value,
+      resolveMultiAgentUrlLimit(input.limit, input.goalCount),
+    );
+  }
+
+  // When searching within a user's followers, inject the verified_followers URL
+  const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
+  if (cleanSeed) {
+    const verifiedFollowersUrl = `https://x.com/${cleanSeed}/verified_followers`;
+    if (!discoveredUrls.includes(verifiedFollowersUrl)) {
+      discoveredUrls.unshift(verifiedFollowersUrl);
+    }
+  }
+
+  return { candidateUrls: discoveredUrls, scraped, errors };
 }
 
 async function runScraperAgent(input: ScraperAgentInput): Promise<{
@@ -1387,8 +1416,17 @@ const SourceResearchSubgraphState = Annotation.Root({
   limit: Annotation<number>,
   query: Annotation<string>,
   seedHandle: Annotation<string | undefined>,
+  excludeTerms: Annotation<string[] | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
   candidateUrls: Annotation<string[]>({
     reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  /** Scraped payloads from X People search — injected directly as candidates */
+  scraped: Annotation<ScrapedPayload[]>({
+    reducer: mergeScrapedPayloads,
     default: () => [],
   }),
   errors: Annotation<MultiAgentErrorRecord[]>({
@@ -1407,6 +1445,7 @@ const sourceResearchSubgraph = new StateGraph(SourceResearchSubgraphState)
     return {
       activeSubagent: "source_researcher" as const,
       candidateUrls: result.candidateUrls,
+      scraped: result.scraped,
       errors: result.errors,
     };
   })
@@ -1663,13 +1702,18 @@ const graph = new StateGraph(MultiAgentState)
     };
   })
   .addNode("source_fanout", async (state: SourceFanoutAgentInput) => {
-    const result = await sourceResearchSubgraph.invoke(state);
+    const result = await sourceResearchSubgraph.invoke({
+      ...state,
+      excludeTerms: state.excludeTerms,
+    });
 
     return {
       activeNode: "source_fanout" as const,
       activeSubagent: result.activeSubagent,
       completedNodes: ["source_fanout" as const],
       candidateUrls: result.candidateUrls,
+      // X People search results injected directly as scraped payloads
+      scraped: result.scraped,
       errors: result.errors,
       traceQuery: state.query,
     };
