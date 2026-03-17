@@ -88,6 +88,110 @@ antiGoals:
 - design agency (company)
 - design community (org)
 
+## Motion Designers
+
+Query: "I want to find motion designers"
+normalizedQuery: "motion designers"
+queryType: role
+
+roleTerms:
+- motion designer
+- motion designers
+- motion design
+- motion graphics designer
+- motion graphics
+- mograph designer
+- head of motion
+- lead motion designer
+- senior motion designer
+- 2D/3D motion designer
+- motion artist
+
+bioTerms:
+- motion designer at
+- motion design at
+- head of motion at
+- motion graphics at
+- animating for
+- motion + design
+- I animate
+- creating motion for
+- motion design • animation
+- mograph at
+
+antiGoals:
+- video editor (different role unless also does motion)
+- animator (film/character animation, not motion graphics)
+- VFX artist (different specialty)
+- 3D modeler (different role)
+- motion graphics company (org)
+- motion design studio (org)
+- animation studio (org)
+- creative director (unless also does motion design)
+
+## Figma Power Users (product-based query)
+
+Query: "people who use Figma"
+normalizedQuery: "Figma users"
+queryType: product
+
+roleTerms:
+- Figma designer
+- Figma expert
+- Figma advocate
+- Figma plugin creator
+- Figma template creator
+- design systems in Figma
+
+bioTerms:
+- designing in @figma
+- Figma plugin builder
+- building Figma plugins
+- Figma tips
+- Figma community
+- everything Figma
+- design tokens in Figma
+- Figma → code
+
+antiGoals:
+- Figma (the company account)
+- Figma employees (unless specifically relevant)
+- Sketch users (competing tool)
+- Adobe XD users (competing tool)
+- design tool company (org)
+
+## AI SaaS Builders (niche-based query)
+
+Query: "AI SaaS tool builders"
+normalizedQuery: "AI SaaS builders"
+queryType: niche
+
+roleTerms:
+- AI SaaS founder
+- AI SaaS builder
+- AI startup founder
+- building AI SaaS
+- AI product builder
+- LLM startup founder
+- AI-powered SaaS
+
+bioTerms:
+- building AI SaaS
+- AI SaaS founder
+- shipping AI products
+- building with LLMs
+- AI-first SaaS
+- turning AI into products
+- bootstrapping AI SaaS
+
+antiGoals:
+- AI researcher (academic, not building products)
+- SaaS investor (not building)
+- AI newsletter (org)
+- AI community (org)
+- enterprise AI company (large corp, not builder)
+- AI consultant (advisor, not builder)
+
 ## Startup Founders
 
 Query: "startup founders"
@@ -416,16 +520,36 @@ antiGoals:
 
 These examples all follow the same structure. When you encounter a NEW query not listed above, apply these patterns:
 
-### Pattern 1: Role Form Coverage
-Every example generates singular + plural + discipline. Apply this to any role:
-- "blockchain developers" → "blockchain developer" / "blockchain developers" / "blockchain development"
-- "motion designers" → "motion designer" / "motion designers" / "motion design"
-- "technical writers" → "technical writer" / "technical writers" / "technical writing"
+### Pattern 0: Query Normalization
+ALWAYS strip natural language filler before processing:
+- "I want to find motion designers" → normalizedQuery: "motion designers"
+- "looking for people who build AI SaaS" → normalizedQuery: "AI SaaS builders"
+- "find me DevRel people" → normalizedQuery: "DevRel"
+The normalizedQuery is what goes into Google dork searches. It must be clean and search-ready.
 
-### Pattern 2: Bio Language ≠ Job Titles
+### Pattern 1: Singular-First for X Bios
+People on X write their bio in SINGULAR form, not plural:
+- Bio: "Motion Designer at @Netflix" NOT "Motion Designers at Netflix"
+- Bio: "Product Designer" NOT "Product Designers"
+- Bio: "Startup Founder" NOT "Startup Founders"
+So the FIRST roleTerms entry must always be singular. This is the primary search term for Google dork queries.
+
+### Pattern 2: Role Form Coverage
+After the singular primary, also generate plural + discipline + abbreviations:
+- "motion designer" / "motion designers" / "motion design" / "mograph"
+- "product designer" / "product designers" / "product design"
+- "head of [discipline]" — a common X bio pattern for senior people
+
+### Pattern 3: Bio Language ≠ Job Titles
 People on X write casually. Study how each example's bioTerms differ from roleTerms:
 - roleTerms are formal: "product designer"
 - bioTerms are casual: "designing products at", "crafting user experiences"
+Common X bio patterns:
+- "[Role] at @[Company]"
+- "[Role] | [Side project]"
+- "[Role] • [Passion]"
+- "Head of [Discipline] at @[Company]"
+- "[Discipline] @[Company]"
 For YOUR query, think: how would someone in this role describe their daily work in a tweet-length bio?
 
 ### Pattern 3: Synonym Test

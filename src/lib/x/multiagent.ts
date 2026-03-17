@@ -142,6 +142,15 @@ const MultiAgentState = Annotation.Root({
   maxAttempts: Annotation<number>,
   queryBudget: Annotation<number>,
   scrapeBatchSize: Annotation<number>,
+  /** Cleaned search phrase from the planner's interpretation */
+  normalizedQuery: Annotation<string>({
+    reducer: (_left, right) => right || _left,
+    default: () => "",
+  }),
+  queryType: Annotation<GoalInterpretation["queryType"]>({
+    reducer: (_left, right) => right || _left,
+    default: () => "role",
+  }),
   plannerMode: Annotation<MultiAgentPlannerMode>({
     reducer: (_left, right) => right,
     default: () => "initial",
@@ -266,12 +275,18 @@ const QueryPlanSchema = z.object({
 }).strict();
 
 const GoalInterpretationSchema = z.object({
+  /** The cleaned search phrase extracted from the user's input. No filler words, no "I want to find", just the core role or niche. This is what goes into Google dork queries. */
+  normalizedQuery: z.string().default(""),
+  /** What kind of query this is: role (looking for people with a job title), product (looking for users of/builders of a product), or niche (looking for people in a space/industry). */
+  queryType: z.enum(["role", "product", "niche"]).default("role"),
   roleTerms: z.array(z.string()).default([]),
   bioTerms: z.array(z.string()).default([]),
   geoHints: z.array(z.string()).default([]),
   antiGoals: z.array(z.string()).default([]),
   userGoals: z.array(z.string()).default([]),
 }).strict();
+
+type GoalInterpretation = z.infer<typeof GoalInterpretationSchema>;
 
 function unsupported(capability: "network"): never {
   throw new XProviderRuntimeError({
@@ -311,8 +326,6 @@ function dedupeQueries(queries: string[]): string[] {
 
   return result;
 }
-
-type GoalInterpretation = z.infer<typeof GoalInterpretationSchema>;
 
 /**
  * Build singular, plural, and discipline-form variants of a role phrase.
@@ -363,24 +376,43 @@ function buildRoleVariants(role: string): string[] {
   return [...variants];
 }
 
+/**
+ * Strip natural-language filler from user input to get the core search term.
+ * "I want to find motion designers" → "motion designers"
+ * "looking for AI startup founders in Europe" → "AI startup founders in Europe"
+ * "product designers" → "product designers" (no change)
+ */
+function heuristicNormalizeQuery(raw: string): string {
+  return raw
+    .replace(/^(?:i\s+(?:want|need|am looking|would like)\s+to\s+(?:find|search|discover|get|look for)\s+)/i, "")
+    .replace(/^(?:find\s+(?:me\s+)?|search\s+for\s+|looking\s+for\s+|give\s+me\s+|show\s+me\s+|get\s+me\s+)/i, "")
+    .replace(/^(?:best|top|popular|trending|famous)\s+/i, "")
+    .replace(/\s+(?:on\s+(?:x|twitter|x\.com))\s*$/i, "")
+    .replace(/\s+(?:please|pls)\s*$/i, "")
+    .trim();
+}
+
 function buildHeuristicGoalInterpretation(input: {
   niche: string;
   seedHandle?: string;
 }): GoalInterpretation {
   const niche = input.niche.trim();
-  const geoHints = niche.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
+  const normalized = heuristicNormalizeQuery(niche);
+  const geoHints = normalized.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
     ?.map((match) => match.replace(/\b(?:in|from|based in|located in)\s+/i, "").trim())
     .filter(Boolean) ?? [];
 
-  const roleVariants = buildRoleVariants(niche);
+  const roleVariants = buildRoleVariants(normalized);
 
   return {
+    normalizedQuery: normalized,
+    queryType: "role",
     roleTerms: roleVariants,
     bioTerms: roleVariants,
     geoHints,
     antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution", "dormant account", "bot"],
     userGoals: [
-      `Find ${input.niche} on X.`,
+      `Find ${normalized} on X.`,
       input.seedHandle ? `Look within @${input.seedHandle.replace(/^@/, "")}'s network.` : "",
     ].filter(Boolean),
   };
@@ -395,42 +427,77 @@ async function interpretLeadSearchGoals(input: {
   try {
     const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
     const promptParts = [
-      "Interpret this lead-search request. The user wants to find X/Twitter accounts that match this niche.",
+      "Interpret this lead-search request. The user wants to find X/Twitter accounts matching their query.",
       "",
-      "## YOUR THINKING PROCESS",
+      "## STEP 0: NORMALIZE THE QUERY",
       "",
-      "Before generating terms, reason through these steps for the SPECIFIC query you received:",
+      "The user might type anything — natural language, a role, a product, or a niche. Your FIRST job is to extract a clean search phrase.",
       "",
-      "1. IDENTIFY THE CORE ROLE: What job/role does this query describe? Strip qualifiers and understand the essence.",
-      "   - 'senior blockchain developers' → core role is 'blockchain developer'",
-      "   - 'freelance UX writers' → core role is 'UX writer'",
-      "   - 'AI startup founders in Europe' → core role is 'startup founder' with domain 'AI' and geo 'Europe'",
+      "Examples:",
+      '  "I want to find motion designers" → normalizedQuery: "motion designers", queryType: "role"',
+      '  "looking for AI startup founders in Europe" → normalizedQuery: "AI startup founders", queryType: "role", geoHints: ["Europe"]',
+      '  "product designers" → normalizedQuery: "product designers", queryType: "role"',
+      '  "people who use Figma" → normalizedQuery: "Figma users", queryType: "product"',
+      '  "AI SaaS tool builders" → normalizedQuery: "AI SaaS builders", queryType: "niche"',
+      '  "DTC ecommerce brands" → normalizedQuery: "DTC ecommerce", queryType: "niche"',
       "",
-      "2. MAP THE ROLE FORMS: For this specific role, generate:",
-      "   - Singular: 'blockchain developer'",
-      "   - Plural: 'blockchain developers'",
-      "   - Discipline/field: 'blockchain development'",
-      "   - Abbreviations/slang people actually use: 'web3 dev', 'solidity dev'",
+      "Strip filler words ('I want to find', 'looking for', 'best', 'top', 'on X'). Keep domain qualifiers ('AI', 'crypto', 'DTC'). Keep geo if present.",
       "",
-      "3. FIND THE REAL SYNONYMS: What other titles describe the SAME work?",
-      "   - Test: would someone with this title be hired for the queried role? If yes, it's a synonym.",
-      "   - If no, it's an antiGoal.",
+      "## STEP 1: DETERMINE QUERY TYPE",
       "",
-      "4. THINK ABOUT BIOS: How do people in THIS specific role actually describe themselves on X?",
-      "   - They don't write 'I am a blockchain developer'. They write 'building on Ethereum', 'solidity smart contracts', 'web3 builder'.",
-      "   - Generate phrases as people actually write them, not formal job titles.",
+      "- **role**: User is looking for people with a specific job/profession (most common). Example: 'motion designers', 'startup founders', 'DevRel engineers'",
+      "- **product**: User is looking for users/builders of a specific product or tool. Example: 'Figma power users', 'Notion template creators'",
+      "- **niche**: User is looking for people in a space/industry without a specific job title. Example: 'AI SaaS', 'web3 gaming', 'DTC ecommerce'",
       "",
-      "5. IDENTIFY CONFUSABLE ROLES: What adjacent roles commonly get mixed up with this one?",
-      "   - These become antiGoals. Be specific to THIS query, not generic.",
+      "## STEP 2: GENERATE TERMS (adapted to queryType)",
+      "",
+      "### For queryType = 'role':",
+      "Think about how people on X describe this role in their bios. Key insight: people almost ALWAYS write the SINGULAR form in bios, not plural.",
+      "  - Bio says: 'Motion Designer' NOT 'Motion Designers'",
+      "  - Bio says: 'Product Designer at @Figma' NOT 'Product Designers at Figma'",
+      "  - Bio says: 'Founder & CEO' NOT 'Startup Founders'",
+      "",
+      "So roleTerms MUST include the singular form as the primary search term. Also include:",
+      "  - Plural (for posts, lists, articles that mention the role)",
+      "  - Discipline/field form ('motion design', 'product design')",
+      "  - X-specific abbreviations: 'SWE', 'PM', 'DevRel'",
+      "  - Common seniority prefixes people actually write: 'senior', 'lead', 'staff', 'principal', 'head of'",
+      "  - Adjacent synonyms (same work, different title): 'motion graphics designer' = 'motion designer'",
+      "",
+      "### For queryType = 'product':",
+      "  - roleTerms: people who use/build with this product ('Figma designer', 'Notion creator', 'Webflow developer')",
+      "  - bioTerms: how they mention it ('building with @product', 'powered by @product', '@product template maker')",
+      "",
+      "### For queryType = 'niche':",
+      "  - roleTerms: common roles within this niche ('DTC brand founder', 'ecommerce operator', 'web3 game developer')",
+      "  - bioTerms: how people in this space describe themselves ('building in web3 gaming', 'DTC brand operator')",
+      "",
+      "## STEP 3: THINK ABOUT X/TWITTER BIOS SPECIFICALLY",
+      "",
+      "People on X write bios in a very specific way. Study these real patterns:",
+      "  - '[Role] at @[Company]' → 'Motion Designer at @Netflix'",
+      "  - '[Role] | [Side project]' → 'Product Designer | Building @MyApp'",
+      "  - '[Role] • [Passion]' → 'UX Designer • Design systems nerd'",
+      "  - 'Head of [Discipline] at @[Company]' → 'Head of Motion at @Apple'",
+      "  - '[Discipline] @[Company]' → 'Motion Design @Google'",
+      "  - 'I [verb] [thing]' → 'I design motion for brands'",
+      "  - '[Emoji] [Role]' → '✨ Motion Designer'",
+      "",
+      "Generate bioTerms that match these REAL patterns for the specific query.",
+      "",
+      "## STEP 4: IDENTIFY ANTI-GOALS",
+      "",
+      "Name the specific adjacent roles/account types that share keywords but are NOT what the user wants.",
+      "Be specific to THIS query. For 'motion designers': 'motion graphics company (org)', 'video editor (different role)', 'animator (unless also does motion design)'.",
       "",
       "## RULES",
       "",
-      "- Every roleTerms entry must unambiguously identify the queried role. No single generic words.",
-      "- Every bioTerms entry must be a realistic phrase someone in THIS role would write in their X bio.",
-      "- antiGoals must name SPECIFIC adjacent roles that are NOT the same. Don't be generic ('irrelevant') — name the exact confusable titles.",
-      "- Include singular + plural + discipline forms for every role variant.",
-      "- NEVER output lone words ('product', 'design', 'data', 'engineer'). Always a phrase or compound title.",
-      "- Adapt entirely to the query. If the query is about a niche you've never seen in examples, reason from first principles about that niche.",
+      "- normalizedQuery MUST be a clean, search-ready phrase. No filler, no 'I want to find'.",
+      "- Every roleTerms entry must unambiguously identify the role. No single generic words.",
+      "- bioTerms must be realistic X bio phrases — how people ACTUALLY write, not formal titles.",
+      "- antiGoals must name SPECIFIC confusable roles, not generic terms like 'irrelevant'.",
+      "- ALWAYS include singular form as primary roleTerms entry (this is how bios are written on X).",
+      "- NEVER output lone words ('product', 'design', 'motion'). Always a phrase or compound title.",
     ];
 
     if (NICHE_EXAMPLES) {
@@ -458,11 +525,13 @@ async function interpretLeadSearchGoals(input: {
       "## OUTPUT",
       "",
       "For the query below, generate:",
-      "- roleTerms: this role in all forms (singular, plural, discipline, synonyms). Every entry must unambiguously mean this role.",
-      "- bioTerms: realistic X bio phrases for someone in this role. How they actually describe themselves, not formal titles.",
-      "- geoHints: location signals extracted from the query (if any)",
+      "- normalizedQuery: the clean search phrase extracted from the user's input (no filler, just the core role/niche).",
+      "- queryType: 'role' | 'product' | 'niche' — what kind of query this is.",
+      "- roleTerms: SINGULAR form first, then plural, discipline, synonyms. Every entry must unambiguously identify the role.",
+      "- bioTerms: realistic X bio phrases — how people actually write on X, not formal titles.",
+      "- geoHints: location signals extracted from the query (if any).",
       "- antiGoals: specific roles/account types that look similar but are NOT this role. Name exact titles.",
-      "- userGoals: what the user is looking for (restate simply)",
+      "- userGoals: what the user is looking for (restate simply).",
       "",
       JSON.stringify(input),
     );
@@ -470,6 +539,8 @@ async function interpretLeadSearchGoals(input: {
     const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke(promptParts.join("\n")));
 
     return {
+      normalizedQuery: result.normalizedQuery?.trim() || heuristicNormalizeQuery(input.niche),
+      queryType: result.queryType ?? "role",
       roleTerms: dedupeQueries(result.roleTerms ?? []),
       bioTerms: dedupeQueries(result.bioTerms ?? []),
       geoHints: dedupeQueries(result.geoHints ?? []),
@@ -492,6 +563,11 @@ function buildGoogleDorkQueries(input: {
   queryBudget: number;
   interpretation: GoalInterpretation;
 }): string[] {
+  // Use the normalized query (cleaned of filler words) for dork queries, not the raw user input.
+  // "I want to find motion designers" → searches for "motion designer" (singular, how bios are written)
+  const normalized = input.interpretation.normalizedQuery || input.niche;
+  // Primary search term: first roleTerm (singular) is the best match for X bios
+  const primaryTerm = input.interpretation.roleTerms[0] || normalized;
   const roleBlock = input.interpretation.roleTerms.slice(0, 3).join('" OR "');
   const bioBlock = input.interpretation.bioTerms.slice(0, 4).join('" OR "');
   const geoBlock = input.interpretation.geoHints[0]?.trim();
@@ -501,24 +577,26 @@ function buildGoogleDorkQueries(input: {
   if (cleanSeed) {
     const vf = `site:x.com/${cleanSeed}/verified_followers`;
     return dedupeQueries([
-      `${vf} ${input.niche}`,
+      `${vf} "${primaryTerm}"`,
       `${vf}`,
       roleBlock ? `${vf} ("${roleBlock}")` : "",
       bioBlock ? `${vf} ("${bioBlock}")` : "",
-      geoBlock ? `${vf} "${geoBlock}"` : "",
+      geoBlock ? `${vf} "${primaryTerm}" "${geoBlock}"` : "",
     ]).slice(0, input.queryBudget);
   }
 
   return dedupeQueries([
-    // Direct niche search — find people with the niche in their profile
-    `site:x.com "${input.niche}"`,
-    `site:twitter.com "${input.niche}"`,
-    // With role terms from AI interpretation
+    // Primary: search for the singular role term (how people write it in bios)
+    `site:x.com "${primaryTerm}"`,
+    // Secondary: try normalized query (may include plural or qualifiers)
+    primaryTerm !== normalized ? `site:x.com "${normalized}"` : `site:twitter.com "${primaryTerm}"`,
+    // With role terms OR block
     roleBlock ? `site:x.com ("${roleBlock}")` : "",
+    // With bio terms OR block
     bioBlock ? `site:x.com ("${bioBlock}")` : "",
     // Geo-targeted
-    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}"` : "",
-    // Later attempts: try role/bio terms individually (each quoted)
+    geoBlock ? `site:x.com "${primaryTerm}" "${geoBlock}"` : "",
+    // Later attempts: try individual role/bio terms
     input.attempt >= 2 && input.interpretation.roleTerms[1] ? `site:x.com "${input.interpretation.roleTerms[1]}"` : "",
     input.attempt >= 3 && input.interpretation.bioTerms[1] ? `site:twitter.com "${input.interpretation.bioTerms[1]}"` : "",
   ]).slice(0, input.queryBudget);
@@ -1171,6 +1249,14 @@ const PlannerSubgraphState = Annotation.Root({
   attempt: Annotation<number>,
   maxAttempts: Annotation<number>,
   queryBudget: Annotation<number>,
+  normalizedQuery: Annotation<string>({
+    reducer: (_left, right) => right || _left,
+    default: () => "",
+  }),
+  queryType: Annotation<GoalInterpretation["queryType"]>({
+    reducer: (_left, right) => right || _left,
+    default: () => "role",
+  }),
   recoveryState: Annotation<MultiAgentRecoveryState | undefined>({
     reducer: (_left, right) => right,
     default: () => undefined,
@@ -1230,6 +1316,8 @@ const plannerSubgraph = new StateGraph(PlannerSubgraphState)
 
     return {
       activeSubagent: "goal_interpreter" as const,
+      normalizedQuery: interpretation.normalizedQuery,
+      queryType: interpretation.queryType,
       userGoals: interpretation.userGoals,
       roleTerms: interpretation.roleTerms,
       bioTerms: interpretation.bioTerms,
@@ -1251,6 +1339,8 @@ const plannerSubgraph = new StateGraph(PlannerSubgraphState)
       seedHandle: state.seedHandle,
       targetLeadCount: state.targetLeadCount,
     }, {
+      normalizedQuery: state.normalizedQuery,
+      queryType: state.queryType,
       roleTerms: state.roleTerms,
       bioTerms: state.bioTerms,
       geoHints: state.geoHints,
@@ -1538,6 +1628,8 @@ const graph = new StateGraph(MultiAgentState)
       activeNode: "planner" as const,
       activeSubagent: plan.activeSubagent,
       completedNodes: ["planner" as const],
+      normalizedQuery: plan.normalizedQuery,
+      queryType: plan.queryType,
       plannerMode: plan.plannerMode,
       currentQueries: plan.currentQueries,
       plannedQueries: plan.currentQueries,
