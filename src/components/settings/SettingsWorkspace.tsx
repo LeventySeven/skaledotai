@@ -33,9 +33,9 @@ function ConnectXSection() {
   return (
     <div className="mb-8">
       <div className="mb-5">
-        <div className="mb-1 text-[18px] font-medium text-[#111111]">X Account</div>
+        <div className="mb-1 flex items-center gap-2 text-[18px] font-medium text-[#111111]"><XIcon className="size-4" /> Account</div>
         <div className="text-[16px] font-normal text-muted-foreground">
-          Connect your X account to send DMs directly from Skale.
+          Connect your <XIcon className="inline size-3.5 align-[-2px]" /> account to send DMs directly from Skale.
         </div>
       </div>
       {isLoading ? (
@@ -44,7 +44,7 @@ function ConnectXSection() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[0.95rem] text-emerald-950">
             <XIcon className="size-4" />
-            X account connected
+            account connected
           </div>
         </div>
       ) : (
