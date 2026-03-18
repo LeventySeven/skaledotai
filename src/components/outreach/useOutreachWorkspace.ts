@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useMemo, useState } from "react";
+import { useRef, useMemo, useState, useCallback } from "react";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
+import { streamDmBatch, type DmStreamEvent } from "./outreach-helpers";
 
 function toPatchInput(patch: Partial<Lead>) {
   const payload: {
@@ -239,6 +240,98 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
 
   const xAccountQuery = trpc.outreach.hasXAccount.useQuery();
 
+  // ── Service-backed DM sending (enqueue + stream) ─────────────────────────
+
+  const enqueueDms = trpc.outreach.enqueueDms.useMutation();
+  const [isStreamingSend, setIsStreamingSend] = useState(false);
+  const [dmProgress, setDmProgress] = useState<{ sent: number; failed: number; total: number } | null>(null);
+
+  const handleSendViaService = useCallback(async () => {
+    if (selectedLeads.length === 0) {
+      toastManager.add({ type: "info", title: "Select at least one lead." });
+      return;
+    }
+    if (selectedTemplates.length === 0) {
+      toastManager.add({ type: "info", title: "Select at least one template." });
+      return;
+    }
+    if (!xAccountQuery.data?.connected) {
+      toastManager.add({ type: "error", title: "Connect your X account in Settings to send DMs." });
+      return;
+    }
+
+    const dmLeads: Array<{ leadId: string; xUserId: string; message: string }> = [];
+    const skippedNoId: string[] = [];
+
+    for (const [index, lead] of selectedLeads.entries()) {
+      const template = selectedTemplates[index % selectedTemplates.length];
+      const message = applyTemplate(template, lead);
+      if (lead.xUserId) {
+        dmLeads.push({ leadId: lead.id, xUserId: lead.xUserId, message });
+      } else {
+        skippedNoId.push(lead.name);
+      }
+    }
+
+    if (skippedNoId.length > 0) {
+      toastManager.add({
+        type: "warning",
+        title: `${skippedNoId.length} lead(s) have no X user ID and will be skipped: ${skippedNoId.slice(0, 3).join(", ")}${skippedNoId.length > 3 ? "..." : ""}`,
+      });
+    }
+
+    if (dmLeads.length === 0) {
+      toastManager.add({ type: "error", title: "No leads with X user IDs to send DMs to." });
+      return;
+    }
+
+    setIsStreamingSend(true);
+    setDmProgress({ sent: 0, failed: 0, total: dmLeads.length });
+    setUiError(null);
+
+    try {
+      const { batchId } = await enqueueDms.mutateAsync({ leads: dmLeads });
+
+      await streamDmBatch(batchId, (event: DmStreamEvent) => {
+        if (event.type === "progress") {
+          setDmProgress({ sent: event.sent, failed: event.failed, total: event.total });
+        } else if (event.type === "rate_limited") {
+          setDmProgress({ sent: event.sent, failed: event.failed, total: event.total });
+          toastManager.add({ type: "warning", title: `Rate limited. ${event.sent} sent, ${event.queued} queued for retry.` });
+        } else if (event.type === "auth_expired") {
+          setDmProgress({ sent: event.sent, failed: event.failed, total: event.total });
+          toastManager.add({ type: "error", title: "X authentication expired. Reconnect in Settings." });
+        } else if (event.type === "complete") {
+          setDmProgress({ sent: event.sent, failed: event.failed, total: event.total });
+          if (event.sent > 0 && event.failed === 0) {
+            toastManager.add({ type: "success", title: `Sent ${event.sent} DMs successfully.` });
+          } else if (event.sent > 0) {
+            toastManager.add({ type: "warning", title: `Sent ${event.sent} DMs. ${event.failed} failed.` });
+          } else {
+            toastManager.add({ type: "error", title: `All ${event.failed} DMs failed.` });
+          }
+        } else if (event.type === "error") {
+          toastManager.add({ type: "error", title: event.message });
+        }
+      });
+
+      await Promise.all([
+        utils.outreach.list.invalidate(),
+        utils.leads.list.invalidate(),
+      ]);
+      setSelectedLeadIds([]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to send DMs.";
+      setUiError(message);
+      toastManager.add({ type: "error", title: message });
+    } finally {
+      setIsStreamingSend(false);
+      setDmProgress(null);
+    }
+  }, [selectedLeads, selectedTemplates, xAccountQuery.data?.connected, enqueueDms, utils]);
+
+  // ── Legacy inline DM sending (kept for fallback) ─────────────────────────
+
   async function handleSendSelected() {
     if (selectedLeads.length === 0) {
       toastManager.add({ type: "info", title: "Select at least one lead." });
@@ -307,10 +400,11 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     setImportProjectId,
     uiError,
     // pending
-    isSending: sendDms.isPending || updateLead.isPending,
+    isSending: isStreamingSend || sendDms.isPending,
     isRemoving: bulkUpdateLeads.isPending,
     isGenerating: generateTemplate.isPending,
     hasXAccount: xAccountQuery.data?.connected ?? false,
+    dmProgress,
     // handlers
     toggleLead,
     toggleProject,
@@ -320,7 +414,7 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     handleCreateTemplate,
     handleUpdateTemplate,
     handleRemoveSelected,
-    handleSendSelected,
+    handleSendSelected: handleSendViaService,
     handleDeleteTemplate: (id: string) => deleteTemplate.mutate({ id }),
   };
 }

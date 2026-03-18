@@ -43,6 +43,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
     isRemoving,
     isGenerating,
     hasXAccount,
+    dmProgress,
     toggleLead,
     toggleProject,
     toggleTemplate,
@@ -246,7 +247,11 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
               });
             }}
           >
-            {isSending ? "Sending DMs..." : "Send DMs"}
+            {isSending && dmProgress
+              ? `Sending… ${dmProgress.sent}/${dmProgress.total}`
+              : isSending
+                ? "Sending DMs…"
+                : "Send DMs"}
           </Button>
         ) : (
           <Link
