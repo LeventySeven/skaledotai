@@ -55,12 +55,19 @@ export function ProjectCard({
 
   const renameMutation = trpc.projects.rename.useMutation({
     onMutate: async ({ name }) => {
-      await utils.projects.overviews.cancel();
-      const previous = utils.projects.overviews.getData();
+      await Promise.all([
+        utils.projects.overviews.cancel(),
+        utils.projects.list.cancel(),
+      ]);
+      const previousOverviews = utils.projects.overviews.getData();
+      const previousList = utils.projects.list.getData();
       utils.projects.overviews.setData(undefined, (old) =>
         old?.map((p) => (p.id === project.id ? { ...p, name } : p)),
       );
-      return { previous };
+      utils.projects.list.setData(undefined, (old) =>
+        old?.map((p) => (p.id === project.id ? { ...p, name } : p)),
+      );
+      return { previousOverviews, previousList };
     },
     onSuccess: async () => {
       setEditing(false);
@@ -70,8 +77,11 @@ export function ProjectCard({
       ]);
     },
     onError: (error, _vars, context) => {
-      if (context?.previous) {
-        utils.projects.overviews.setData(undefined, context.previous);
+      if (context?.previousOverviews) {
+        utils.projects.overviews.setData(undefined, context.previousOverviews);
+      }
+      if (context?.previousList) {
+        utils.projects.list.setData(undefined, context.previousList);
       }
       toastManager.add({ type: "error", title: error.message });
     },
