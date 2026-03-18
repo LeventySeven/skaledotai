@@ -3,6 +3,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { db } from "../../src/db";
 import { dmBatches, dmJobs, leads } from "../../src/db/schema";
 import { sendDirectMessage, type DmSendResult } from "../../src/lib/x/dm";
+import { lookupUsersByUsernames } from "../../src/lib/x/api";
 import { getXAccessToken } from "../../src/server/services/x-auth";
 import { verifyOutreachServiceToken, isAllowedOutreachOrigin } from "../../src/lib/outreach-service-auth";
 
@@ -99,6 +100,11 @@ async function processBatch(
   }
 
   const accessToken = await getXAccessToken(userId);
+  console.info("[outreach-service][auth]", JSON.stringify({
+    batchId,
+    userId,
+    hasToken: !!accessToken,
+  }));
   if (!accessToken) {
     await db
       .update(dmBatches)
@@ -124,6 +130,45 @@ async function processBatch(
     .where(and(eq(dmJobs.batchId, batchId), eq(dmJobs.status, "pending")))
     .orderBy(asc(dmJobs.createdAt));
 
+  // Resolve non-numeric xUserIds (handles) to numeric IDs
+  const needsResolution = jobs.filter((j) => !/^\d{1,19}$/.test(j.xUserId));
+  if (needsResolution.length > 0) {
+    const usernames = needsResolution.map((j) => j.xUserId.replace(/^@/, ""));
+    try {
+      const profiles = await lookupUsersByUsernames(usernames);
+      const handleToId = new Map(profiles.map((p) => [p.username.toLowerCase(), p.xUserId]));
+
+      for (const job of needsResolution) {
+        const cleanHandle = job.xUserId.replace(/^@/, "").toLowerCase();
+        const numericId = handleToId.get(cleanHandle);
+        if (numericId) {
+          job.xUserId = numericId;
+          // Also fix the lead's xUserId in the DB for future sends
+          await db
+            .update(leads)
+            .set({ xUserId: numericId })
+            .where(eq(leads.id, job.leadId))
+            .catch(() => undefined);
+          await db
+            .update(dmJobs)
+            .set({ xUserId: numericId })
+            .where(eq(dmJobs.id, job.id));
+        }
+      }
+
+      console.info("[outreach-service][resolve]", JSON.stringify({
+        batchId,
+        needed: needsResolution.length,
+        resolved: handleToId.size,
+      }));
+    } catch (error) {
+      console.warn("[outreach-service][resolve] lookup failed, continuing with raw values", JSON.stringify({
+        batchId,
+        message: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }
+
   let sentCount = 0;
   let failedCount = 0;
   let consecutiveSent = 0;
@@ -142,6 +187,16 @@ async function processBatch(
       job.message,
       accessToken,
     );
+
+    console.info("[outreach-service][dm/result]", JSON.stringify({
+      batchId,
+      jobId: job.id,
+      leadId: job.leadId,
+      xUserId: job.xUserId,
+      success: result.success,
+      error: result.error ?? null,
+      errorCode: result.errorCode ?? null,
+    }));
 
     if (result.success) {
       sentCount++;
