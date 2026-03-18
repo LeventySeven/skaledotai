@@ -70,11 +70,9 @@ export function ProjectCard({
       setEditing(false);
       return { previousOverviews, previousList };
     },
-    onSuccess: async () => {
-      await Promise.all([
-        utils.projects.list.invalidate(),
-        utils.projects.overviews.invalidate(),
-      ]);
+    onSuccess: () => {
+      // Don't invalidate — optimistic cache already has the correct name.
+      // Next natural refetch (focus, navigation) will sync with server.
     },
     onError: (error, _vars, context) => {
       if (context?.previousOverviews) {
