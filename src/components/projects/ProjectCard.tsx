@@ -67,10 +67,10 @@ export function ProjectCard({
       utils.projects.list.setData(undefined, (old) =>
         old?.map((p) => (p.id === project.id ? { ...p, name } : p)),
       );
+      setEditing(false);
       return { previousOverviews, previousList };
     },
     onSuccess: async () => {
-      setEditing(false);
       await Promise.all([
         utils.projects.list.invalidate(),
         utils.projects.overviews.invalidate(),
@@ -94,7 +94,6 @@ export function ProjectCard({
       setEditName(project.name);
       return;
     }
-    setEditing(false);
     renameMutation.mutate({ projectId: project.id, name: trimmed });
   }
 
