@@ -56,7 +56,7 @@ export function createOutreachServiceToken(input: {
     sub: input.userId,
     iss: "skaledotai-web",
     aud: "skaledotai-outreach-service",
-    exp: nowSeconds + (input.expiresInSeconds ?? 60 * 30),
+    exp: nowSeconds + (input.expiresInSeconds ?? 60 * 60),
     origin: input.origin?.trim() || undefined,
   });
   const header = encodeBase64Url(JSON.stringify(TOKEN_HEADER));

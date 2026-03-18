@@ -81,6 +81,23 @@ async function processBatch(
   userId: string,
   res: ServerResponse | null,
 ): Promise<void> {
+  // Atomic claim: only transition pending → processing. If another instance
+  // already claimed this batch, the update returns 0 rows and we bail out.
+  const claimed = await db
+    .update(dmBatches)
+    .set({ status: "processing" })
+    .where(and(eq(dmBatches.id, batchId), eq(dmBatches.status, "pending")))
+    .returning({ id: dmBatches.id });
+
+  if (claimed.length === 0) {
+    writeStreamEvent(res, {
+      type: "error",
+      batchId,
+      message: "Batch is already being processed or has completed.",
+    });
+    return;
+  }
+
   const accessToken = await getXAccessToken(userId);
   if (!accessToken) {
     await db
@@ -100,11 +117,6 @@ async function processBatch(
     });
     return;
   }
-
-  await db
-    .update(dmBatches)
-    .set({ status: "processing" })
-    .where(eq(dmBatches.id, batchId));
 
   const jobs = await db
     .select()
@@ -481,43 +493,66 @@ async function resumeIncompleteBatches(): Promise<void> {
 
 /** Check interval: 16 minutes (just over one rate limit window) */
 const RETRY_INTERVAL_MS = 16 * 60 * 1000;
+/** Max retry attempts per job before giving up */
+const MAX_RETRY_ATTEMPTS = 3;
 
 async function retryQueuedJobs(): Promise<void> {
-  // Find batches that have queued jobs
+  // Find all queued jobs, grouped by batch
   const queuedJobs = await db
-    .select({ batchId: dmJobs.batchId, userId: dmJobs.userId })
+    .select({ batchId: dmJobs.batchId, userId: dmJobs.userId, attemptCount: dmJobs.attemptCount })
     .from(dmJobs)
-    .where(eq(dmJobs.status, "queued"))
-    .limit(1);
+    .where(eq(dmJobs.status, "queued"));
 
   if (queuedJobs.length === 0) return;
 
-  // Get distinct batches with queued jobs
-  const seen = new Set<string>();
+  // Deduplicate by batch
+  const batches = new Map<string, { userId: string; maxAttempts: number }>();
   for (const job of queuedJobs) {
-    if (seen.has(job.batchId)) continue;
-    seen.add(job.batchId);
+    const existing = batches.get(job.batchId);
+    if (!existing || job.attemptCount > existing.maxAttempts) {
+      batches.set(job.batchId, { userId: job.userId, maxAttempts: job.attemptCount });
+    }
+  }
+
+  for (const [batchId, { userId, maxAttempts }] of batches) {
+    // Max retry cap — mark as permanently failed
+    if (maxAttempts >= MAX_RETRY_ATTEMPTS) {
+      console.warn("[outreach-service][retry] max attempts reached, marking failed", JSON.stringify({
+        batchId,
+        attempts: maxAttempts,
+      }));
+      await db
+        .update(dmJobs)
+        .set({ status: "failed", error: `Gave up after ${maxAttempts} attempts (rate limited).`, retryable: false })
+        .where(and(eq(dmJobs.batchId, batchId), eq(dmJobs.status, "queued")));
+      await db
+        .update(dmBatches)
+        .set({ status: "failed", completedAt: new Date() })
+        .where(eq(dmBatches.id, batchId));
+      continue;
+    }
 
     console.info("[outreach-service][retry] resuming queued jobs", JSON.stringify({
-      batchId: job.batchId,
-      userId: job.userId,
+      batchId,
+      userId,
+      attempt: maxAttempts + 1,
     }));
 
     // Reset queued jobs back to pending so processBatch picks them up
     await db
       .update(dmJobs)
       .set({ status: "pending", error: null })
-      .where(and(eq(dmJobs.batchId, job.batchId), eq(dmJobs.status, "queued")));
+      .where(and(eq(dmJobs.batchId, batchId), eq(dmJobs.status, "queued")));
 
-    // Reset batch status to pending
+    // Reset batch status to pending (processBatch will claim it atomically)
     await db
       .update(dmBatches)
       .set({ status: "pending", completedAt: null })
-      .where(eq(dmBatches.id, job.batchId));
+      .where(eq(dmBatches.id, batchId));
 
-    processBatch(job.batchId, job.userId, null).catch((error) => {
+    processBatch(batchId, userId, null).catch((error) => {
       console.error("[outreach-service][retry] failed", JSON.stringify({
-        batchId: job.batchId,
+        batchId,
         message: error instanceof Error ? error.message : String(error),
       }));
     });
