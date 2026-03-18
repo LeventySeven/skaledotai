@@ -9,7 +9,7 @@ import { XIcon } from "@/components/auth/icons";
 import { trpc } from "@/lib/trpc/client";
 import { authClient } from "@/lib/auth-client";
 
-export function SearchWorkspace() {
+export function SearchWorkspace({ initialXAccountConnected }: { initialXAccountConnected?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -43,8 +43,10 @@ export function SearchWorkspace() {
     router.push(`/search/refine?${params.toString()}`);
   }
 
-  const { data: xAccount } = trpc.outreach.hasXAccount.useQuery();
-  const hasX = xAccount?.connected ?? false;
+  const { data: xAccount } = trpc.outreach.hasXAccount.useQuery(undefined, {
+    initialData: initialXAccountConnected != null ? { connected: initialXAccountConnected } : undefined,
+  });
+  const hasX = xAccount?.connected ?? initialXAccountConnected ?? false;
 
   if (hasRerunParams) return null;
 
