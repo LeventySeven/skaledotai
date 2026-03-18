@@ -77,9 +77,9 @@ export async function hasXAccountConnected(userId: string): Promise<boolean> {
  * Docs: https://docs.x.com/resources/fundamentals/authentication/guides/v2-authentication-mapping
  */
 async function refreshXAccessToken(refreshToken: string, accountId: string): Promise<string | null> {
-  const clientId = process.env.TWITTER_CLIENT_ID?.trim();
+  const clientId = process.env.X_CLIENT_ID?.trim();
   if (!clientId) {
-    console.warn("[x-auth] TWITTER_CLIENT_ID not set, cannot refresh token");
+    console.warn("[x-auth] X_CLIENT_ID not set, cannot refresh token");
     return null;
   }
 
