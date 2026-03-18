@@ -85,19 +85,14 @@ export function ProjectCard({
     },
   });
 
-  const committedRef = useRef(false);
   function commitRename() {
-    if (committedRef.current) return;
     const trimmed = editName.trim();
     if (!trimmed || trimmed === project.name) {
       setEditing(false);
       setEditName(project.name);
       return;
     }
-    committedRef.current = true;
-    renameMutation.mutate({ projectId: project.id, name: trimmed }, {
-      onSettled: () => { committedRef.current = false; },
-    });
+    renameMutation.mutate({ projectId: project.id, name: trimmed });
   }
 
   return (
