@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Trash2Icon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -235,17 +236,26 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
         <div className="text-[0.95rem] text-muted-foreground">
           {selectedTemplateIds.length} templates selected • {selectedLeadIds.length} leads selected
         </div>
-        <Button
-          className="h-8 rounded-[10px] px-4 text-[0.88rem]"
-          disabled={isSending}
-          onClick={() => {
-            handleSendSelected().catch((error: unknown) => {
-              console.error("Failed to send outreach:", error);
-            });
-          }}
-        >
-          {isSending ? "Sending DMs..." : hasXAccount ? "Send DMs" : "Send DMs (connect X first)"}
-        </Button>
+        {hasXAccount ? (
+          <Button
+            className="h-8 rounded-[10px] px-4 text-[0.88rem]"
+            disabled={isSending}
+            onClick={() => {
+              handleSendSelected().catch((error: unknown) => {
+                console.error("Failed to send outreach:", error);
+              });
+            }}
+          >
+            {isSending ? "Sending DMs..." : "Send DMs"}
+          </Button>
+        ) : (
+          <Link
+            href="/settings"
+            className="inline-flex h-8 items-center rounded-[10px] border border-input bg-background px-4 text-[0.88rem] font-medium hover:bg-accent hover:text-accent-foreground"
+          >
+            Connect X to send DMs
+          </Link>
+        )}
       </div>
 
       {createModalOpen ? (

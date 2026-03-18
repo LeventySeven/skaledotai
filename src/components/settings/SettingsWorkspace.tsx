@@ -8,7 +8,59 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
+import { authClient } from "@/lib/auth-client";
+import { XIcon } from "@/components/auth/icons";
 import type { XProviderRuntimeStatus } from "@/lib/x/registry";
+
+function ConnectXSection() {
+  const { data, isLoading } = trpc.outreach.hasXAccount.useQuery();
+  const connected = data?.connected ?? false;
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnectX = async () => {
+    setIsConnecting(true);
+    try {
+      await authClient.signIn.social({
+        provider: "twitter",
+        callbackURL: "/settings",
+      });
+    } catch {
+      toastManager.add({ type: "error", title: "Failed to connect X account." });
+      setIsConnecting(false);
+    }
+  };
+
+  return (
+    <div className="mb-8">
+      <div className="mb-5">
+        <div className="mb-1 text-[18px] font-medium text-[#111111]">X Account</div>
+        <div className="text-[16px] font-normal text-muted-foreground">
+          Connect your X account to send DMs directly from Skale.
+        </div>
+      </div>
+      {isLoading ? (
+        <div className="text-[0.95rem] text-muted-foreground">Checking connection...</div>
+      ) : connected ? (
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[0.95rem] text-emerald-950">
+            <XIcon className="size-4" />
+            X account connected
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          className="h-9 gap-2 rounded-[10px] bg-black px-4 text-[0.88rem] text-white hover:bg-black/90 hover:text-white"
+          disabled={isConnecting}
+          onClick={() => { handleConnectX().catch(() => undefined); }}
+        >
+          <XIcon className="size-4" />
+          {isConnecting ? "Connecting..." : "Connect X Account"}
+        </Button>
+      )}
+    </div>
+  );
+}
 
 function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "Never";
@@ -83,6 +135,10 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
         </div>
         <XDataProviderSelector initialStatuses={initialXProviderStatuses} />
       </div>
+
+      <div className="-mx-8 mb-8 border-b border-border/70" />
+
+      <ConnectXSection />
 
       <div className="-mx-8 mb-8 border-b border-border/70" />
 
