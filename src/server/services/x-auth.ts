@@ -67,6 +67,18 @@ export async function hasXAccountConnected(userId: string): Promise<boolean> {
 }
 
 /**
+ * Disconnect (unlink) the user's X account by removing the twitter provider row.
+ */
+export async function disconnectXAccount(userId: string): Promise<void> {
+  await db
+    .delete(account)
+    .where(and(
+      eq(account.userId, userId),
+      eq(account.providerId, "twitter"),
+    ));
+}
+
+/**
  * Refresh an expired X OAuth 2.0 access token.
  *
  * X OAuth 2.0 token refresh endpoint:

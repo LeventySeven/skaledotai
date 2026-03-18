@@ -13,9 +13,20 @@ import { XIcon } from "@/components/auth/icons";
 import type { XProviderRuntimeStatus } from "@/lib/x/registry";
 
 function ConnectXSection({ initialConnected }: { initialConnected: boolean }) {
+  const utils = trpc.useUtils();
   const { data } = trpc.outreach.hasXAccount.useQuery(undefined, { initialData: { connected: initialConnected } });
   const connected = data?.connected ?? initialConnected;
   const [isConnecting, setIsConnecting] = useState(false);
+
+  const disconnect = trpc.outreach.disconnectXAccount.useMutation({
+    onSuccess: async () => {
+      await utils.outreach.hasXAccount.invalidate();
+      toastManager.add({ type: "success", title: "X account disconnected." });
+    },
+    onError: (error) => {
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
 
   const handleConnectX = async () => {
     setIsConnecting(true);
@@ -44,6 +55,14 @@ function ConnectXSection({ initialConnected }: { initialConnected: boolean }) {
             <XIcon className="size-4" />
             connected
           </div>
+          <Button
+            variant="outline"
+            className="h-9 rounded-[10px] px-4 text-[0.88rem]"
+            disabled={disconnect.isPending}
+            onClick={() => disconnect.mutate()}
+          >
+            {disconnect.isPending ? "Disconnecting..." : "Disconnect"}
+          </Button>
         </div>
       ) : (
         <Button

@@ -60,6 +60,14 @@ export const outreachRouter = router({
       return { connected: await hasXAccountConnected(ctx.userId) };
     }),
 
+  /** Disconnect the user's X account */
+  disconnectXAccount: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const { disconnectXAccount } = await import("@/server/services/x-auth");
+      await disconnectXAccount(ctx.userId);
+      return { connected: false };
+    }),
+
   /** Send DMs to selected leads via X API. Requires connected X account.
    *  Rate limits: 15 DMs per 15 min, 1440 per 24h.
    *  Updates lead stages to "messaged" on success, stores the sent message in theAsk. */
