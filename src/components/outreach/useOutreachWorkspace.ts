@@ -30,10 +30,13 @@ function toPatchInput(patch: Partial<Lead>) {
 }
 
 function applyTemplate(template: OutreachTemplate, lead: Lead): string {
-  return `${template.subject}\n\n${template.body
+  return template.body
     .replaceAll("{{name}}", lead.name)
-    .replaceAll("{{platform}}", "X")
-    .replaceAll("{{company}}", "")}`;
+    .replaceAll("{{platform}}", "X");
+}
+
+function pickRandom<T>(items: T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
 interface UseOutreachWorkspaceOptions {
@@ -262,15 +265,20 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
 
     const dmLeads: Array<{ leadId: string; xUserId: string; message: string }> = [];
     const skippedNoId: string[] = [];
+    const skippedAlreadySent: string[] = [];
 
-    for (const [index, lead] of selectedLeads.entries()) {
-      const template = selectedTemplates[index % selectedTemplates.length];
-      const message = applyTemplate(template, lead);
-      if (lead.xUserId) {
-        dmLeads.push({ leadId: lead.id, xUserId: lead.xUserId, message });
-      } else {
+    for (const lead of selectedLeads) {
+      if (!lead.xUserId) {
         skippedNoId.push(lead.name);
+        continue;
       }
+      if (lead.stage === "messaged" || lead.stage === "replied" || lead.stage === "agreed") {
+        skippedAlreadySent.push(lead.name);
+        continue;
+      }
+      const template = pickRandom(selectedTemplates);
+      const message = applyTemplate(template, lead);
+      dmLeads.push({ leadId: lead.id, xUserId: lead.xUserId, message });
     }
 
     if (skippedNoId.length > 0) {
@@ -279,9 +287,15 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
         title: `${skippedNoId.length} lead(s) have no X user ID and will be skipped: ${skippedNoId.slice(0, 3).join(", ")}${skippedNoId.length > 3 ? "..." : ""}`,
       });
     }
+    if (skippedAlreadySent.length > 0) {
+      toastManager.add({
+        type: "info",
+        title: `${skippedAlreadySent.length} lead(s) already messaged, skipping.`,
+      });
+    }
 
     if (dmLeads.length === 0) {
-      toastManager.add({ type: "error", title: "No leads with X user IDs to send DMs to." });
+      toastManager.add({ type: "error", title: "No eligible leads to send DMs to." });
       return;
     }
 
@@ -319,7 +333,10 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
         utils.outreach.list.invalidate(),
         utils.leads.list.invalidate(),
       ]);
-      setSelectedLeadIds([]);
+      // Only clear selection if everything succeeded — keep failed leads selected for retry
+      if (!dmProgress || dmProgress.failed === 0) {
+        setSelectedLeadIds([]);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to send DMs.";
       setUiError(message);
@@ -400,7 +417,7 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     setImportProjectId,
     uiError,
     // pending
-    isSending: isStreamingSend || sendDms.isPending,
+    isSending: isStreamingSend,
     isRemoving: bulkUpdateLeads.isPending,
     isGenerating: generateTemplate.isPending,
     hasXAccount: xAccountQuery.data?.connected ?? false,

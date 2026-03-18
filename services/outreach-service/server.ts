@@ -468,7 +468,6 @@ async function resumeIncompleteBatches(): Promise<void> {
       batchId: batch.id,
       userId: batch.userId,
     }));
-    // Process without streaming (no HTTP response to write to)
     processBatch(batch.id, batch.userId, null).catch((error) => {
       console.error("[outreach-service][startup] resume failed", JSON.stringify({
         batchId: batch.id,
@@ -476,6 +475,63 @@ async function resumeIncompleteBatches(): Promise<void> {
       }));
     });
   }
+}
+
+// ── Retry queued jobs (rate-limited) ─────────────────────────────────────────
+
+/** Check interval: 16 minutes (just over one rate limit window) */
+const RETRY_INTERVAL_MS = 16 * 60 * 1000;
+
+async function retryQueuedJobs(): Promise<void> {
+  // Find batches that have queued jobs
+  const queuedJobs = await db
+    .select({ batchId: dmJobs.batchId, userId: dmJobs.userId })
+    .from(dmJobs)
+    .where(eq(dmJobs.status, "queued"))
+    .limit(1);
+
+  if (queuedJobs.length === 0) return;
+
+  // Get distinct batches with queued jobs
+  const seen = new Set<string>();
+  for (const job of queuedJobs) {
+    if (seen.has(job.batchId)) continue;
+    seen.add(job.batchId);
+
+    console.info("[outreach-service][retry] resuming queued jobs", JSON.stringify({
+      batchId: job.batchId,
+      userId: job.userId,
+    }));
+
+    // Reset queued jobs back to pending so processBatch picks them up
+    await db
+      .update(dmJobs)
+      .set({ status: "pending", error: null })
+      .where(and(eq(dmJobs.batchId, job.batchId), eq(dmJobs.status, "queued")));
+
+    // Reset batch status to pending
+    await db
+      .update(dmBatches)
+      .set({ status: "pending", completedAt: null })
+      .where(eq(dmBatches.id, job.batchId));
+
+    processBatch(job.batchId, job.userId, null).catch((error) => {
+      console.error("[outreach-service][retry] failed", JSON.stringify({
+        batchId: job.batchId,
+        message: error instanceof Error ? error.message : String(error),
+      }));
+    });
+  }
+}
+
+function startRetryLoop(): void {
+  setInterval(() => {
+    retryQueuedJobs().catch((error) => {
+      console.error("[outreach-service][retry-loop] error", JSON.stringify({
+        message: error instanceof Error ? error.message : String(error),
+      }));
+    });
+  }, RETRY_INTERVAL_MS);
 }
 
 // ── Server ───────────────────────────────────────────────────────────────────
@@ -519,4 +575,5 @@ const server = createServer(async (req, res) => {
 server.listen(port, async () => {
   console.info(`[outreach-service] listening on :${port}`);
   await resumeIncompleteBatches();
+  startRetryLoop();
 });

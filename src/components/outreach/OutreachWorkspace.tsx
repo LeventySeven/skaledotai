@@ -7,6 +7,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogPopup,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { AiPanel } from "./AiPanel";
 import { TemplateCard } from "./TemplateCard";
 import { TemplateModal } from "./TemplateModal";
@@ -57,6 +65,9 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
   } = useOutreachWorkspace({ initialStandardTemplates, initialSavedTemplates });
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+
+  const canSend = selectedLeadIds.length > 0 && selectedTemplateIds.length > 0 && !isSending;
 
 
   return (
@@ -81,7 +92,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           <div className="w-fit">
             <div className="mb-1 text-[18px] font-medium text-[#111111]">Choose a template to outreach</div>
             <div className="text-[16px] font-normal text-muted-foreground">
-              You can select multiple templates to randomise the outreach.
+              Select multiple templates to randomize which each lead receives.
             </div>
           </div>
           <Button
@@ -240,11 +251,10 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
         {hasXAccount ? (
           <Button
             className="h-8 rounded-[10px] px-4 text-[0.88rem]"
-            disabled={isSending}
+            disabled={!canSend}
             onClick={() => {
-              handleSendSelected().catch((error: unknown) => {
-                console.error("Failed to send outreach:", error);
-              });
+              if (isSending) return;
+              setConfirmSendOpen(true);
             }}
           >
             {isSending && dmProgress
@@ -269,6 +279,39 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
           onClose={() => setCreateModalOpen(false)}
           onSave={handleCreateTemplate}
         />
+      ) : null}
+
+      {confirmSendOpen ? (
+        <Dialog open onOpenChange={(open) => { if (!open) setConfirmSendOpen(false); }}>
+          <DialogPopup>
+            <DialogHeader>
+              <DialogTitle>Send DMs?</DialogTitle>
+              <DialogDescription>
+                This will send {selectedLeadIds.length} DM{selectedLeadIds.length !== 1 ? "s" : ""} via your connected X account. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                className="h-8 rounded-[10px] px-4 text-[0.88rem]"
+                onClick={() => setConfirmSendOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="h-8 rounded-[10px] px-4 text-[0.88rem]"
+                onClick={() => {
+                  setConfirmSendOpen(false);
+                  handleSendSelected().catch((error: unknown) => {
+                    console.error("Failed to send outreach:", error);
+                  });
+                }}
+              >
+                Send {selectedLeadIds.length} DM{selectedLeadIds.length !== 1 ? "s" : ""}
+              </Button>
+            </DialogFooter>
+          </DialogPopup>
+        </Dialog>
       ) : null}
     </div>
   );

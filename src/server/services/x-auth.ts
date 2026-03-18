@@ -79,7 +79,14 @@ export async function disconnectXAccount(userId: string): Promise<void> {
 }
 
 /**
+ * In-memory lock to prevent concurrent token refreshes for the same account.
+ * X uses refresh token rotation — concurrent refreshes would invalidate each other.
+ */
+const refreshLocks = new Map<string, Promise<string | null>>();
+
+/**
  * Refresh an expired X OAuth 2.0 access token.
+ * Uses an in-memory lock per account to prevent concurrent refresh races.
  *
  * X OAuth 2.0 token refresh endpoint:
  * POST https://api.x.com/2/oauth2/token
@@ -89,6 +96,19 @@ export async function disconnectXAccount(userId: string): Promise<void> {
  * Docs: https://docs.x.com/resources/fundamentals/authentication/guides/v2-authentication-mapping
  */
 async function refreshXAccessToken(refreshToken: string, accountId: string): Promise<string | null> {
+  const existing = refreshLocks.get(accountId);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = doRefreshXAccessToken(refreshToken, accountId).finally(() => {
+    refreshLocks.delete(accountId);
+  });
+  refreshLocks.set(accountId, promise);
+  return promise;
+}
+
+async function doRefreshXAccessToken(refreshToken: string, accountId: string): Promise<string | null> {
   const clientId = process.env.X_CLIENT_ID?.trim();
   if (!clientId) {
     console.warn("[x-auth] X_CLIENT_ID not set, cannot refresh token");
