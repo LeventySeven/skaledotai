@@ -44,7 +44,7 @@ function ConnectXSection() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[0.95rem] text-emerald-950">
             <XIcon className="size-4" />
-            account connected
+            connected
           </div>
         </div>
       ) : (
