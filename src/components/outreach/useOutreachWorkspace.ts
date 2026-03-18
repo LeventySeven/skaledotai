@@ -5,7 +5,7 @@ import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { Lead } from "@/lib/validations/leads";
 import type { OutreachTemplate } from "@/lib/validations/outreach";
-import { streamDmBatch, type DmStreamEvent } from "./outreach-helpers";
+import { streamDmBatch, type DmStreamEvent } from "@/lib/outreach-service-client";
 
 function toPatchInput(patch: Partial<Lead>) {
   const payload: {
