@@ -15,6 +15,13 @@
       "when": 1773596786031,
       "tag": "0001_cute_carlie_cooper",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773676273046,
+      "tag": "0002_medical_mandrill",
+      "breakpoints": true
     }
   ]
 }

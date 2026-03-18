@@ -39,6 +39,8 @@ export async function recordProjectRun(input: {
   minFollowers?: number;
   targetLeadCount?: number;
   leadCount: number;
+  traceData?: unknown;
+  status?: string;
 }): Promise<void> {
   const now = new Date();
   const values = {
@@ -55,29 +57,85 @@ export async function recordProjectRun(input: {
     minFollowers: input.minFollowers,
     targetLeadCount: input.targetLeadCount,
     leadCount: input.leadCount,
+    traceData: input.traceData ?? null,
+    status: input.status ?? "completed",
     createdAt: now,
   };
 
-  await db
-    .insert(projectRuns)
-    .values(values)
-    .onConflictDoUpdate({
-      target: projectRuns.requestKey,
-      set: {
-        operationType: values.operationType,
-        requestedProvider: values.requestedProvider,
-        discoveryProvider: values.discoveryProvider,
-        lookupProvider: values.lookupProvider,
-        networkProvider: values.networkProvider,
-        tweetsProvider: values.tweetsProvider,
-        query: values.query,
-        seedUsername: values.seedUsername,
-        minFollowers: values.minFollowers,
-        targetLeadCount: values.targetLeadCount,
-        leadCount: values.leadCount,
+  try {
+    await db
+      .insert(projectRuns)
+      .values(values)
+      .onConflictDoUpdate({
+        target: projectRuns.requestKey,
+        set: {
+          operationType: values.operationType,
+          requestedProvider: values.requestedProvider,
+          discoveryProvider: values.discoveryProvider,
+          lookupProvider: values.lookupProvider,
+          networkProvider: values.networkProvider,
+          tweetsProvider: values.tweetsProvider,
+          query: values.query,
+          seedUsername: values.seedUsername,
+          minFollowers: values.minFollowers,
+          targetLeadCount: values.targetLeadCount,
+          leadCount: values.leadCount,
+          traceData: values.traceData,
+          status: values.status,
         createdAt: now,
       },
     });
+  } catch (error) {
+    // If trace_data/status columns don't exist yet (migration not run), fall back
+    // to inserting without them so the search doesn't crash.
+    const isColumnError = error && typeof error === "object"
+      && ("code" in error) && ((error as { code?: string }).code === "42703" || (error as { code?: string }).code === "42P01");
+    if (!isColumnError) throw error;
+
+    console.warn("[project-runs] trace_data/status columns missing — saving without them. Run the migration.");
+    const { traceData: _t, status: _s, ...fallbackValues } = values;
+    await db
+      .insert(projectRuns)
+      .values(fallbackValues as typeof values)
+      .onConflictDoUpdate({
+        target: projectRuns.requestKey,
+        set: {
+          operationType: fallbackValues.operationType,
+          requestedProvider: fallbackValues.requestedProvider,
+          discoveryProvider: fallbackValues.discoveryProvider,
+          lookupProvider: fallbackValues.lookupProvider,
+          networkProvider: fallbackValues.networkProvider,
+          tweetsProvider: fallbackValues.tweetsProvider,
+          query: fallbackValues.query,
+          seedUsername: fallbackValues.seedUsername,
+          minFollowers: fallbackValues.minFollowers,
+          targetLeadCount: fallbackValues.targetLeadCount,
+          leadCount: fallbackValues.leadCount,
+          createdAt: now,
+        },
+      });
+  }
+}
+
+export async function getProjectRunTrace(
+  projectId: string,
+): Promise<{ traceData: unknown; status: string } | null> {
+  try {
+    const [row] = await db
+      .select({
+        traceData: projectRuns.traceData,
+        status: projectRuns.status,
+      })
+      .from(projectRuns)
+      .where(eq(projectRuns.projectId, projectId))
+      .orderBy(desc(projectRuns.createdAt))
+      .limit(1);
+
+    return row ?? null;
+  } catch {
+    // trace_data/status columns may not exist yet
+    return null;
+  }
 }
 
 export async function getProjectSourceProvidersByProjectIds(

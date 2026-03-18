@@ -24,14 +24,17 @@ import {
 } from "./multiagent-shared";
 import {
   searchTavily,
+  searchTavilyWithExclusions,
   normalizeDiscoveredUrls,
 } from "./tavily";
 import {
   queryAgentQl,
   queryAgentQlBestEffort,
+  scrapeXPeopleSearch,
   normalizeProfilesFromPayload,
   normalizeTweetsFromPayload,
 } from "./agentql";
+import { NICHE_EXAMPLES, selectRelevantExamples } from "./niche-examples";
 import {
   MULTIAGENT_NODE_TITLES,
   MULTIAGENT_MAX_QUERIES,
@@ -64,11 +67,11 @@ export type { MultiAgentStateSnapshot } from "./multiagent-trace";
 export { buildTavilySearchRequest, normalizeDiscoveredUrls } from "./tavily";
 export { buildAgentQlQueryRequest } from "./agentql";
 
-const MULTIAGENT_MIN_QUERIES = 3;
-const MULTIAGENT_MIN_URLS = 12;
-const MULTIAGENT_MAX_URLS = 96;
-const MULTIAGENT_MIN_BATCH_SIZE = 3;
-const MULTIAGENT_MAX_BATCH_SIZE = 12;
+const MULTIAGENT_MIN_QUERIES = 4;
+const MULTIAGENT_MIN_URLS = 20;
+const MULTIAGENT_MAX_URLS = 160;
+const MULTIAGENT_MIN_BATCH_SIZE = 4;
+const MULTIAGENT_MAX_BATCH_SIZE = 16;
 const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 45_000;
 const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
 const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 120_000;
@@ -141,6 +144,15 @@ const MultiAgentState = Annotation.Root({
   maxAttempts: Annotation<number>,
   queryBudget: Annotation<number>,
   scrapeBatchSize: Annotation<number>,
+  /** Cleaned search phrase from the planner's interpretation */
+  normalizedQuery: Annotation<string>({
+    reducer: (_left, right) => right || _left,
+    default: () => "",
+  }),
+  queryType: Annotation<GoalInterpretation["queryType"]>({
+    reducer: (_left, right) => right || _left,
+    default: () => "role",
+  }),
   plannerMode: Annotation<MultiAgentPlannerMode>({
     reducer: (_left, right) => right,
     default: () => "initial",
@@ -229,6 +241,11 @@ const MultiAgentState = Annotation.Root({
     reducer: (_left, right) => right,
     default: () => 0,
   }),
+  /** Raw candidates scraped this attempt before pre-screening */
+  lastAttemptRawCount: Annotation<number>({
+    reducer: (_left, right) => right,
+    default: () => 0,
+  }),
   plannerFallbackUsed: Annotation<boolean>({
     reducer: (_left, right) => right,
     default: () => false,
@@ -260,12 +277,18 @@ const QueryPlanSchema = z.object({
 }).strict();
 
 const GoalInterpretationSchema = z.object({
+  /** The cleaned search phrase extracted from the user's input. No filler words, no "I want to find", just the core role or niche. This is what goes into Google dork queries. */
+  normalizedQuery: z.string().default(""),
+  /** What kind of query this is: role (looking for people with a job title), product (looking for users of/builders of a product), or niche (looking for people in a space/industry). */
+  queryType: z.enum(["role", "product", "niche"]).default("role"),
   roleTerms: z.array(z.string()).default([]),
   bioTerms: z.array(z.string()).default([]),
   geoHints: z.array(z.string()).default([]),
   antiGoals: z.array(z.string()).default([]),
   userGoals: z.array(z.string()).default([]),
 }).strict();
+
+type GoalInterpretation = z.infer<typeof GoalInterpretationSchema>;
 
 function unsupported(capability: "network"): never {
   throw new XProviderRuntimeError({
@@ -306,25 +329,92 @@ function dedupeQueries(queries: string[]): string[] {
   return result;
 }
 
-type GoalInterpretation = z.infer<typeof GoalInterpretationSchema>;
+/**
+ * Build singular, plural, and discipline-form variants of a role phrase.
+ * E.g. "product designers" -> ["product designers", "product designer", "product design"]
+ *      "startup founder"   -> ["startup founder", "startup founders", "startup founding"]
+ */
+function buildRoleVariants(role: string): string[] {
+  const trimmed = role.trim().toLowerCase();
+  const variants = new Set<string>([trimmed]);
+
+  // Singular / plural of the full phrase
+  for (const v of pluralVariants(trimmed)) variants.add(v);
+
+  // Discipline form: strip the person suffix to get the field name
+  // "product designers" -> "product design", "startup founders" -> "startup founding"
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) {
+    const lastWord = words[words.length - 1];
+    const prefix = words.slice(0, -1).join(" ");
+
+    // Common person-suffix → discipline mappings
+    const disciplineMappings: Record<string, string> = {
+      designer: "design", designers: "design",
+      developer: "development", developers: "development",
+      engineer: "engineering", engineers: "engineering",
+      founder: "founding", founders: "founding",
+      marketer: "marketing", marketers: "marketing",
+      manager: "management", managers: "management",
+      researcher: "research", researchers: "research",
+      consultant: "consulting", consultants: "consulting",
+      architect: "architecture", architects: "architecture",
+      strategist: "strategy", strategists: "strategy",
+      writer: "writing", writers: "writing",
+      analyst: "analytics", analysts: "analytics",
+      creator: "creation", creators: "creation",
+      educator: "education", educators: "education",
+      photographer: "photography", photographers: "photography",
+      illustrator: "illustration", illustrators: "illustration",
+      animator: "animation", animators: "animation",
+    };
+
+    const discipline = disciplineMappings[lastWord];
+    if (discipline) {
+      variants.add(`${prefix} ${discipline}`);
+    }
+  }
+
+  return [...variants];
+}
+
+/**
+ * Strip natural-language filler from user input to get the core search term.
+ * "I want to find motion designers" → "motion designers"
+ * "looking for AI startup founders in Europe" → "AI startup founders in Europe"
+ * "product designers" → "product designers" (no change)
+ */
+function heuristicNormalizeQuery(raw: string): string {
+  return raw
+    .replace(/^(?:i\s+(?:want|need|am looking|would like)\s+to\s+(?:find|search|discover|get|look for)\s+)/i, "")
+    .replace(/^(?:find\s+(?:me\s+)?|search\s+for\s+|looking\s+for\s+|give\s+me\s+|show\s+me\s+|get\s+me\s+)/i, "")
+    .replace(/^(?:best|top|popular|trending|famous)\s+/i, "")
+    .replace(/\s+(?:on\s+(?:x|twitter|x\.com))\s*$/i, "")
+    .replace(/\s+(?:please|pls)\s*$/i, "")
+    .trim();
+}
 
 function buildHeuristicGoalInterpretation(input: {
   niche: string;
   seedHandle?: string;
 }): GoalInterpretation {
   const niche = input.niche.trim();
-  const geoHints = niche.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
+  const normalized = heuristicNormalizeQuery(niche);
+  const geoHints = normalized.match(/\b(?:in|from|based in|located in)\s+([A-Za-z][A-Za-z\s]+)/gi)
     ?.map((match) => match.replace(/\b(?:in|from|based in|located in)\s+/i, "").trim())
     .filter(Boolean) ?? [];
 
-  // Keep the full niche as the primary term — don't split into individual words
+  const roleVariants = buildRoleVariants(normalized);
+
   return {
-    roleTerms: [niche],
-    bioTerms: [niche],
+    normalizedQuery: normalized,
+    queryType: "role",
+    roleTerms: roleVariants,
+    bioTerms: roleVariants,
     geoHints,
     antiGoals: ["support", "official", "newsroom", "brand account", "large corporation", "celebrity", "media outlet", "institution", "dormant account", "bot"],
     userGoals: [
-      `Find ${input.niche} on X.`,
+      `Find ${normalized} on X.`,
       input.seedHandle ? `Look within @${input.seedHandle.replace(/^@/, "")}'s network.` : "",
     ].filter(Boolean),
   };
@@ -338,21 +428,121 @@ async function interpretLeadSearchGoals(input: {
 
   try {
     const interpreter = getPlannerModel().withStructuredOutput(GoalInterpretationSchema, { name: "lead_goal_interpretation" });
-    const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke([
-      "Interpret this lead-search request. The user wants to find X/Twitter accounts that match this niche.",
+    const promptParts = [
+      "Interpret this lead-search request. The user wants to find X/Twitter accounts matching their query.",
       "",
-      "Generate SYNONYMS and VARIATIONS of the query that mean the same thing. Every term you generate must describe the same type of person as the original query. Never split a multi-word concept into separate unrelated words.",
+      "## STEP 0: NORMALIZE THE QUERY",
       "",
-      "Extract:",
-      "- roleTerms: synonyms and variations of the role the user is looking for. Each term must be a complete phrase that means the same thing as the query. Include the original query as-is, plus realistic variations people would write in their bios.",
-      "- bioTerms: how people in this niche describe themselves in bios. Each term must be a complete self-description that stays within the same niche as the query.",
-      "- geoHints: optional location signals from the query",
-      "- antiGoals: account types to avoid",
-      "- userGoals: what the user is looking for (restate simply)",
+      "The user might type anything — natural language, a role, a product, or a niche. Your FIRST job is to extract a clean search phrase.",
+      "",
+      "Examples:",
+      '  "I want to find motion designers" → normalizedQuery: "motion designers", queryType: "role"',
+      '  "looking for AI startup founders in Europe" → normalizedQuery: "AI startup founders", queryType: "role", geoHints: ["Europe"]',
+      '  "product designers" → normalizedQuery: "product designers", queryType: "role"',
+      '  "people who use Figma" → normalizedQuery: "Figma users", queryType: "product"',
+      '  "AI SaaS tool builders" → normalizedQuery: "AI SaaS builders", queryType: "niche"',
+      '  "DTC ecommerce brands" → normalizedQuery: "DTC ecommerce", queryType: "niche"',
+      "",
+      "Strip filler words ('I want to find', 'looking for', 'best', 'top', 'on X'). Keep domain qualifiers ('AI', 'crypto', 'DTC'). Keep geo if present.",
+      "",
+      "## STEP 1: DETERMINE QUERY TYPE",
+      "",
+      "- **role**: User is looking for people with a specific job/profession (most common). Example: 'motion designers', 'startup founders', 'DevRel engineers'",
+      "- **product**: User is looking for users/builders of a specific product or tool. Example: 'Figma power users', 'Notion template creators'",
+      "- **niche**: User is looking for people in a space/industry without a specific job title. Example: 'AI SaaS', 'web3 gaming', 'DTC ecommerce'",
+      "",
+      "## STEP 2: GENERATE TERMS (adapted to queryType)",
+      "",
+      "### For queryType = 'role':",
+      "Think about how people on X describe this role in their bios. Key insight: people almost ALWAYS write the SINGULAR form in bios, not plural.",
+      "  - Bio says: 'Motion Designer' NOT 'Motion Designers'",
+      "  - Bio says: 'Product Designer at @Figma' NOT 'Product Designers at Figma'",
+      "  - Bio says: 'Founder & CEO' NOT 'Startup Founders'",
+      "",
+      "So roleTerms MUST include the singular form as the primary search term. Also include:",
+      "  - Plural (for posts, lists, articles that mention the role)",
+      "  - Discipline/field form ('motion design', 'product design')",
+      "  - X-specific abbreviations: 'SWE', 'PM', 'DevRel'",
+      "  - Common seniority prefixes people actually write: 'senior', 'lead', 'staff', 'principal', 'head of'",
+      "  - Adjacent synonyms (same work, different title): 'motion graphics designer' = 'motion designer'",
+      "",
+      "### For queryType = 'product':",
+      "  - roleTerms: people who use/build with this product ('Figma designer', 'Notion creator', 'Webflow developer')",
+      "  - bioTerms: how they mention it ('building with @product', 'powered by @product', '@product template maker')",
+      "",
+      "### For queryType = 'niche':",
+      "  - roleTerms: common roles within this niche ('DTC brand founder', 'ecommerce operator', 'web3 game developer')",
+      "  - bioTerms: how people in this space describe themselves ('building in web3 gaming', 'DTC brand operator')",
+      "",
+      "## STEP 3: THINK ABOUT X/TWITTER BIOS SPECIFICALLY",
+      "",
+      "People on X write bios in a very specific way. Study these real patterns:",
+      "  - '[Role] at @[Company]' → 'Motion Designer at @Netflix'",
+      "  - '[Role] | [Side project]' → 'Product Designer | Building @MyApp'",
+      "  - '[Role] • [Passion]' → 'UX Designer • Design systems nerd'",
+      "  - 'Head of [Discipline] at @[Company]' → 'Head of Motion at @Apple'",
+      "  - '[Discipline] @[Company]' → 'Motion Design @Google'",
+      "  - 'I [verb] [thing]' → 'I design motion for brands'",
+      "  - '[Emoji] [Role]' → '✨ Motion Designer'",
+      "",
+      "Generate bioTerms that match these REAL patterns for the specific query.",
+      "",
+      "## STEP 4: IDENTIFY ANTI-GOALS",
+      "",
+      "Name the specific adjacent roles/account types that share keywords but are NOT what the user wants.",
+      "Be specific to THIS query. For 'motion designers': 'motion graphics company (org)', 'video editor (different role)', 'animator (unless also does motion design)'.",
+      "",
+      "## RULES",
+      "",
+      "- normalizedQuery MUST be a clean, search-ready phrase. No filler, no 'I want to find'.",
+      "- Every roleTerms entry must unambiguously identify the role. No single generic words.",
+      "- bioTerms must be realistic X bio phrases — how people ACTUALLY write, not formal titles.",
+      "- antiGoals must name SPECIFIC confusable roles, not generic terms like 'irrelevant'.",
+      "- ALWAYS include singular form as primary roleTerms entry (this is how bios are written on X).",
+      "- NEVER output lone words ('product', 'design', 'motion'). Always a phrase or compound title.",
+    ];
+
+    if (NICHE_EXAMPLES) {
+      // Select only the 2-3 most relevant examples + structural patterns to stay within token budget.
+      // LangGraph docs: "Balance context completeness against token costs."
+      const relevantExamples = selectRelevantExamples(input.niche, 3);
+      promptParts.push(
+        "",
+        "## REFERENCE EXAMPLES",
+        "",
+        "Below are a few relevant examples. Study the PATTERNS, not the content:",
+        "- How roleTerms cover singular/plural/discipline/synonym forms",
+        "- How bioTerms reflect real bio language, not formal titles",
+        "- How antiGoals name specific confusable roles",
+        "",
+        "DO NOT copy terms from these examples unless the query exactly matches one.",
+        "For any other query, apply the same structural patterns but generate terms specific to that query's role.",
+        "",
+        relevantExamples,
+      );
+    }
+
+    promptParts.push(
+      "",
+      "## OUTPUT",
+      "",
+      "For the query below, generate:",
+      "- normalizedQuery: the clean search phrase extracted from the user's input (no filler, just the core role/niche).",
+      "- queryType: 'role' | 'product' | 'niche' — what kind of query this is.",
+      "- roleTerms: SINGULAR form first, then plural, discipline, synonyms. Every entry must unambiguously identify the role.",
+      "- bioTerms: realistic X bio phrases — how people actually write on X, not formal titles.",
+      "- geoHints: location signals extracted from the query (if any).",
+      "- antiGoals: specific roles/account types that look similar but are NOT this role. Name exact titles.",
+      "- userGoals: what the user is looking for (restate simply).",
+      "",
       JSON.stringify(input),
-    ].join("\n")));
+    );
+
+    const result = await withTimeout("OpenAI planner", resolveMultiAgentPlannerTimeoutMs(), () => interpreter.invoke(promptParts.join("\n")));
 
     return {
+      normalizedQuery: result.normalizedQuery?.trim() || heuristicNormalizeQuery(input.niche),
+      queryType: result.queryType ?? "role",
       roleTerms: dedupeQueries(result.roleTerms ?? []),
       bioTerms: dedupeQueries(result.bioTerms ?? []),
       geoHints: dedupeQueries(result.geoHints ?? []),
@@ -375,6 +565,11 @@ function buildGoogleDorkQueries(input: {
   queryBudget: number;
   interpretation: GoalInterpretation;
 }): string[] {
+  // Use the normalized query (cleaned of filler words) for dork queries, not the raw user input.
+  // "I want to find motion designers" → searches for "motion designer" (singular, how bios are written)
+  const normalized = input.interpretation.normalizedQuery || input.niche;
+  // Primary search term: first roleTerm (singular) is the best match for X bios
+  const primaryTerm = input.interpretation.roleTerms[0] || normalized;
   const roleBlock = input.interpretation.roleTerms.slice(0, 3).join('" OR "');
   const bioBlock = input.interpretation.bioTerms.slice(0, 4).join('" OR "');
   const geoBlock = input.interpretation.geoHints[0]?.trim();
@@ -384,86 +579,93 @@ function buildGoogleDorkQueries(input: {
   if (cleanSeed) {
     const vf = `site:x.com/${cleanSeed}/verified_followers`;
     return dedupeQueries([
-      `${vf} ${input.niche}`,
+      `${vf} "${primaryTerm}"`,
       `${vf}`,
       roleBlock ? `${vf} ("${roleBlock}")` : "",
       bioBlock ? `${vf} ("${bioBlock}")` : "",
-      geoBlock ? `${vf} "${geoBlock}"` : "",
+      geoBlock ? `${vf} "${primaryTerm}" "${geoBlock}"` : "",
     ]).slice(0, input.queryBudget);
   }
 
-  return dedupeQueries([
-    // Direct niche search — find people with the niche in their profile
-    `site:x.com "${input.niche}"`,
-    `site:twitter.com "${input.niche}"`,
-    // With role terms from AI interpretation
-    roleBlock ? `site:x.com ("${roleBlock}")` : "",
-    bioBlock ? `site:x.com ("${bioBlock}")` : "",
-    // Geo-targeted
-    geoBlock ? `site:x.com "${input.niche}" "${geoBlock}"` : "",
-    // Later attempts: try role/bio terms individually (each quoted)
-    input.attempt >= 2 && input.interpretation.roleTerms[1] ? `site:x.com "${input.interpretation.roleTerms[1]}"` : "",
-    input.attempt >= 3 && input.interpretation.bioTerms[1] ? `site:twitter.com "${input.interpretation.bioTerms[1]}"` : "",
-  ]).slice(0, input.queryBudget);
+  // Generate targeted queries that find PROFILES, not articles or listicles.
+  // Each query uses roleTerms/bioTerms directly — these are how people describe
+  // themselves in bios, so Google will match the actual profile pages.
+  const queries: string[] = [];
+
+  // Primary: individual roleTerms as separate queries (each finds different profiles)
+  for (const term of input.interpretation.roleTerms.slice(0, 4)) {
+    queries.push(`site:x.com "${term}"`);
+  }
+
+  // Bio-phrase queries: find profiles where people wrote these specific phrases
+  for (const term of input.interpretation.bioTerms.slice(0, 3)) {
+    queries.push(`site:x.com "${term}"`);
+  }
+
+  // Geo-targeted variant
+  if (geoBlock) {
+    queries.push(`site:x.com "${primaryTerm}" "${geoBlock}"`);
+  }
+
+  // twitter.com variant for older indexed profiles
+  queries.push(`site:twitter.com "${primaryTerm}"`);
+
+  return dedupeQueries(queries).slice(0, input.queryBudget);
 }
 
 function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" | "targetLeadCount" | "limit">): number {
   const requestedCount = input.goalCount ?? input.targetLeadCount ?? input.limit;
-  if (requestedCount >= 220) return 8;
-  if (requestedCount >= 120) return 6;
-  if (requestedCount >= 60) return 4;
+  // More queries = more diverse candidate sources. Scale with target.
+  if (requestedCount >= 220) return 10;
+  if (requestedCount >= 120) return 8;
+  if (requestedCount >= 60) return 6;
   return MULTIAGENT_MIN_QUERIES;
 }
 
 export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[] {
-  const niche = input.niche.trim();
+  const normalized = heuristicNormalizeQuery(input.niche);
+  const variants = buildRoleVariants(normalized);
   const seedHandle = input.seedHandle?.replace(/^@/, "").trim();
 
   // When searching within a user's followers, ALL queries scope to verified_followers
   if (seedHandle) {
     const vf = `site:x.com/${seedHandle}/verified_followers`;
     return dedupeQueries([
-      `${vf} ${niche}`,
+      `${vf} "${normalized}"`,
       `${vf}`,
-      `${vf} ${niche} founders creators builders`,
-      `${vf} ${niche} people who repost share engage`,
-      `${vf} ${niche} indie makers operators`,
-      `${vf} ${niche} engaged community members`,
+      ...variants.slice(0, 2).map((v) => `${vf} "${v}"`),
     ]).slice(0, resolveMultiAgentQueryBudget(input));
   }
 
+  // Use site:x.com with quoted role terms — finds actual profiles, not listicles.
+  // Each variant (singular, plural, discipline) finds different people.
   return dedupeQueries([
-    `${niche} on x`,
-    `${niche} x.com`,
-    `${niche} twitter`,
-    `best ${niche} on x`,
+    ...variants.slice(0, 3).map((v) => `site:x.com "${v}"`),
+    `site:twitter.com "${variants[0] || normalized}"`,
   ]).slice(0, resolveMultiAgentQueryBudget(input));
 }
 
-function buildAttemptVariantQueries(niche: string, seedHandle: string | undefined, attempt: number): string[] {
+function buildAttemptVariantQueries(niche: string, seedHandle: string | undefined, _attempt: number): string[] {
+  const normalized = heuristicNormalizeQuery(niche);
+  const variants = buildRoleVariants(normalized);
   const cleanSeed = seedHandle?.replace(/^@/, "").trim();
 
-  // When searching within a user's followers, ALL queries scope to verified_followers
   if (cleanSeed) {
     const vf = `site:x.com/${cleanSeed}/verified_followers`;
-    return dedupeQueries([
-      `${vf} ${niche}`,
-      attempt >= 3 ? `${vf}` : "",
-    ]);
+    return dedupeQueries(variants.slice(0, 2).map((v) => `${vf} "${v}"`));
   }
 
-  return dedupeQueries([
-    `site:x.com "${niche}"`,
-    `"${niche}" x.com`,
-    `${niche} site:twitter.com`,
-    attempt >= 3 ? `top ${niche} on x` : "",
-    attempt >= 4 ? `${niche} freelance independent` : "",
-  ]);
+  // Use role variants with site: prefix — each finds different profiles
+  return dedupeQueries(
+    variants.slice(0, 3).map((v) => `site:x.com "${v}"`),
+  );
 }
 
 function resolveMultiAgentUrlLimit(limit: number, goalCount?: number): number {
   const requested = Math.max(limit, goalCount ?? 0);
-  return Math.max(MULTIAGENT_MIN_URLS, Math.min(MULTIAGENT_MAX_URLS, Math.ceil(requested * 0.22)));
+  // Scale URL budget with target: more leads requested → more URLs to scrape.
+  // Factor 0.4 means 100-lead target → 40 URLs, 300-lead target → 120 URLs.
+  return Math.max(MULTIAGENT_MIN_URLS, Math.min(MULTIAGENT_MAX_URLS, Math.ceil(requested * 0.4)));
 }
 
 function resolveMultiAgentScrapeBatchSize(limit: number, goalCount?: number): number {
@@ -541,10 +743,10 @@ function extractKeywords(niche: string): string[] {
 
   const phrases: string[] = [];
 
-  // Full niche phrase + singular/plural variants
+  // Full niche phrase + singular/plural + discipline variants (these are the highest-value matches)
   if (words.length >= 2) {
     const fullPhrase = words.join(" ");
-    phrases.push(...pluralVariants(fullPhrase));
+    phrases.push(...buildRoleVariants(fullPhrase));
   }
 
   // Bigrams + their variants
@@ -552,7 +754,8 @@ function extractKeywords(niche: string): string[] {
     phrases.push(...pluralVariants(`${words[i]} ${words[i + 1]}`));
   }
 
-  // Individual words + their variants
+  // Individual words + their variants — kept for weak-signal scoring but
+  // callers should weight these much lower than phrase matches
   for (const word of words) {
     phrases.push(...pluralVariants(word));
   }
@@ -566,24 +769,32 @@ function clampScore(value: number): number {
 
 function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): { score: number; reasons: string[] } {
   const keywords = extractKeywords(niche);
-  const bioText = normalizeText(candidate.account.bio);
-  const postTexts = candidate.posts.slice(0, 5).map((post) => normalizeText(post.text));
+  // Include display name + bio + handle — display names like "Gaga | Product Designer" are strong signals
+  const profileText = normalizeText([candidate.account.name, candidate.account.bio, candidate.account.handle].join(" "));
+  const postTexts = candidate.posts.slice(0, 15).map((post) => normalizeText(post.text));
 
-  // Bio relevance — phrase matches count 3x
-  const bioPhraseHits = keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).length;
-  const bioWordHits = keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).length;
-  const bioScore = Math.min(60, (bioPhraseHits * 3 + bioWordHits) * 10);
+  const phraseKeywords = keywords.filter((kw) => kw.includes(" "));
+  const singleKeywords = keywords.filter((kw) => !kw.includes(" "));
+  const profilePhraseHits = phraseKeywords.filter((kw) => profileText.includes(kw)).length;
+  const profileWordHits = singleKeywords.filter((kw) => profileText.includes(kw)).length;
 
-  // Post relevance — posts with niche keywords
-  const postHits = postTexts.filter((text) => keywords.some((kw) => text.includes(kw))).length;
-  const postScore = Math.min(40, postHits * 12);
+  // Phrases worth 20 each, single words worth 3 each
+  const profileScore = Math.min(60, profilePhraseHits * 20 + profileWordHits * 3);
 
-  const score = clampScore(bioScore + postScore);
+  // Post relevance — phrase matches in posts confirm the role
+  const postPhraseHits = postTexts.filter((text) => phraseKeywords.some((kw) => text.includes(kw))).length;
+  const postScore = Math.min(30, postPhraseHits * 10);
+
+  const rawScore = profileScore + postScore;
+  // No phrase match → reduce score but don't hard-cap. A person with multiple word matches
+  // and person signals may still be relevant (e.g. truncated bio from scraping).
+  const hasAnyPhraseMatch = profilePhraseHits > 0 || postPhraseHits > 0;
+  const score = clampScore(hasAnyPhraseMatch ? rawScore : Math.max(0, rawScore - 10));
 
   const reasons: string[] = [];
-  if (bioPhraseHits > 0) reasons.push(`Bio contains: ${keywords.filter((kw) => kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
-  else if (bioWordHits > 0) reasons.push(`Bio mentions: ${keywords.filter((kw) => !kw.includes(" ") && bioText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
-  if (postHits > 0) reasons.push(`${postHits} post(s) discuss the niche`);
+  if (profilePhraseHits > 0) reasons.push(`Profile contains: ${phraseKeywords.filter((kw) => profileText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  else if (profileWordHits > 0) reasons.push(`Profile mentions: ${singleKeywords.filter((kw) => profileText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
+  if (postPhraseHits > 0) reasons.push(`${postPhraseHits} post(s) discuss the niche`);
 
   return { score, reasons };
 }
@@ -791,6 +1002,29 @@ async function buildPlannerQueries(
     };
   }
 
+  if (input.recoveryState === "precision_filtered") {
+    // Candidates were found but almost all were the wrong role.
+    // Generate highly targeted queries using the exact role terms from interpretation.
+    const roleTargetedQueries = [
+      ...interpretation.roleTerms.slice(0, 5).map((term) => `site:x.com "${term}"`),
+      ...interpretation.bioTerms.slice(0, 3).map((term) => `site:x.com "${term}"`),
+      ...interpretation.roleTerms.slice(0, 2).map((term) => `site:twitter.com "${term}"`),
+    ];
+    const precisionQueries = withNewQueries(
+      [...roleTargetedQueries, ...dorkQueries],
+      input.plannedQueries,
+    ).slice(0, Math.min(MULTIAGENT_MAX_QUERIES, baseBudget + 2));
+
+    return {
+      queries: precisionQueries,
+      plannerMode: "precision",
+      usedFallback: false,
+      userGoals: interpretation.userGoals,
+      geoHints: interpretation.geoHints,
+      antiGoals: interpretation.antiGoals,
+    };
+  }
+
   if (input.recoveryState === "rate_limited") {
     const throttleQueries = withNewQueries(
       [...dorkQueries, ...heuristicQueries, ...variants],
@@ -820,46 +1054,59 @@ async function buildPlannerQueries(
   };
 }
 
+/**
+ * Extract the quoted search term from a Google dork query.
+ * 'site:x.com "product designer"' → 'product designer'
+ * 'site:x.com ("product designer" OR "UX designer")' → 'product designer' (first term)
+ */
+function extractSearchTermFromDork(query: string): string | null {
+  const match = query.match(/"([^"]+)"/);
+  return match?.[1]?.trim() || null;
+}
+
 async function runSourceFanoutAgent(input: SourceFanoutAgentInput): Promise<{
   candidateUrls: string[];
+  scraped: ScrapedPayload[];
   errors: MultiAgentErrorRecord[];
 }> {
+  const errors: MultiAgentErrorRecord[] = [];
+  const scraped: ScrapedPayload[] = [];
+  let discoveredUrls: string[] = [];
+
+  // Tavily-only: X People Search is now handled by the dedicated people_search node.
+  // Source fanout focuses on finding supplementary profile URLs via Google.
   try {
-    const results = await searchTavily(input.query, input.limit);
-    const discoveredUrls = normalizeDiscoveredUrls(
+    const results = input.excludeTerms?.length
+      ? await searchTavilyWithExclusions(input.query, input.limit, input.excludeTerms)
+      : await searchTavily(input.query, input.limit);
+    discoveredUrls = normalizeDiscoveredUrls(
       results,
       resolveMultiAgentUrlLimit(input.limit, input.goalCount),
     );
-
-    // When searching within a user's followers, inject the verified_followers URL
-    // as a priority scrape target so AgentQL can extract profiles from it directly.
-    const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
-    if (cleanSeed) {
-      const verifiedFollowersUrl = `https://x.com/${cleanSeed}/verified_followers`;
-      if (!discoveredUrls.includes(verifiedFollowersUrl)) {
-        discoveredUrls.unshift(verifiedFollowersUrl);
-      }
-    }
-
-    return {
-      candidateUrls: discoveredUrls,
-      errors: [],
-    };
   } catch (error) {
     if (error instanceof XProviderRuntimeError) {
-      return {
-        candidateUrls: [],
-        errors: [{
-          stage: "source_fanout",
-          attempt: input.attempt,
-          code: error.code,
-          message: error.message,
-          query: input.query,
-        }],
-      };
+      errors.push({
+        stage: "source_fanout",
+        attempt: input.attempt,
+        code: error.code,
+        message: error.message,
+        query: input.query,
+      });
+    } else {
+      throw error;
     }
-    throw error;
   }
+
+  // When searching within a user's followers, inject the verified_followers URL
+  const cleanSeed = input.seedHandle?.replace(/^@/, "").trim();
+  if (cleanSeed) {
+    const verifiedFollowersUrl = `https://x.com/${cleanSeed}/verified_followers`;
+    if (!discoveredUrls.includes(verifiedFollowersUrl)) {
+      discoveredUrls.unshift(verifiedFollowersUrl);
+    }
+  }
+
+  return { candidateUrls: discoveredUrls, scraped, errors };
 }
 
 async function runScraperAgent(input: ScraperAgentInput): Promise<{
@@ -920,7 +1167,10 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
         tweets.filter((tweet) => !tweet.authorId || tweet.authorId === profile.xUserId),
       );
 
-      if (candidate.account.followers < (state.minFollowers ?? 0)) continue;
+      // NOTE: minFollowers is intentionally NOT applied during discovery.
+      // Filtering by followers biases toward popularity over relevance — a real
+      // motion designer with 200 followers is more valuable than a CEO with 50K.
+      // The user can still filter by followers in the UI after leads are found.
 
       const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
       const existing = byHandle.get(key);
@@ -1028,6 +1278,14 @@ const PlannerSubgraphState = Annotation.Root({
   attempt: Annotation<number>,
   maxAttempts: Annotation<number>,
   queryBudget: Annotation<number>,
+  normalizedQuery: Annotation<string>({
+    reducer: (_left, right) => right || _left,
+    default: () => "",
+  }),
+  queryType: Annotation<GoalInterpretation["queryType"]>({
+    reducer: (_left, right) => right || _left,
+    default: () => "role",
+  }),
   recoveryState: Annotation<MultiAgentRecoveryState | undefined>({
     reducer: (_left, right) => right,
     default: () => undefined,
@@ -1087,6 +1345,8 @@ const plannerSubgraph = new StateGraph(PlannerSubgraphState)
 
     return {
       activeSubagent: "goal_interpreter" as const,
+      normalizedQuery: interpretation.normalizedQuery,
+      queryType: interpretation.queryType,
       userGoals: interpretation.userGoals,
       roleTerms: interpretation.roleTerms,
       bioTerms: interpretation.bioTerms,
@@ -1108,6 +1368,8 @@ const plannerSubgraph = new StateGraph(PlannerSubgraphState)
       seedHandle: state.seedHandle,
       targetLeadCount: state.targetLeadCount,
     }, {
+      normalizedQuery: state.normalizedQuery,
+      queryType: state.queryType,
       roleTerms: state.roleTerms,
       bioTerms: state.bioTerms,
       geoHints: state.geoHints,
@@ -1137,8 +1399,17 @@ const SourceResearchSubgraphState = Annotation.Root({
   limit: Annotation<number>,
   query: Annotation<string>,
   seedHandle: Annotation<string | undefined>,
+  excludeTerms: Annotation<string[] | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
   candidateUrls: Annotation<string[]>({
     reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  /** Scraped payloads from X People search — injected directly as candidates */
+  scraped: Annotation<ScrapedPayload[]>({
+    reducer: mergeScrapedPayloads,
     default: () => [],
   }),
   errors: Annotation<MultiAgentErrorRecord[]>({
@@ -1157,6 +1428,7 @@ const sourceResearchSubgraph = new StateGraph(SourceResearchSubgraphState)
     return {
       activeSubagent: "source_researcher" as const,
       candidateUrls: result.candidateUrls,
+      scraped: result.scraped,
       errors: result.errors,
     };
   })
@@ -1164,9 +1436,112 @@ const sourceResearchSubgraph = new StateGraph(SourceResearchSubgraphState)
   .addEdge("source_researcher", END)
   .compile();
 
+// ── Lightweight AI pre-screen ────────────────────────────────────────────────
+// Runs inside the scorer node to filter obvious non-matches BEFORE they
+// accumulate in the candidate pool and influence the validator's goal-reached
+// decision. Uses the planner model (already warm) with a small structured output.
+
+const PreScreenDecisionSchema = z.object({
+  decisions: z.array(z.object({
+    handle: z.string(),
+    relevant: z.boolean(),
+    confidence: z.number().min(0).max(100),
+  })),
+}).strict();
+
+type SearchContext = {
+  roleTerms: string[];
+  bioTerms: string[];
+  antiGoals: string[];
+};
+
+async function preScreenCandidates(
+  niche: string,
+  candidates: Array<{ candidate: XLeadCandidate; heuristic: { score: number; reasons: string[] }; evidence: SelectionEvidence[] }>,
+  context?: SearchContext,
+): Promise<Set<string>> {
+  if (candidates.length === 0) return new Set();
+
+  const model = getPlannerModel().withStructuredOutput(PreScreenDecisionSchema, { name: "lead_pre_screen" });
+
+  const candidateSummaries = candidates.map((c) => ({
+    handle: c.candidate.account.handle,
+    name: c.candidate.account.name,
+    bio: c.candidate.account.bio.slice(0, 200),
+    posts: c.candidate.posts.slice(0, 2).map((p) => p.text.slice(0, 120)),
+  }));
+
+  // Build context-specific rules from the planner's interpretation
+  const hasContext = context && (context.roleTerms.length > 0 || context.antiGoals.length > 0);
+
+  const contextRules = hasContext
+    ? [
+      "",
+      "DECISION CRITERIA (from planner — use these as your primary reference):",
+      context!.roleTerms.length > 0
+        ? `A person is relevant if their bio/posts indicate they are: ${context!.roleTerms.slice(0, 10).join(", ")}.`
+        : "",
+      context!.bioTerms.length > 0
+        ? `Look for these bio signals: ${context!.bioTerms.slice(0, 8).join(", ")}.`
+        : "",
+      context!.antiGoals.length > 0
+        ? `A person is NOT relevant if they are: ${context!.antiGoals.join(", ")}. These are different roles — reject them.`
+        : "",
+    ].filter(Boolean).join("\n")
+    : "";
+
+  try {
+    const result = await withTimeout("OpenAI planner", 30_000, () => model.invoke([
+      `Quick relevance check: does each profile ACTUALLY hold the role "${niche}"?`,
+      "",
+      "For each profile, check their bio and posts to decide if they genuinely do this work.",
+      "- relevant=true: the person holds this exact role or a close synonym.",
+      "- relevant=false: different role, organization, or insufficient evidence.",
+      "- confidence: 80-100 clear match, 60-79 likely match, below 60 not a match.",
+      "",
+      "Key rules:",
+      "- A keyword from the query appearing in a different context is NOT a match.",
+      "- Organizations, communities, newsletters, job boards = always irrelevant.",
+      "- Adjacent senior roles (VP, Head of, Director of) are NOT the same as the hands-on role unless the query specifically asks for them.",
+      contextRules,
+      "",
+      JSON.stringify({ niche, candidates: candidateSummaries }),
+    ].join("\n")));
+
+    // Build set of handles that passed. The pre-screen is a COARSE filter —
+    // its job is to remove obvious non-matches (wrong role, orgs), not borderline ones.
+    // The final AI screening (in the middle of the pipeline loop) does the strict check.
+    const passed = new Set<string>();
+    for (const d of result.decisions) {
+      if (d.relevant && d.confidence >= 40) {
+        passed.add(d.handle.replace(/^@/, "").toLowerCase());
+      }
+    }
+    return passed;
+  } catch (error) {
+    console.warn("[multiagent][pre-screen] AI pre-screen failed, passing all candidates through:", describeUpstreamError(error));
+    // On failure, pass everyone through — the final screening will catch them
+    return new Set(candidates.map((c) => c.candidate.account.handle.replace(/^@/, "").toLowerCase()));
+  }
+}
+
 const HydrationScoringSubgraphState = Annotation.Root({
   niche: Annotation<string>,
   attempt: Annotation<number>,
+  // Shared search context — propagated from parent graph so every subagent
+  // (scorer, pre-screen, heuristic filter) can use the interpreted role terms
+  roleTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  bioTerms: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
+  antiGoals: Annotation<string[]>({
+    reducer: mergeUniqueStrings,
+    default: () => [],
+  }),
   candidates: Annotation<XLeadCandidate[]>({
     reducer: mergeCandidates,
     default: () => [],
@@ -1176,6 +1551,11 @@ const HydrationScoringSubgraphState = Annotation.Root({
     default: () => [],
   }),
   hydratedCount: Annotation<number>({
+    reducer: (_left, right) => right,
+    default: () => 0,
+  }),
+  /** How many candidates existed before pre-screening filtered them */
+  rawCandidateCount: Annotation<number>({
     reducer: (_left, right) => right,
     default: () => 0,
   }),
@@ -1225,9 +1605,16 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
       });
     }
 
-    // Pass all candidates through — AI screening handles semantic relevance
-    // Candidates with keyword evidence get higher scores, but none are rejected here
+    // Phase 3: AI pre-screen — filter obvious non-matches before they enter the pool
+    // Pass roleTerms/bioTerms/antiGoals so the pre-screen has full interpreted context
+    const passedHandles = await preScreenCandidates(state.niche, prescoredCandidates, {
+      roleTerms: state.roleTerms,
+      bioTerms: state.bioTerms,
+      antiGoals: state.antiGoals,
+    });
+
     const scored: ScoredCandidate[] = prescoredCandidates
+      .filter((c) => passedHandles.has(c.candidate.account.handle.replace(/^@/, "").toLowerCase()))
       .map((c) => ({
         candidate: c.candidate,
         score: c.heuristic.score,
@@ -1239,6 +1626,7 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
     return {
       activeSubagent: "candidate_scorer" as const,
       scored,
+      rawCandidateCount: prescoredCandidates.length,
     };
   })
   .addEdge(START, "profile_hydrator")
@@ -1281,6 +1669,8 @@ const graph = new StateGraph(MultiAgentState)
       activeNode: "planner" as const,
       activeSubagent: plan.activeSubagent,
       completedNodes: ["planner" as const],
+      normalizedQuery: plan.normalizedQuery,
+      queryType: plan.queryType,
       plannerMode: plan.plannerMode,
       currentQueries: plan.currentQueries,
       plannedQueries: plan.currentQueries,
@@ -1295,13 +1685,18 @@ const graph = new StateGraph(MultiAgentState)
     };
   })
   .addNode("source_fanout", async (state: SourceFanoutAgentInput) => {
-    const result = await sourceResearchSubgraph.invoke(state);
+    const result = await sourceResearchSubgraph.invoke({
+      ...state,
+      excludeTerms: state.excludeTerms,
+    });
 
     return {
       activeNode: "source_fanout" as const,
       activeSubagent: result.activeSubagent,
       completedNodes: ["source_fanout" as const],
       candidateUrls: result.candidateUrls,
+      // X People search results injected directly as scraped payloads
+      scraped: result.scraped,
       errors: result.errors,
       traceQuery: state.query,
     };
@@ -1329,6 +1724,9 @@ const graph = new StateGraph(MultiAgentState)
     const scoredSubgraph = await hydrationScoringSubgraph.invoke({
       niche: state.niche,
       attempt: state.attempt,
+      roleTerms: state.roleTerms,
+      bioTerms: state.bioTerms,
+      antiGoals: state.antiGoals,
       candidates: normalizeCandidatesFromScrapedState(state)
         .filter((candidate) => !knownHandles.has(candidate.account.handle.replace(/^@/, "").toLowerCase())),
     });
@@ -1339,6 +1737,7 @@ const graph = new StateGraph(MultiAgentState)
       completedNodes: ["scorer" as const],
       scored: scoredSubgraph.scored,
       hydratedCount: scoredSubgraph.hydratedCount,
+      lastAttemptRawCount: scoredSubgraph.rawCandidateCount,
       hydrationTools: scoredSubgraph.hydrationTools,
       traceBatchUrls: [],
       traceQuery: undefined,
@@ -1346,7 +1745,6 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("validator", async (state) => {
     const sortedScores = sortScoredCandidates(state.scored);
-    // Keep all scored candidates — don't cap. More relevant leads = better.
     const candidates = sortedScores.map((item) => item.candidate);
     const attemptYield = sortedScores.filter((item) => item.attempt === state.attempt).length;
     const attemptErrors = state.errors.filter((error) => error.attempt === state.attempt);
@@ -1358,6 +1756,12 @@ const graph = new StateGraph(MultiAgentState)
         .map((error) => error.url)
         .filter((value): value is string => Boolean(value)),
     ).slice(0, state.scrapeBatchSize);
+
+    // Detect precision filtering: many raw candidates scraped but few survived pre-screen
+    // This means the queries found people, but the WRONG people — need more targeted queries
+    const rawCount = state.lastAttemptRawCount;
+    const precisionFiltered = rawCount > 0 && attemptYield < Math.ceil(rawCount * 0.15);
+
     const satisfied = candidates.length >= state.goalCount;
     const queryExhausted = !satisfied
       && state.currentQueries.length === 0
@@ -1375,9 +1779,11 @@ const graph = new StateGraph(MultiAgentState)
         ? "rate_limited"
         : invalidResponses.length > 0 || state.plannerFallbackUsed
           ? "json_repair"
-          : attemptYield < resolveLowYieldThreshold(state.goalCount)
-            ? "low_yield"
-            : undefined;
+          : precisionFiltered
+            ? "precision_filtered"
+            : attemptYield < resolveLowYieldThreshold(state.goalCount)
+              ? "low_yield"
+              : undefined;
 
     return {
       activeNode: "validator" as const,
@@ -1393,19 +1799,26 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addNode("recovery", async (state) => {
     const nextAttempt = Math.min(state.maxAttempts, state.attempt + 1);
-    const nextQueryBudget = state.recoveryState === "low_yield"
-      ? Math.min(MULTIAGENT_MAX_QUERIES, state.queryBudget + 1)
+    const nextQueryBudget = state.recoveryState === "low_yield" || state.recoveryState === "precision_filtered"
+      ? Math.min(MULTIAGENT_MAX_QUERIES, state.queryBudget + 2)
       : state.recoveryState === "rate_limited"
         ? Math.max(2, state.queryBudget - 1)
         : state.queryBudget;
     const nextScrapeBatchSize = state.recoveryState === "rate_limited" || state.recoveryState === "json_repair"
       ? Math.max(MULTIAGENT_MIN_BATCH_SIZE, Math.floor(state.scrapeBatchSize / 2))
       : state.scrapeBatchSize;
-    const note = state.recoveryState === "rate_limited"
-      ? "Rate limits detected, so the graph narrowed query breadth and cut scraper batch size before retrying."
-      : state.recoveryState === "json_repair"
-        ? "JSON repair mode engaged, so the planner will lean on deterministic heuristic queries and smaller scrape batches."
-        : "Low-yield recovery expanded the query pool for another bounded pass.";
+
+    let note: string;
+
+    if (state.recoveryState === "precision_filtered") {
+      note = "Pre-screening rejected most candidates as wrong role. Planner will generate roleTerms-targeted queries to find the exact role.";
+    } else if (state.recoveryState === "rate_limited") {
+      note = "Rate limits detected, so the graph narrowed query breadth and cut scraper batch size before retrying.";
+    } else if (state.recoveryState === "json_repair") {
+      note = "JSON repair mode engaged, so the planner will lean on deterministic heuristic queries and smaller scrape batches.";
+    } else {
+      note = "Low-yield recovery expanded the query pool for another bounded pass.";
+    }
 
     return {
       activeNode: "recovery" as const,
@@ -1420,8 +1833,77 @@ const graph = new StateGraph(MultiAgentState)
       traceBatchUrls: state.repairUrls,
     };
   })
+  // X People Search node — scrapes x.com/search?q=...&f=user for each roleTerm.
+  // This is the PRIMARY discovery source. Each roleTerm gets its own People Search
+  // page scraped, yielding 10-20 highly relevant profiles per term.
+  .addNode("people_search", async (state) => {
+    const terms = dedupeQueries([
+      // All roleTerms — each one finds different people
+      ...state.roleTerms.slice(0, 8),
+      // Top bioTerms for variety
+      ...state.bioTerms.slice(0, 3),
+    ]);
+
+    if (terms.length === 0 && state.normalizedQuery) {
+      terms.push(state.normalizedQuery);
+    }
+
+    // Skip terms whose People Search URLs were already scraped in a previous pass
+    const alreadyScraped = new Set(state.processedUrls.map((u) => u.toLowerCase()));
+    const newTerms = terms.filter((term) => {
+      // Check both variants (with and without min_faves)
+      const withFilter = `https://x.com/search?q=${encodeURIComponent(term + " min_faves:50")}&f=user`.toLowerCase();
+      const withoutFilter = `https://x.com/search?q=${encodeURIComponent(term)}&f=user`.toLowerCase();
+      return !alreadyScraped.has(withFilter) || !alreadyScraped.has(withoutFilter);
+    });
+
+    if (newTerms.length === 0) {
+      return {
+        activeNode: "people_search" as const,
+        activeSubagent: "source_researcher" as const,
+        completedNodes: ["people_search" as const],
+        traceQuery: undefined,
+        traceBatchUrls: [],
+      };
+    }
+
+    // Round 1: min_faves:50 — active, higher quality accounts
+    // Round 2: no filter — catches smaller/newer accounts that are still relevant
+    // Both rounds run for each term, giving us broad coverage across follower ranges.
+    const allScrapeJobs: Array<{ term: string; minFaves?: number }> = [
+      ...newTerms.map((term) => ({ term, minFaves: 50 })),
+      ...newTerms.map((term) => ({ term, minFaves: undefined })),
+    ];
+
+    const results = await mapWithConcurrency(
+      allScrapeJobs,
+      3,
+      async ({ term, minFaves }) => {
+        const payload = await scrapeXPeopleSearch(term, minFaves ? { minFaves } : undefined);
+        if (!payload) return null;
+        const queryStr = minFaves ? `${term} min_faves:${minFaves}` : term;
+        const url = `https://x.com/search?q=${encodeURIComponent(queryStr)}&f=user`;
+        return { url, payload } satisfies ScrapedPayload;
+      },
+    );
+
+    const scraped: ScrapedPayload[] = results.filter((r) => r !== null) as ScrapedPayload[];
+    const processedUrls = scraped.map((s) => s.url);
+
+    return {
+      activeNode: "people_search" as const,
+      activeSubagent: "source_researcher" as const,
+      completedNodes: ["people_search" as const],
+      scraped,
+      processedUrls,
+      traceQuery: undefined,
+      traceBatchUrls: [],
+    };
+  })
   .addEdge(START, "planner")
-  .addConditionalEdges("planner", (state) => {
+  .addEdge("planner", "people_search")
+  .addConditionalEdges("people_search", (state) => {
+    // After People Search, also run Tavily-based source fanout for supplementary profiles
     if (state.currentQueries.length > 0) {
       return state.currentQueries.map((query) => new Send("source_fanout", {
         attempt: state.attempt,
@@ -1429,6 +1911,7 @@ const graph = new StateGraph(MultiAgentState)
         limit: state.limit,
         query,
         seedHandle: state.seedHandle,
+        excludeTerms: state.antiGoals.slice(0, 5),
       } satisfies SourceFanoutAgentInput));
     }
 
@@ -1519,6 +2002,15 @@ export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
           capability: "discovery",
           code: "UPSTREAM_REQUEST_FAILED",
           message: `Multi-agent workflow exhausted without candidates. ${errorSummary}`,
+        });
+      }
+
+      // Report the planner's interpreted search context so downstream screening can use it
+      if (input.interpretationRecorder && (latestState.roleTerms?.length || latestState.bioTerms?.length || latestState.antiGoals?.length)) {
+        input.interpretationRecorder({
+          roleTerms: latestState.roleTerms ?? [],
+          bioTerms: latestState.bioTerms ?? [],
+          antiGoals: latestState.antiGoals ?? [],
         });
       }
 

@@ -190,9 +190,10 @@ async function structuredResponseWithMeta<T>({
       usedFallback: true,
     };
   } catch (error) {
-    console.warn("[openai][structured-response]", JSON.stringify({
+    console.error("[openai][structured-response] FAILED — falling back to heuristics", JSON.stringify({
       schema: schemaName,
       message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack?.split("\n").slice(0, 3).join(" | ") : undefined,
     }));
     return {
       data: fallback,
@@ -241,10 +242,17 @@ export async function screenProfilesForLeadSearch(
   return result.selectedIds;
 }
 
+export type ScreeningInterpretation = {
+  roleTerms: string[];
+  bioTerms: string[];
+  antiGoals: string[];
+};
+
 export async function screenProfilesForLeadSearchDetailed(
   query: string,
   candidates: SearchScreeningCandidate[],
   maxResults: number,
+  interpretation?: ScreeningInterpretation,
 ): Promise<{
   selectedIds: string[];
   selectedReasons: Map<string, string>;
@@ -278,35 +286,82 @@ export async function screenProfilesForLeadSearchDetailed(
     usedFallback: boolean;
   }> = [];
 
-  for (const batch of chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE)) {
+  // Build context-specific decision criteria from the planner's interpretation
+  const hasInterpretation = interpretation && (interpretation.roleTerms.length > 0 || interpretation.antiGoals.length > 0);
+
+  const criteriaBlock = hasInterpretation
+    ? [
+      "",
+      "DECISION CRITERIA (from planner — these define what matches and what doesn't for THIS specific query):",
+      interpretation!.roleTerms.length > 0
+        ? `Include if the person is: ${interpretation!.roleTerms.slice(0, 12).join(", ")}.`
+        : "",
+      interpretation!.bioTerms.length > 0
+        ? `Bio signals that indicate a match: ${interpretation!.bioTerms.slice(0, 10).join(", ")}.`
+        : "",
+      interpretation!.antiGoals.length > 0
+        ? `REJECT if the person is: ${interpretation!.antiGoals.join(", ")}. These are different roles.`
+        : "",
+    ].filter(Boolean).join("\n")
+    : "";
+
+  const screeningPrompt = `Verify pre-screened X/Twitter profiles against the search query. These candidates already passed an initial relevance check.
+
+YOUR GOAL: Keep as many RELEVANT leads as possible. Do NOT artificially limit the number. Every real match should be included.
+
+RULES:
+1. Include anyone who holds the queried role, a close synonym, or works directly in the queried niche. Cast a wide net — more relevant leads is always better.
+2. Only REJECT if the person clearly holds a DIFFERENT role, is an organization, or there is zero evidence of relevance.
+3. Do NOT use partial keyword matches as the sole evidence. But if someone's display name says "Product Designer" — that IS evidence even if the bio doesn't repeat it.
+4. Follower count is irrelevant.
+5. When in doubt, INCLUDE with a lower score. A borderline relevant lead is better than a missed one.
+${criteriaBlock}
+
+Score: 80-100 clearly holds the exact role, 50-79 likely or adjacent match, 30-49 weak but possible match. Set include=false ONLY if score < 30.
+Reason: quote the specific part of bio/name/posts that shows relevance. 1-2 sentences.`;
+
+  const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
+
+  // Run all screening batches in parallel for speed
+  const batchResults = await Promise.all(batches.map(async (batch) => {
     const validIds = new Set(batch.map((candidate) => candidate.xUserId));
     const result = await structuredResponseWithMeta<{
       decisions: Array<{ profileId: string; include: boolean; score: number; reason: string }>;
     }>({
       schemaName: "lead_search_screening",
       schema: ScreeningSchema,
-      instructions:
-        "Screen X/Twitter profiles for a search query. Read each bio fully and decide if this person genuinely works in or is closely related to the niche.\n\nHow to decide:\n- Read the ENTIRE bio. Understand what the person does, not just whether a single keyword appears.\n- Include if the bio or posts show this person works in, practices, or is deeply involved in the query's field.\n- Exclude if the person's work is in a completely different field with no real connection.\n\nScoring:\n- 80-100: Clearly works in this field based on bio.\n- 60-79: Related to the field — close enough to be relevant.\n- 40-59: Tangentially connected.\n- 0 (include=false): Unrelated.\n\nReason (REQUIRED): Quote the part of their bio that shows relevance. 1-2 sentences max.\n\nRules:\n- Follower count is irrelevant. Never mention it.\n- Understand the query's intent — translate informal terms into what people actually do.",
+      instructions: screeningPrompt,
       input: JSON.stringify({
         query,
-        candidates: batch.map((candidate) => ({
-          id: candidate.xUserId,
-          handle: `@${candidate.username}`,
-          name: candidate.displayName,
-          bio: candidate.bio,
-          posts: candidate.samplePosts?.slice(0, 3) ?? [],
-        })),
+        candidates: batch.map((candidate) => {
+          const websiteMatch = candidate.bio.match(/https?:\/\/[^\s,)]+/i) ?? candidate.bio.match(/\b([a-z0-9][-a-z0-9]*\.(com|io|co|dev|app|xyz|ai|org|net|me))\b/i);
+          return {
+            id: candidate.xUserId,
+            handle: `@${candidate.username}`,
+            name: candidate.displayName,
+            bio: candidate.bio,
+            website: websiteMatch?.[0] ?? null,
+            posts: candidate.samplePosts?.slice(0, 2) ?? [],
+          };
+        }),
       }),
       fallback: {
         decisions: getFallbackScreeningDecisions(query, batch),
       },
-      maxOutputTokens: 3_000,
+      maxOutputTokens: 8_000,
     });
+    return { batch, validIds, result };
+  }));
 
+  for (const { batch, validIds, result } of batchResults) {
     let includedCount = 0;
 
     for (const decision of result.data.decisions) {
       if (!validIds.has(decision.profileId) || !decision.include) continue;
+      // Accept any lead the model marked as include — the goal is to keep ALL relevant
+      // leads, not filter aggressively. Pre-screening already removed obvious mismatches.
+      // Only reject if score is extremely low (clear model error).
+      if (decision.score < 30) continue;
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);
@@ -357,7 +412,7 @@ export async function expandLeadSearchQueries(
     schemaName: "lead_search_query_expansion",
     schema: QueryExpansionSchema,
     instructions:
-      "Generate up to 5 X/Twitter search queries for lead discovery. Maximize recall on the first pass and avoid over-constraining. Keep the original meaning, add adjacent role and company variants when useful, and produce queries that can surface both individual and company leads in the niche. Prefer broad, useful search strings over narrow filters. Return plain query strings only.",
+      "Generate up to 5 X/Twitter search queries for lead discovery. Focus on finding INDIVIDUALS who hold the exact role described in the query. Keep the original meaning — do not broaden to adjacent or senior roles. For example if the query is 'product designers', search for product designers, UX designers, UI designers — NOT product managers, heads of product, or CEOs. Do not generate queries that would primarily surface companies or organizations. Return plain query strings only.",
     input: JSON.stringify({
       query: normalizedQuery,
       seedHandle,
@@ -605,7 +660,7 @@ export async function generateLeadReasoning(input: {
     schemaName: "lead_reasoning",
     schema: LeadReasoningSchema,
     instructions:
-      "Analyze whether this profile matches the search query. Read the full bio and understand what the person does.\n\nRules:\n- Summary: one sentence stating what the person does. No filler.\n- alignmentBullets: quote the relevant part of the bio. No vague statements.\n- Evidence: quote the bio text that shows relevance.\n- If the person's work is unrelated, set confidence below 30.\n- Never mention follower count.\n- Understand the query's intent and match against what the person actually does, not just exact keywords.",
+      "Analyze whether this profile matches the search query. Read the full bio and understand what the person actually does for a living.\n\nRules:\n- Summary: one sentence stating what the person does. No filler.\n- alignmentBullets: quote the specific part of the bio that proves they hold the exact role from the query. No vague statements.\n- Evidence: quote the bio text that shows they actually do this work.\n- If the person holds a DIFFERENT role (e.g. query is 'product designers' but person is a CEO, product manager, or researcher), set confidence below 20.\n- If the profile belongs to an organization/company/community, set confidence below 10.\n- Never mention follower count.\n- Match the ROLE described in the query, not just keywords. 'Product' alone does not mean 'product designer'. 'Design' in 'designed a company' does not mean designer.",
     input: JSON.stringify(input),
     fallback,
     maxOutputTokens: 500,

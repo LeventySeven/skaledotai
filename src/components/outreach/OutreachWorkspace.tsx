@@ -41,6 +41,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
     isSending,
     isRemoving,
     isGenerating,
+    hasXAccount,
     toggleLead,
     toggleProject,
     toggleTemplate,
@@ -243,7 +244,7 @@ export function OutreachWorkspace({ initialStandardTemplates, initialSavedTempla
             });
           }}
         >
-          Send to Selected
+          {isSending ? "Sending DMs..." : hasXAccount ? "Send DMs" : "Send DMs (connect X first)"}
         </Button>
       </div>
 

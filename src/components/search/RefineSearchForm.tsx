@@ -46,6 +46,19 @@ export function RefineSearchForm() {
   const [streamSnapshot, setStreamSnapshot] = useState<SearchRunStreamSnapshot | null>(null);
   const [streamTrace, setStreamTrace] = useState<ProjectRunTrace | null>(null);
 
+  // Restore saved trace on mount if returning to a project with an existing run.
+  // Aligned with LangGraph checkpoint pattern: persist state so the user can resume.
+  const savedTrace = trpc.search.getRunTrace.useQuery(
+    { projectId: rerunProjectId ?? "" },
+    { enabled: !!rerunProjectId && !liveSearchPending && streamSteps.length === 0 },
+  );
+  const restoredTraceRaw = savedTrace.data?.traceData as Record<string, unknown> | null | undefined;
+  const restoredTrace = restoredTraceRaw && Array.isArray(restoredTraceRaw.steps)
+    ? (restoredTraceRaw as unknown as ProjectRunTrace)
+    : null;
+  const effectiveTrace = streamTrace ?? (restoredTrace && !liveSearchPending ? restoredTrace : null);
+  const effectiveSteps = streamSteps.length > 0 ? streamSteps : (effectiveTrace?.steps ?? []);
+
   const searchMutation = trpc.search.run.useMutation({
     onSuccess: async (result) => {
       await Promise.all([
@@ -280,16 +293,16 @@ export function RefineSearchForm() {
           disabled={isPending}
         >
           {isPending ? <Spinner className="size-4" /> : null}
-          {isPending ? "Running Search" : "Run Search"}
+          {isPending ? "Running Search" : savedTrace.data?.status === "partial" ? "Continue Search (find more leads)" : "Run Search"}
         </Button>
       </form>
 
-      {provider === "multiagent" && (liveSearchPending || streamSteps.length > 0 || streamTrace) ? (
+      {provider === "multiagent" && (liveSearchPending || effectiveSteps.length > 0 || effectiveTrace) ? (
         <SearchRunTracePanel
-          steps={streamSteps.length > 0 ? streamSteps : (streamTrace?.steps ?? [])}
+          steps={effectiveSteps}
           snapshot={streamSnapshot}
           isPending={liveSearchPending}
-          trace={streamTrace}
+          trace={effectiveTrace}
         />
       ) : null}
     </>

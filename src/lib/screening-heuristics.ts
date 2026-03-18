@@ -56,7 +56,7 @@ export const SEARCH_HARD_EXCLUDE_HANDLES = new Set([
   "elonmusk",
 ]);
 
-export const SEARCH_FALLBACK_SCORE_THRESHOLD = 5;
+export const SEARCH_FALLBACK_SCORE_THRESHOLD = 20;
 
 const SEARCH_PERSON_TERMS = [
   "founder",
@@ -95,16 +95,24 @@ const SEARCH_ORG_TERMS = [
   "parody account",
   "fan account",
   "automated account",
+  "community",
+  "we help",
+  "we support",
+  "our mission",
+  "join us",
+  "official account",
+  "#laptops",
+  "job board",
+  "hiring platform",
+  "career platform",
 ];
 
 const SEARCH_COMPANY_TERMS = [
   "company",
   "startup",
   "software",
-  "product",
   "platform",
   "team",
-  "building",
   "we build",
   "we're building",
   "for developers",
@@ -115,6 +123,28 @@ const SEARCH_COMPANY_TERMS = [
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
+/**
+ * Common person-suffix to discipline mappings for generating role variants.
+ * E.g. "designer" -> "design", "founder" -> "founding"
+ */
+const ROLE_DISCIPLINE_MAP: Record<string, string> = {
+  designer: "design", designers: "design",
+  developer: "development", developers: "development",
+  engineer: "engineering", engineers: "engineering",
+  founder: "founding", founders: "founding",
+  marketer: "marketing", marketers: "marketing",
+  manager: "management", managers: "management",
+  researcher: "research", researchers: "research",
+  consultant: "consulting", consultants: "consulting",
+  architect: "architecture", architects: "architecture",
+  strategist: "strategy", strategists: "strategy",
+  writer: "writing", writers: "writing",
+  analyst: "analytics", analysts: "analytics",
+  creator: "creation", creators: "creation",
+  photographer: "photography", photographers: "photography",
+  illustrator: "illustration", illustrators: "illustration",
+};
+
 export function getSearchQueryTerms(query: string): string[] {
   const words = query
     .toLowerCase()
@@ -124,12 +154,31 @@ export function getSearchQueryTerms(query: string): string[] {
 
   // Build meaningful multi-word phrases alongside single words
   const terms: string[] = [];
+
+  // Full phrase + singular/plural
+  if (words.length >= 2) {
+    const fullPhrase = words.join(" ");
+    terms.push(fullPhrase);
+    // Singular/plural variant of the full phrase
+    const lastWord = words[words.length - 1];
+    if (lastWord.endsWith("s") && !lastWord.endsWith("ss")) {
+      terms.push([...words.slice(0, -1), lastWord.slice(0, -1)].join(" "));
+    } else {
+      terms.push([...words.slice(0, -1), lastWord + "s"].join(" "));
+    }
+    // Discipline form: "product designers" -> "product design"
+    const discipline = ROLE_DISCIPLINE_MAP[lastWord];
+    if (discipline) {
+      terms.push([...words.slice(0, -1), discipline].join(" "));
+    }
+  }
+
+  // Bigrams
   for (let i = 0; i < words.length - 1; i++) {
     terms.push(`${words[i]} ${words[i + 1]}`);
   }
-  if (words.length >= 2) {
-    terms.push(words.join(" "));
-  }
+
+  // Individual words (kept for weak-signal fallback, weighted low by callers)
   terms.push(...words);
 
   return [...new Set(terms)];
@@ -174,6 +223,10 @@ export function isHardRejectedSearchCandidate(candidate: SearchScreeningCandidat
   const personSignal = hasPersonSignal(candidate, haystack);
   if (SEARCH_HARD_EXCLUDE_HANDLES.has(candidate.username.toLowerCase())) return true;
   if (SEARCH_HARD_NON_LEAD_TERMS.some((term) => haystack.includes(term)) && !personSignal) return true;
+  // Hard-reject obvious organization/company accounts with no person signal
+  const displayName = candidate.displayName.trim();
+  const looksLikeOrgName = /\b(partners|capital|labs|ventures|foundation|institute|media|studio|fund|org|university)\b/i.test(displayName);
+  if (looksLikeOrgName && !personSignal) return true;
   return false;
 }
 
@@ -184,18 +237,27 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
 
   const queryTerms = getSearchQueryTerms(query);
   const haystack = buildSearchCandidateText(candidate);
-  const matchedTerms = queryTerms.filter((term) => haystack.includes(term)).length;
-  const personSignal = hasPersonSignal(candidate, haystack);
-  const companySignal = hasCompanySignal(haystack);
-  const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
-  const postScore = candidate.samplePosts?.length ? 15 : 0;
 
-  let score = Math.min(45, matchedTerms * 15) + postScore;
-  if (personSignal) score += 22;
-  if (companySignal) score += 14;
-  if (!personSignal && !companySignal) score -= 4;
-  if (hasWeakNonLeadSignal && !personSignal && !companySignal) score -= 12;
-  if (matchedTerms === 0 && !personSignal && !companySignal) score -= 8;
+  // Separate phrase matches (multi-word) from single-word matches
+  const phraseTerms = queryTerms.filter((term) => term.includes(" "));
+  const singleTerms = queryTerms.filter((term) => !term.includes(" "));
+  const matchedPhrases = phraseTerms.filter((term) => haystack.includes(term)).length;
+  const matchedSingleWords = singleTerms.filter((term) => haystack.includes(term)).length;
+
+  const personSignal = hasPersonSignal(candidate, haystack);
+  const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
+  const isOrgAccount = SEARCH_ORG_TERMS.some((term) => haystack.includes(term));
+  const postScore = candidate.samplePosts?.length ? 10 : 0;
+
+  // Phrase matches are the primary signal. Single words are weaker but still count.
+  // Goal: keep ALL relevant leads. Only reject if there's truly no match.
+  let score = Math.min(55, matchedPhrases * 22) + Math.min(12, matchedSingleWords * 4) + postScore;
+  if (personSignal) score += 12;
+  if (!personSignal) score -= 8;
+  if (isOrgAccount) score -= 25;
+  if (hasWeakNonLeadSignal && !personSignal) score -= 12;
+  // Without any phrase match AND very few word matches, reduce score but don't hard-cap
+  if (matchedPhrases === 0 && matchedSingleWords <= 1) score -= 10;
 
   return Math.max(0, Math.min(100, score));
 }

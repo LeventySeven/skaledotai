@@ -217,6 +217,28 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     updateTemplate.mutate({ id, title, body, subject: title, replyRate: "—" });
   }
 
+  const sendDms = trpc.outreach.sendDms.useMutation({
+    onSuccess: async (result) => {
+      await Promise.all([
+        utils.outreach.list.invalidate(),
+        utils.leads.list.invalidate(),
+      ]);
+      if (result.sent > 0 && result.failed === 0) {
+        toastManager.add({ type: "success", title: `Sent ${result.sent} DMs successfully.` });
+      } else if (result.sent > 0) {
+        toastManager.add({ type: "warning", title: `Sent ${result.sent} DMs. ${result.failed} failed.${result.rateLimited > 0 ? ` ${result.rateLimited} queued (rate limited).` : ""}` });
+      } else {
+        toastManager.add({ type: "error", title: `All ${result.failed} DMs failed.${result.results[0]?.error ? ` ${result.results[0].error}` : ""}` });
+      }
+    },
+    onError: (error) => {
+      setUiError(error.message);
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
+
+  const xAccountQuery = trpc.outreach.hasXAccount.useQuery();
+
   async function handleSendSelected() {
     if (selectedLeads.length === 0) {
       toastManager.add({ type: "info", title: "Select at least one lead." });
@@ -226,14 +248,42 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
       toastManager.add({ type: "info", title: "Select at least one template." });
       return;
     }
+
+    // Check if X account is connected
+    if (!xAccountQuery.data?.connected) {
+      toastManager.add({ type: "error", title: "Connect your X account in Settings to send DMs." });
+      return;
+    }
+
+    // Build DM payloads — check each lead has an xUserId
+    const dmLeads: Array<{ leadId: string; xUserId: string; message: string }> = [];
+    const skippedNoId: string[] = [];
+
     for (const [index, lead] of selectedLeads.entries()) {
       const template = selectedTemplates[index % selectedTemplates.length];
-      await updateLead.mutateAsync({
-        crmId: lead.id,
-        patch: toPatchInput({ stage: "messaged", inOutreach: true, theAsk: applyTemplate(template, lead) }),
+      const message = applyTemplate(template, lead);
+
+      if (lead.xUserId) {
+        dmLeads.push({ leadId: lead.id, xUserId: lead.xUserId, message });
+      } else {
+        skippedNoId.push(lead.name);
+      }
+    }
+
+    if (skippedNoId.length > 0) {
+      toastManager.add({
+        type: "warning",
+        title: `${skippedNoId.length} lead(s) have no X user ID and will be skipped: ${skippedNoId.slice(0, 3).join(", ")}${skippedNoId.length > 3 ? "..." : ""}`,
       });
     }
-    toastManager.add({ type: "success", title: `Applied ${selectedTemplates.length} templates across ${selectedLeads.length} leads.` });
+
+    if (dmLeads.length === 0) {
+      toastManager.add({ type: "error", title: "No leads with X user IDs to send DMs to." });
+      return;
+    }
+
+    // Send DMs via X API — the backend handles rate limiting, stage updates, etc.
+    await sendDms.mutateAsync({ leads: dmLeads });
     setSelectedLeadIds([]);
   }
 
@@ -257,9 +307,10 @@ export function useOutreachWorkspace(options?: UseOutreachWorkspaceOptions) {
     setImportProjectId,
     uiError,
     // pending
-    isSending: updateLead.isPending,
+    isSending: sendDms.isPending || updateLead.isPending,
     isRemoving: bulkUpdateLeads.isPending,
     isGenerating: generateTemplate.isPending,
+    hasXAccount: xAccountQuery.data?.connected ?? false,
     // handlers
     toggleLead,
     toggleProject,
