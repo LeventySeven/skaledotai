@@ -107,10 +107,10 @@ export function SignUpForm({ className, ...props }: React.ComponentProps<"form">
 
       <div className="flex gap-3">
         <Button type="button" variant="outline" className="flex-1" onClick={() => handleSocialAuth("google")}>
-          <GoogleIcon className="mr-2 h-4 w-4" /> Google
+          <GoogleIcon className="h-5 w-5" />
         </Button>
         <Button type="button" variant="outline" className="flex-1" onClick={() => handleSocialAuth("twitter")}>
-          <XIcon className="mr-2 h-4 w-4" /> X
+          <XIcon className="h-5 w-5" />
         </Button>
       </div>
 
