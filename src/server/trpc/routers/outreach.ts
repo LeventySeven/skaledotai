@@ -19,9 +19,8 @@ import {
   UpdateOutreachTemplateInputSchema,
 } from "@/lib/validations/outreach";
 import { sendDirectMessageBatch } from "@/lib/x/dm";
-import { getXAccessToken, hasXAccountConnected } from "@/server/services/x-auth";
-import { db } from "@/db";
-import { dmBatches, dmJobs } from "@/db/schema";
+import { getXAccessToken } from "@/server/services/x-auth";
+import { enqueueDmBatch } from "@/server/services/dm-queue";
 
 export const outreachRouter = router({
   list: protectedProcedure.query(({ ctx }) => getOutreachQueue(ctx.userId)),
@@ -81,40 +80,7 @@ export const outreachRouter = router({
         message: z.string().min(1).max(10000),
       })).min(1).max(50),
     }))
-    .mutation(async ({ ctx, input }) => {
-      const connected = await hasXAccountConnected(ctx.userId);
-      if (!connected) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Connect your X account to send DMs. Go to Settings → Connect X Account.",
-        });
-      }
-
-      const [batch] = await db
-        .insert(dmBatches)
-        .values({
-          userId: ctx.userId,
-          status: "pending",
-          totalCount: input.leads.length,
-        })
-        .returning();
-
-      if (!batch) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create DM batch." });
-      }
-
-      await db
-        .insert(dmJobs)
-        .values(input.leads.map((lead) => ({
-          batchId: batch.id,
-          userId: ctx.userId,
-          leadId: lead.leadId,
-          xUserId: lead.xUserId,
-          message: lead.message,
-        })));
-
-      return { batchId: batch.id };
-    }),
+    .mutation(({ ctx, input }) => enqueueDmBatch(ctx.userId, input.leads)),
 
   /** Send DMs to selected leads via X API. Requires connected X account.
    *  Rate limits: 15 DMs per 15 min, 1440 per 24h.
