@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { GoogleIcon } from "@/components/auth/icons"
+import { GoogleIcon, XIcon } from "@/components/auth/icons"
 import { SubmitButton } from "@/components/auth/submit-button"
 import { FormError } from "@/components/auth/form-errors"
 
@@ -44,7 +44,7 @@ export function SignUpForm({ className, ...props }: React.ComponentProps<"form">
     }
   }
 
-  const handleSocialAuth = async (provider: "google") => {
+  const handleSocialAuth = async (provider: "google" | "twitter") => {
     try {
       await authClient.signIn.social({
         provider,
@@ -108,6 +108,9 @@ export function SignUpForm({ className, ...props }: React.ComponentProps<"form">
       <div className="flex flex-col gap-3">
         <Button type="button" variant="outline" onClick={() => handleSocialAuth("google")}>
           <GoogleIcon className="mr-2 h-4 w-4" /> Continue with Google
+        </Button>
+        <Button type="button" variant="outline" onClick={() => handleSocialAuth("twitter")}>
+          <XIcon className="mr-2 h-4 w-4" /> Continue with X
         </Button>
       </div>
 
