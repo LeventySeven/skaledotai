@@ -19,7 +19,9 @@ import {
   UpdateOutreachTemplateInputSchema,
 } from "@/lib/validations/outreach";
 import { sendDirectMessageBatch } from "@/lib/x/dm";
-import { getXAccessToken } from "@/server/services/x-auth";
+import { getXAccessToken, hasXAccountConnected } from "@/server/services/x-auth";
+import { db } from "@/db";
+import { dmBatches, dmJobs } from "@/db/schema";
 
 export const outreachRouter = router({
   list: protectedProcedure.query(({ ctx }) => getOutreachQueue(ctx.userId)),
@@ -66,6 +68,52 @@ export const outreachRouter = router({
       const { disconnectXAccount } = await import("@/server/services/x-auth");
       await disconnectXAccount(ctx.userId);
       return { connected: false };
+    }),
+
+  /** Enqueue DMs for background sending via the outreach service.
+   *  Inserts rows into dm_batches + dm_jobs, returns batchId.
+   *  Client then calls the outreach service directly to trigger processing. */
+  enqueueDms: protectedProcedure
+    .input(z.object({
+      leads: z.array(z.object({
+        leadId: z.string(),
+        xUserId: z.string(),
+        message: z.string().min(1).max(10000),
+      })).min(1).max(50),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const connected = await hasXAccountConnected(ctx.userId);
+      if (!connected) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Connect your X account to send DMs. Go to Settings → Connect X Account.",
+        });
+      }
+
+      const [batch] = await db
+        .insert(dmBatches)
+        .values({
+          userId: ctx.userId,
+          status: "pending",
+          totalCount: input.leads.length,
+        })
+        .returning();
+
+      if (!batch) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create DM batch." });
+      }
+
+      await db
+        .insert(dmJobs)
+        .values(input.leads.map((lead) => ({
+          batchId: batch.id,
+          userId: ctx.userId,
+          leadId: lead.leadId,
+          xUserId: lead.xUserId,
+          message: lead.message,
+        })));
+
+      return { batchId: batch.id };
     }),
 
   /** Send DMs to selected leads via X API. Requires connected X account.

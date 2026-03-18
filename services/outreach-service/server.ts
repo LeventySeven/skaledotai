@@ -69,8 +69,8 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return body.length > 0 ? JSON.parse(body) : {};
 }
 
-function writeStreamEvent(res: ServerResponse, event: unknown): void {
-  if (res.destroyed || res.writableEnded) return;
+function writeStreamEvent(res: ServerResponse | null, event: unknown): void {
+  if (!res || res.destroyed || res.writableEnded) return;
   res.write(`${JSON.stringify(event)}\n`);
 }
 
