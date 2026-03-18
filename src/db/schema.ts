@@ -212,6 +212,50 @@ export const internalLeads = pgTable("internal_leads", {
   index("internal_leads_user_id_idx").on(table.userId),
 ]);
 
+// ── DM Jobs (outreach service) ───────────────────────────────────────────────
+
+export const dmBatches = pgTable("dm_batches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+
+  status: text("status").notNull().default("pending"), // pending | processing | completed | failed
+  totalCount: integer("total_count").notNull().default(0),
+  sentCount: integer("sent_count").notNull().default(0),
+  failedCount: integer("failed_count").notNull().default(0),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (table) => [
+  index("dm_batches_user_id_idx").on(table.userId),
+  index("dm_batches_status_idx").on(table.status),
+]);
+
+export const dmJobs = pgTable("dm_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  batchId: uuid("batch_id").notNull().references(() => dmBatches.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  leadId: text("lead_id").notNull(),
+  xUserId: text("x_user_id").notNull(),
+  message: text("message").notNull(),
+
+  status: text("status").notNull().default("pending"), // pending | sending | sent | failed | queued
+  error: text("error"),
+  retryable: boolean("retryable").notNull().default(false),
+  attemptCount: integer("attempt_count").notNull().default(0),
+
+  dmEventId: text("dm_event_id"),
+  dmConversationId: text("dm_conversation_id"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+}, (table) => [
+  index("dm_jobs_batch_id_idx").on(table.batchId),
+  index("dm_jobs_user_id_idx").on(table.userId),
+  index("dm_jobs_status_idx").on(table.status),
+]);
+
+// ── API Keys ─────────────────────────────────────────────────────────────────
+
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
   // Owner
