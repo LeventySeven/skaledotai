@@ -54,6 +54,14 @@ export function ProjectCard({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const renameMutation = trpc.projects.rename.useMutation({
+    onMutate: async ({ name }) => {
+      await utils.projects.overviews.cancel();
+      const previous = utils.projects.overviews.getData();
+      utils.projects.overviews.setData(undefined, (old) =>
+        old?.map((p) => (p.id === project.id ? { ...p, name } : p)),
+      );
+      return { previous };
+    },
     onSuccess: async () => {
       setEditing(false);
       await Promise.all([
@@ -61,7 +69,10 @@ export function ProjectCard({
         utils.projects.overviews.invalidate(),
       ]);
     },
-    onError: (error) => {
+    onError: (error, _vars, context) => {
+      if (context?.previous) {
+        utils.projects.overviews.setData(undefined, context.previous);
+      }
       toastManager.add({ type: "error", title: error.message });
     },
   });
@@ -73,6 +84,7 @@ export function ProjectCard({
       setEditName(project.name);
       return;
     }
+    setEditing(false);
     renameMutation.mutate({ projectId: project.id, name: trimmed });
   }
 
