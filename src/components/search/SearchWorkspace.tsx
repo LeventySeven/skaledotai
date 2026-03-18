@@ -50,7 +50,12 @@ export function SearchWorkspace() {
 
   return (
     <div className="relative mx-auto flex min-h-[calc(100vh-64px)] max-w-[800px] flex-col items-center justify-center px-8">
-      {!hasX && (
+      {hasX ? (
+        <div className="absolute top-6 right-0 flex h-9 items-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 text-[0.88rem] text-emerald-950">
+          <XIcon className="size-4" />
+          connected
+        </div>
+      ) : (
         <button
           type="button"
           className="absolute top-6 right-0 flex h-9 items-center gap-2 rounded-[10px] bg-black px-4 text-[0.88rem] text-white hover:bg-black/90"
