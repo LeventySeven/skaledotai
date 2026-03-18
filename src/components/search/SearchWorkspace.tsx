@@ -2,8 +2,12 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { XIcon } from "@/components/auth/icons";
+import { trpc } from "@/lib/trpc/client";
+import { authClient } from "@/lib/auth-client";
 
 export function SearchWorkspace() {
   const router = useRouter();
@@ -39,10 +43,23 @@ export function SearchWorkspace() {
     router.push(`/search/refine?${params.toString()}`);
   }
 
+  const { data: xAccount } = trpc.outreach.hasXAccount.useQuery();
+  const hasX = xAccount?.connected ?? false;
+
   if (hasRerunParams) return null;
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-[800px] flex-col items-center justify-center px-8">
+    <div className="relative mx-auto flex min-h-[calc(100vh-64px)] max-w-[800px] flex-col items-center justify-center px-8">
+      {!hasX && (
+        <button
+          type="button"
+          className="absolute top-6 right-0 flex h-9 items-center gap-2 rounded-[10px] bg-black px-4 text-[0.88rem] text-white hover:bg-black/90"
+          onClick={() => { authClient.signIn.social({ provider: "twitter", callbackURL: "/search" }).catch(() => undefined); }}
+        >
+          <XIcon className="size-4" />
+          Connect
+        </button>
+      )}
       <div className="w-full">
         <h1 className="mb-4 text-center text-[32px] font-medium">
           Describe your goal or audience
