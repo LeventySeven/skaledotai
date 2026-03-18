@@ -12,9 +12,9 @@ import { authClient } from "@/lib/auth-client";
 import { XIcon } from "@/components/auth/icons";
 import type { XProviderRuntimeStatus } from "@/lib/x/registry";
 
-function ConnectXSection() {
-  const { data, isLoading } = trpc.outreach.hasXAccount.useQuery();
-  const connected = data?.connected ?? false;
+function ConnectXSection({ initialConnected }: { initialConnected: boolean }) {
+  const { data } = trpc.outreach.hasXAccount.useQuery(undefined, { initialData: { connected: initialConnected } });
+  const connected = data?.connected ?? initialConnected;
   const [isConnecting, setIsConnecting] = useState(false);
 
   const handleConnectX = async () => {
@@ -38,9 +38,7 @@ function ConnectXSection() {
           Connect your <XIcon className="inline size-3.5 align-[-2px]" /> account to send DMs directly from Skale.
         </div>
       </div>
-      {isLoading ? (
-        <div className="text-[0.95rem] text-muted-foreground">Checking connection...</div>
-      ) : connected ? (
+      {connected ? (
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[0.95rem] text-emerald-950">
             <XIcon className="size-4" />
@@ -74,9 +72,10 @@ function formatDate(value: Date | string | null | undefined): string {
 interface SettingsWorkspaceProps {
   initialApiKeys?: { id: string; name: string; prefix: string; createdAt: Date | string; lastUsed: Date | string | null }[];
   initialXProviderStatuses?: XProviderRuntimeStatus[];
+  initialXAccountConnected?: boolean;
 }
 
-export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: SettingsWorkspaceProps) {
+export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses, initialXAccountConnected }: SettingsWorkspaceProps) {
   const utils = trpc.useUtils();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState("");
@@ -138,7 +137,7 @@ export function SettingsWorkspace({ initialApiKeys, initialXProviderStatuses }: 
 
       <div className="-mx-8 mb-8 border-b border-border/70" />
 
-      <ConnectXSection />
+      <ConnectXSection initialConnected={initialXAccountConnected ?? false} />
 
       <div className="-mx-8 mb-8 border-b border-border/70" />
 
