@@ -105,12 +105,12 @@ export function SignUpForm({ className, ...props }: React.ComponentProps<"form">
         <span className="bg-background text-muted-foreground relative z-10 px-2">or</span>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <Button type="button" variant="outline" onClick={() => handleSocialAuth("google")}>
-          <GoogleIcon className="mr-2 h-4 w-4" /> Continue with Google
+      <div className="flex gap-3">
+        <Button type="button" variant="outline" className="flex-1" onClick={() => handleSocialAuth("google")}>
+          <GoogleIcon className="mr-2 h-4 w-4" /> Google
         </Button>
-        <Button type="button" variant="outline" onClick={() => handleSocialAuth("twitter")}>
-          <XIcon className="mr-2 h-4 w-4" /> Continue with X
+        <Button type="button" variant="outline" className="flex-1" onClick={() => handleSocialAuth("twitter")}>
+          <XIcon className="mr-2 h-4 w-4" /> X
         </Button>
       </div>
 
