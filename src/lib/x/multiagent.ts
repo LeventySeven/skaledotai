@@ -15,7 +15,7 @@ import { XProviderRuntimeError } from "./types";
 import { buildLeadCandidate } from "./discovery";
 import { dedupeProfiles, normalizeHandle } from "./normalizers";
 import { mapWithConcurrency, requireUsername } from "./scraper-utils";
-import { lookupUsersByIds as lookupXUsersByIds } from "./api";
+import { lookupUsersByIds as lookupXUsersByIds, lookupUsersByUsernames as lookupXUsersByUsernames } from "./api";
 import { lookupTwitterApiUsersByIds } from "./twitterapi";
 import {
   requireEnv,
@@ -1214,13 +1214,25 @@ async function hydrateCandidates(candidates: XLeadCandidate[]): Promise<{
   hydratedCount: number;
   tools: string[];
 }> {
-  const ids = [...new Set(
-    candidates
-      .map((candidate) => candidate.account.xUserId?.trim())
-      .filter((value): value is string => Boolean(value)),
-  )];
+  const NUMERIC_ID_RE = /^\d{1,19}$/;
 
-  if (ids.length === 0) {
+  // Split xUserIds into numeric IDs and non-numeric usernames
+  const numericIds: string[] = [];
+  const usernames: string[] = [];
+  for (const candidate of candidates) {
+    const value = candidate.account.xUserId?.trim();
+    if (!value) continue;
+    if (NUMERIC_ID_RE.test(value)) {
+      numericIds.push(value);
+    } else {
+      usernames.push(value.replace(/^@/, ""));
+    }
+  }
+
+  const uniqueIds = [...new Set(numericIds)];
+  const uniqueUsernames = [...new Set(usernames.map((u) => u.toLowerCase()))];
+
+  if (uniqueIds.length === 0 && uniqueUsernames.length === 0) {
     return {
       candidates,
       hydratedCount: 0,
@@ -1231,22 +1243,36 @@ async function hydrateCandidates(candidates: XLeadCandidate[]): Promise<{
   let profiles: XProfile[] = [];
   let tools = ["AgentQL"];
 
-  try {
-    profiles = await lookupTwitterApiUsersByIds(ids);
-    tools = [...tools, "TwitterAPI.io"];
-  } catch (error) {
-    if (
-      error instanceof XProviderRuntimeError
-      && (error.code === "NOT_CONFIGURED" || error.code === "UPSTREAM_REQUEST_FAILED" || error.code === "UPSTREAM_INVALID_RESPONSE")
-    ) {
-      try {
-        profiles = await lookupXUsersByIds(ids);
-        tools = [...tools, "X API"];
-      } catch {
-        profiles = [];
+  // Look up numeric IDs
+  if (uniqueIds.length > 0) {
+    try {
+      profiles = await lookupTwitterApiUsersByIds(uniqueIds);
+      tools = [...tools, "TwitterAPI.io"];
+    } catch (error) {
+      if (
+        error instanceof XProviderRuntimeError
+        && (error.code === "NOT_CONFIGURED" || error.code === "UPSTREAM_REQUEST_FAILED" || error.code === "UPSTREAM_INVALID_RESPONSE")
+      ) {
+        try {
+          profiles = await lookupXUsersByIds(uniqueIds);
+          tools = [...tools, "X API"];
+        } catch {
+          profiles = [];
+        }
+      } else {
+        throw error;
       }
-    } else {
-      throw error;
+    }
+  }
+
+  // Look up non-numeric xUserIds (usernames) to resolve their numeric IDs
+  if (uniqueUsernames.length > 0) {
+    try {
+      const resolved = await lookupXUsersByUsernames(uniqueUsernames);
+      profiles = [...profiles, ...resolved];
+      if (!tools.includes("X API")) tools = [...tools, "X API"];
+    } catch {
+      // X API lookup failed (e.g. credits depleted) — continue without resolution
     }
   }
 
@@ -1256,8 +1282,9 @@ async function hydrateCandidates(candidates: XLeadCandidate[]): Promise<{
 
   return {
     candidates: candidates.map((candidate) => {
+      const xUserId = candidate.account.xUserId?.trim();
       const profile = (
-        candidate.account.xUserId ? byId.get(candidate.account.xUserId) : undefined
+        xUserId && NUMERIC_ID_RE.test(xUserId) ? byId.get(xUserId) : undefined
       ) ?? byHandle.get(candidate.account.handle.replace(/^@/, "").toLowerCase());
 
       if (!profile) return candidate;

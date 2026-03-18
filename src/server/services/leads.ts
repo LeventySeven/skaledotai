@@ -300,7 +300,7 @@ export async function addProfilesToProject(input: {
 
   const values = strictProfiles.map((profile) => ({
     userId: input.userId,
-    xUserId: profile.xUserId,
+    xUserId: /^\d{1,19}$/.test(profile.xUserId) ? profile.xUserId : null,
     name: profile.displayName,
     handle: profile.username,
     bio: profile.bio,
