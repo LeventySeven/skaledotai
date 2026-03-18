@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "../../src/db";
-import { dmBatches, dmJobs } from "../../src/db/schema";
+import { dmBatches, dmJobs, leads } from "../../src/db/schema";
 import { sendDirectMessage, type DmSendResult } from "../../src/lib/x/dm";
 import { getXAccessToken } from "../../src/server/services/x-auth";
 import { verifyOutreachServiceToken, isAllowedOutreachOrigin } from "../../src/lib/outreach-service-auth";
@@ -144,6 +144,23 @@ async function processBatch(
           sentAt: new Date(),
         })
         .where(eq(dmJobs.id, job.id));
+
+      // Update lead stage to "messaged" and store the sent message
+      await db
+        .update(leads)
+        .set({
+          stage: "messaged",
+          theAsk: job.message,
+          inOutreach: true,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(leads.id, job.leadId), eq(leads.userId, userId)))
+        .catch((err) => {
+          console.warn("[outreach-service] failed to update lead stage", JSON.stringify({
+            leadId: job.leadId,
+            error: err instanceof Error ? err.message : String(err),
+          }));
+        });
 
       writeStreamEvent(res, {
         type: "progress",
