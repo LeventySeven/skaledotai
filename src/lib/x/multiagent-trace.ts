@@ -86,6 +86,10 @@ function resolveNodeTools(
     return update.plannerFallbackUsed ? ["OpenAI", "Heuristic query fallback"] : ["OpenAI"];
   }
 
+  if (nodeName === "people_search") {
+    return ["TwitterAPI.io"];
+  }
+
   if (nodeName === "source_fanout") {
     return ["Tavily"];
   }
@@ -163,6 +167,27 @@ export function buildMultiAgentTraceStep(
       metrics: [
         ...attemptMetric,
         { label: "Queries", value: queries.length },
+      ],
+    };
+  }
+
+  if (nodeName === "people_search") {
+    const candidates = update.candidates ?? [];
+    return {
+      id: `multiagent-${index}-${nodeName}`,
+      title: MULTIAGENT_NODE_TITLES[nodeName],
+      summary: `Found ${candidates.length} candidates via TwitterAPI.io user search and verified followers.`,
+      status: candidates.length > 0 ? "success" : "warning",
+      subagent: update.activeSubagent,
+      provider: "multiagent",
+      tools,
+      bullets: [
+        `Searched role/bio terms via TwitterAPI.io user search.`,
+        ...candidates.slice(0, 3).map((c) => `@${c.account.handle}: ${c.account.bio.slice(0, 80)}${c.account.bio.length > 80 ? "..." : ""}`),
+      ],
+      metrics: [
+        ...attemptMetric,
+        { label: "Candidates", value: candidates.length },
       ],
     };
   }

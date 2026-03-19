@@ -186,6 +186,91 @@ export async function getTwitterApiFollowingPage(
   };
 }
 
+// ── User Search ───────────────────────────────────────────────────────────────
+// GET /twitter/user/search — search users by keyword, returns ~20 per page.
+
+const TwitterApiSearchUsersResponseSchema = z.object({
+  users: z.array(TwitterApiUserSchema).default([]),
+  has_next_page: z.boolean().optional(),
+  next_cursor: z.string().optional(),
+  status: z.enum(["success", "error"]).optional(),
+  msg: z.string().optional(),
+}).passthrough();
+
+export async function searchTwitterApiUsers(
+  query: string,
+  options?: { cursor?: string; maxPages?: number },
+): Promise<XProfile[]> {
+  requireApiKey();
+  const maxPages = options?.maxPages ?? 3;
+  const allProfiles: XProfile[] = [];
+  let cursor = options?.cursor;
+
+  for (let page = 0; page < maxPages; page++) {
+    const params: Record<string, string> = { query };
+    if (cursor) params.cursor = cursor;
+
+    const response = await twitterApiRequest<z.infer<typeof TwitterApiSearchUsersResponseSchema>>(
+      "/twitter/user/search",
+      params,
+    );
+    const parsed = TwitterApiSearchUsersResponseSchema.parse(response);
+    allProfiles.push(...parsed.users.map(mapTwitterApiUserToProfile));
+
+    if (!parsed.has_next_page || !parsed.next_cursor) break;
+    cursor = parsed.next_cursor;
+  }
+
+  return allProfiles;
+}
+
+// ── Verified Followers ────────────────────────────────────────────────────────
+// GET /twitter/user/verifiedFollowers — returns ~20 verified followers per page.
+
+const TwitterApiVerifiedFollowersResponseSchema = z.object({
+  followers: z.array(TwitterApiUserSchema).default([]),
+  has_next_page: z.boolean().optional(),
+  next_cursor: z.string().optional(),
+  status: z.enum(["success", "error"]).optional(),
+  msg: z.string().optional(),
+  message: z.string().optional(),
+}).passthrough();
+
+export async function getTwitterApiVerifiedFollowersPage(
+  userId: string,
+  cursor?: string,
+): Promise<{ profiles: XProfile[]; nextToken?: string }> {
+  const params: Record<string, string> = { user_id: userId };
+  if (cursor) params.cursor = cursor;
+
+  const response = await twitterApiRequest<z.infer<typeof TwitterApiVerifiedFollowersResponseSchema>>(
+    "/twitter/user/verifiedFollowers",
+    params,
+  );
+  const parsed = TwitterApiVerifiedFollowersResponseSchema.parse(response);
+  return {
+    profiles: parsed.followers.map(mapTwitterApiUserToProfile),
+    nextToken: parsed.has_next_page ? parsed.next_cursor : undefined,
+  };
+}
+
+export async function getTwitterApiVerifiedFollowers(
+  userId: string,
+  maxPages = 5,
+): Promise<XProfile[]> {
+  const allProfiles: XProfile[] = [];
+  let cursor: string | undefined;
+
+  for (let page = 0; page < maxPages; page++) {
+    const result = await getTwitterApiVerifiedFollowersPage(userId, cursor);
+    allProfiles.push(...result.profiles);
+    if (!result.nextToken) break;
+    cursor = result.nextToken;
+  }
+
+  return allProfiles;
+}
+
 export async function lookupTwitterApiUsersByIds(userIds: string[]): Promise<XProfile[]> {
   const unique = [...new Set(userIds.map((value) => value.trim()).filter(Boolean))];
   if (unique.length === 0) return [];
