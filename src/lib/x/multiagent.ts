@@ -299,20 +299,20 @@ function unsupported(capability: "network"): never {
   });
 }
 
-function getPlannerModel(): ChatOpenAI {
+function getPlannerModel(options?: { reasoning?: boolean }): ChatOpenAI {
   requireEnv("OPENAI_API_KEY");
+
+  const model = process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4.1";
 
   return new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5",
-    reasoning: {
-      effort: "medium",
-    },
+    model,
+    ...(options?.reasoning ? { reasoning: { effort: "medium" } } : {}),
   });
 }
 
 function getPlannerModelName(): string {
-  return process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5";
+  return process.env.MULTIAGENT_PLANNER_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4.1";
 }
 
 function dedupeQueries(queries: string[]): string[] {
@@ -550,8 +550,13 @@ async function interpretLeadSearchGoals(input: {
       userGoals: dedupeQueries(result.userGoals ?? []),
     };
   } catch (error) {
+    const errorDetail = error instanceof Error
+      ? { name: error.name, message: error.message, cause: String((error as unknown as Record<string, unknown>).cause ?? "") }
+      : { message: describeUpstreamError(error) };
     console.warn("[x-provider][multiagent][goal-interpreter]", JSON.stringify({
-      message: describeUpstreamError(error),
+      ...errorDetail,
+      model: getPlannerModelName(),
+      timeoutMs: resolveMultiAgentPlannerTimeoutMs(),
       usingHeuristicInterpretation: true,
     }));
     return fallback;
@@ -1493,7 +1498,7 @@ async function preScreenCandidates(
 ): Promise<Set<string>> {
   if (candidates.length === 0) return new Set();
 
-  const model = getPlannerModel().withStructuredOutput(PreScreenDecisionSchema, { name: "lead_pre_screen" });
+  const model = getPlannerModel({ reasoning: true }).withStructuredOutput(PreScreenDecisionSchema, { name: "lead_pre_screen" });
 
   const candidateSummaries = candidates.map((c) => ({
     handle: c.candidate.account.handle,
