@@ -79,7 +79,7 @@ export function buildAgentQlQueryRequest(
       browser_profile: "stealth",
       is_screenshot_enabled: false,
       // Scroll to load more results on search pages
-      ...(mode === "people_search" ? { scroll_to_bottom: true } : {}),
+      ...(mode === "people_search" ? { is_scroll_to_bottom_enabled: true } : {}),
     },
   };
 }
