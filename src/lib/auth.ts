@@ -55,5 +55,20 @@ export const auth = betterAuth({
             },
         } : {}),
     },
+    rateLimit: {
+        enabled: true,
+        window: 60,
+        max: 100,
+        customRules: {
+            "/sign-in/social": {
+                window: 10,
+                max: 10,
+            },
+            "/callback/*": {
+                window: 10,
+                max: 10,
+            },
+        },
+    },
     plugins: [nextCookies()],
 });
