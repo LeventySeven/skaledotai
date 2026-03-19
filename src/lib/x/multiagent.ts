@@ -16,7 +16,7 @@ import { buildLeadCandidate } from "./discovery";
 import { dedupeProfiles, normalizeHandle } from "./normalizers";
 import { mapWithConcurrency, requireUsername } from "./scraper-utils";
 import { lookupUsersByIds as lookupXUsersByIds, lookupUsersByUsernames as lookupXUsersByUsernames } from "./api";
-import { lookupTwitterApiUsersByIds } from "./twitterapi";
+import { lookupTwitterApiUsersByIds, searchTwitterApiUsers } from "./twitterapi";
 import {
   requireEnv,
   describeUpstreamError,
@@ -1871,66 +1871,112 @@ const graph = new StateGraph(MultiAgentState)
       traceBatchUrls: state.repairUrls,
     };
   })
-  // X People Search node — scrapes x.com/search?q=...&f=user for each roleTerm.
-  // This is the PRIMARY discovery source. Each roleTerm gets its own People Search
-  // page scraped, yielding 10-20 highly relevant profiles per term.
+  // People Search node — uses BOTH AgentQL (X People Search scraping) AND
+  // TwitterAPI.io (keyword user search) as discovery sources in parallel.
   .addNode("people_search", async (state) => {
     const terms = dedupeQueries([
-      // Direct user query — always the primary People Search term
       ...(state.normalizedQuery ? [state.normalizedQuery] : []),
-      // All roleTerms — each one finds different people
       ...state.roleTerms.slice(0, 8),
-      // Top bioTerms for variety
       ...state.bioTerms.slice(0, 3),
     ]);
 
-    // Skip terms whose People Search URLs were already scraped in a previous pass
-    const alreadyScraped = new Set(state.processedUrls.map((u) => u.toLowerCase()));
-    const newTerms = terms.filter((term) => {
-      // Check both variants (with and without min_faves) — URL format matches scrapeXPeopleSearch
+    const alreadyProcessed = new Set(state.processedUrls.map((u) => u.toLowerCase()));
+    const scraped: ScrapedPayload[] = [];
+    const candidates: XLeadCandidate[] = [];
+    const processedUrls: string[] = [];
+
+    // ── Source 1: AgentQL — scrape X People Search pages ──────────────────────
+    const agentQlTerms = terms.filter((term) => {
       const withFilter = `https://x.com/search?q=${encodeURIComponent(term + " min_faves:50")}&src=typed_query&f=user`.toLowerCase();
       const withoutFilter = `https://x.com/search?q=${encodeURIComponent(term)}&src=typed_query&f=user`.toLowerCase();
-      return !alreadyScraped.has(withFilter) && !alreadyScraped.has(withoutFilter);
+      return !alreadyProcessed.has(withFilter) && !alreadyProcessed.has(withoutFilter);
     });
 
-    if (newTerms.length === 0) {
-      return {
-        activeNode: "people_search" as const,
-        activeSubagent: "source_researcher" as const,
-        completedNodes: ["people_search" as const],
-        traceQuery: undefined,
-        traceBatchUrls: [],
-      };
+    if (agentQlTerms.length > 0) {
+      const allScrapeJobs: Array<{ term: string; minFaves?: number }> = [
+        ...agentQlTerms.map((term) => ({ term, minFaves: 50 })),
+        ...agentQlTerms.map((term) => ({ term, minFaves: undefined })),
+      ];
+
+      const agentQlResults = await mapWithConcurrency(
+        allScrapeJobs,
+        3,
+        async ({ term, minFaves }) => {
+          const payload = await scrapeXPeopleSearch(term, minFaves ? { minFaves } : undefined);
+          if (!payload) return null;
+          const queryStr = minFaves ? `${term} min_faves:${minFaves}` : term;
+          const url = `https://x.com/search?q=${encodeURIComponent(queryStr)}&src=typed_query&f=user`;
+          return { url, payload } satisfies ScrapedPayload;
+        },
+      );
+
+      for (const result of agentQlResults) {
+        if (!result) continue;
+        scraped.push(result);
+        processedUrls.push(result.url);
+      }
     }
 
-    // Round 1: min_faves:50 — active, higher quality accounts
-    // Round 2: no filter — catches smaller/newer accounts that are still relevant
-    // Both rounds run for each term, giving us broad coverage across follower ranges.
-    const allScrapeJobs: Array<{ term: string; minFaves?: number }> = [
-      ...newTerms.map((term) => ({ term, minFaves: 50 })),
-      ...newTerms.map((term) => ({ term, minFaves: undefined })),
-    ];
+    // ── Source 2: TwitterAPI.io — keyword user search ─────────────────────────
+    // The endpoint takes a simple keyword — send only the normalizedQuery and
+    // the first 1-2 core roleTerms as separate short queries. Not the full
+    // bioTerms/phrase list — those are too long and produce bad results.
+    const twitterApiKeywords = dedupeQueries([
+      ...(state.normalizedQuery ? [state.normalizedQuery] : []),
+      ...state.roleTerms.slice(0, 2),
+    ]).filter((term) =>
+      !alreadyProcessed.has(`twitterapi:search:${term.toLowerCase()}`),
+    ).slice(0, 3);
 
-    const results = await mapWithConcurrency(
-      allScrapeJobs,
-      3,
-      async ({ term, minFaves }) => {
-        const payload = await scrapeXPeopleSearch(term, minFaves ? { minFaves } : undefined);
-        if (!payload) return null;
-        const queryStr = minFaves ? `${term} min_faves:${minFaves}` : term;
-        const url = `https://x.com/search?q=${encodeURIComponent(queryStr)}&src=typed_query&f=user`;
-        return { url, payload } satisfies ScrapedPayload;
-      },
-    );
+    if (twitterApiKeywords.length > 0) {
+      const twitterResults = await mapWithConcurrency(
+        twitterApiKeywords,
+        2,
+        async (term) => {
+          try {
+            const profiles = await searchTwitterApiUsers(term, { maxPages: 2 });
+            return { term, profiles };
+          } catch (error) {
+            console.warn("[multiagent][people_search] TwitterAPI.io search failed:", term, describeUpstreamError(error));
+            return { term, profiles: [] as XProfile[] };
+          }
+        },
+      );
 
-    const scraped: ScrapedPayload[] = results.filter((r) => r !== null) as ScrapedPayload[];
-    const processedUrls = scraped.map((s) => s.url);
+      for (const { term, profiles } of twitterResults) {
+        processedUrls.push(`twitterapi:search:${term.toLowerCase()}`);
+        for (const profile of dedupeProfiles(profiles)) {
+          const candidate = buildLeadCandidate(
+            "multiagent",
+            state.niche,
+            profile,
+            "profile_search",
+            [],
+          );
+          if (state.minFollowers && state.minFollowers > 0 && candidate.account.followers < state.minFollowers) {
+            continue;
+          }
+          candidates.push(candidate);
+        }
+      }
+    }
+
+    // Dedupe candidates by handle
+    const byHandle = new Map<string, XLeadCandidate>();
+    for (const candidate of candidates) {
+      const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
+      const existing = byHandle.get(key);
+      if (!existing || candidate.account.bio.length > existing.account.bio.length) {
+        byHandle.set(key, candidate);
+      }
+    }
 
     return {
       activeNode: "people_search" as const,
       activeSubagent: "source_researcher" as const,
       completedNodes: ["people_search" as const],
       scraped,
+      candidates: [...byHandle.values()],
       processedUrls,
       traceQuery: undefined,
       traceBatchUrls: [],

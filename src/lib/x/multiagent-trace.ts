@@ -87,7 +87,7 @@ function resolveNodeTools(
   }
 
   if (nodeName === "people_search") {
-    return ["TwitterAPI.io"];
+    return ["AgentQL", "TwitterAPI.io"];
   }
 
   if (nodeName === "source_fanout") {
