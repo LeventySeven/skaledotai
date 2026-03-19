@@ -145,7 +145,7 @@ async function twitterApiRequest<T>(
 const TwitterApiFollowersResponseSchema = z.object({
   users: z.array(TwitterApiUserSchema).default([]),
   has_next_page: z.boolean().optional(),
-  next_cursor: z.string().optional(),
+  next_cursor: z.string().nullable().optional(),
   status: z.enum(["success", "error"]).optional(),
   msg: z.string().optional(),
 }).passthrough();
@@ -164,7 +164,7 @@ export async function getTwitterApiFollowersPage(
   const parsed = TwitterApiFollowersResponseSchema.parse(response);
   return {
     profiles: parsed.users.map(mapTwitterApiUserToProfile),
-    nextToken: parsed.has_next_page ? parsed.next_cursor : undefined,
+    nextToken: parsed.has_next_page && parsed.next_cursor ? parsed.next_cursor : undefined,
   };
 }
 
@@ -176,13 +176,13 @@ export async function getTwitterApiFollowingPage(
   if (cursor) params.cursor = cursor;
 
   const response = await twitterApiRequest<z.infer<typeof TwitterApiFollowersResponseSchema>>(
-    "/twitter/user/following",
+    "/twitter/user/followings",
     params,
   );
   const parsed = TwitterApiFollowersResponseSchema.parse(response);
   return {
     profiles: parsed.users.map(mapTwitterApiUserToProfile),
-    nextToken: parsed.has_next_page ? parsed.next_cursor : undefined,
+    nextToken: parsed.has_next_page && parsed.next_cursor ? parsed.next_cursor : undefined,
   };
 }
 
@@ -192,7 +192,7 @@ export async function getTwitterApiFollowingPage(
 const TwitterApiSearchUsersResponseSchema = z.object({
   users: z.array(TwitterApiUserSchema).default([]),
   has_next_page: z.boolean().optional(),
-  next_cursor: z.string().optional(),
+  next_cursor: z.string().nullable().optional(),
   status: z.enum(["success", "error"]).optional(),
   msg: z.string().optional(),
 }).passthrough();
@@ -211,7 +211,7 @@ export async function searchTwitterApiUsers(
     if (cursor) params.cursor = cursor;
 
     const response = await twitterApiRequest<z.infer<typeof TwitterApiSearchUsersResponseSchema>>(
-      "/twitter/user/search",
+      "/search_user",
       params,
     );
     const parsed = TwitterApiSearchUsersResponseSchema.parse(response);
@@ -230,7 +230,7 @@ export async function searchTwitterApiUsers(
 const TwitterApiVerifiedFollowersResponseSchema = z.object({
   followers: z.array(TwitterApiUserSchema).default([]),
   has_next_page: z.boolean().optional(),
-  next_cursor: z.string().optional(),
+  next_cursor: z.string().nullable().optional(),
   status: z.enum(["success", "error"]).optional(),
   msg: z.string().optional(),
   message: z.string().optional(),
@@ -250,7 +250,7 @@ export async function getTwitterApiVerifiedFollowersPage(
   const parsed = TwitterApiVerifiedFollowersResponseSchema.parse(response);
   return {
     profiles: parsed.followers.map(mapTwitterApiUserToProfile),
-    nextToken: parsed.has_next_page ? parsed.next_cursor : undefined,
+    nextToken: parsed.has_next_page && parsed.next_cursor ? parsed.next_cursor : undefined,
   };
 }
 

@@ -48,7 +48,7 @@ export function buildTavilySearchRequest(
     query: enhancedQuery,
     search_depth: "advanced",
     include_domains: ["x.com", "twitter.com"],
-    max_results: Math.max(10, Math.min(30, Math.ceil(limit / 2))),
+    max_results: Math.max(5, Math.min(20, Math.ceil(limit / 2))),
   };
 }
 
