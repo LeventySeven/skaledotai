@@ -1162,10 +1162,27 @@ async function runScraperAgent(input: ScraperAgentInput): Promise<{
 
 function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State): XLeadCandidate[] {
   const byHandle = new Map<string, XLeadCandidate>();
+  let totalPayloads = 0;
+  let totalProfiles = 0;
+  let emptyPayloads = 0;
 
   for (const item of state.scraped) {
+    totalPayloads++;
     const profiles = normalizeProfilesFromPayload(item.payload);
     const tweets = normalizeTweetsFromPayload(item.payload);
+    if (profiles.length === 0) {
+      emptyPayloads++;
+      if (emptyPayloads <= 3) {
+        console.warn("[multiagent][normalize][empty-payload]", JSON.stringify({
+          url: item.url,
+          payloadKeys: typeof item.payload === "object" && item.payload !== null ? Object.keys(item.payload as Record<string, unknown>) : typeof item.payload,
+          dataKeys: typeof item.payload === "object" && item.payload !== null && typeof (item.payload as Record<string, unknown>).data === "object"
+            ? Object.keys((item.payload as Record<string, unknown>).data as Record<string, unknown>)
+            : "no-data-key",
+        }));
+      }
+    }
+    totalProfiles += profiles.length;
 
     for (const profile of profiles) {
       const candidate = buildLeadCandidate(
@@ -1176,10 +1193,9 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
         tweets.filter((tweet) => !tweet.authorId || tweet.authorId === profile.xUserId),
       );
 
-      // Apply minFollowers filter during discovery if configured
-      if (state.minFollowers && state.minFollowers > 0 && candidate.account.followers < state.minFollowers) {
-        continue;
-      }
+      // NOTE: Do NOT apply minFollowers filter here — AgentQL-scraped follower
+      // counts are unreliable (often 0 or null). Let candidates through to the
+      // hydration step first, which fetches real counts from TwitterAPI.io.
 
       const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
       const existing = byHandle.get(key);
@@ -1188,6 +1204,13 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
       }
     }
   }
+
+  console.log("[multiagent][normalize]", JSON.stringify({
+    totalPayloads,
+    totalProfiles,
+    emptyPayloads,
+    uniqueCandidates: byHandle.size,
+  }));
 
   // Sort by bio/post relevance to the niche, not by follower count
   const keywords = extractKeywords(state.niche);
@@ -1580,6 +1603,10 @@ const HydrationScoringSubgraphState = Annotation.Root({
     reducer: mergeUniqueStrings,
     default: () => [],
   }),
+  minFollowers: Annotation<number>({
+    reducer: (_left, right) => right,
+    default: () => 0,
+  }),
   candidates: Annotation<XLeadCandidate[]>({
     reducer: mergeCandidates,
     default: () => [],
@@ -1611,9 +1638,17 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
   .addNode("profile_hydrator", async (state) => {
     const hydrated = await hydrateCandidates(state.candidates);
 
+    // Apply minFollowers filter AFTER hydration — hydration fetches real follower
+    // counts from TwitterAPI.io, so we have reliable data here. Filtering before
+    // hydration would drop candidates with unreliable AgentQL-scraped counts.
+    const minFollowers = state.minFollowers ?? 0;
+    const filtered = minFollowers > 0
+      ? hydrated.candidates.filter((c) => c.account.followers >= minFollowers)
+      : hydrated.candidates;
+
     return {
       activeSubagent: "profile_hydrator" as const,
-      candidates: hydrated.candidates,
+      candidates: filtered,
       hydratedCount: hydrated.hydratedCount,
       hydrationTools: hydrated.tools,
     };
@@ -1767,6 +1802,7 @@ const graph = new StateGraph(MultiAgentState)
     const scoredSubgraph = await hydrationScoringSubgraph.invoke({
       niche: state.niche,
       attempt: state.attempt,
+      minFollowers: state.minFollowers ?? 0,
       roleTerms: state.roleTerms,
       bioTerms: state.bioTerms,
       antiGoals: state.antiGoals,
