@@ -6,6 +6,8 @@ import { parseJsonResponse, tryParseJsonText } from "./json";
 import type { XDataClient, XProfilesPage, XPostSearchResult, XResolvedTweet } from "./types";
 import { XProviderRuntimeError } from "./types";
 
+const TWITTERAPI_FETCH_TIMEOUT_MS = 30_000;
+
 const TWITTERAPI_BASE = "https://api.twitterapi.io";
 
 const TwitterApiUrlEntitySchema = z.object({
@@ -119,13 +121,27 @@ async function twitterApiRequest<T>(
     if (value) url.searchParams.set(key, value);
   }
 
-  const response = await fetch(url, {
-    headers: {
-      "X-API-Key": requireApiKey(),
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TWITTERAPI_FETCH_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        "X-API-Key": requireApiKey(),
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new TwitterApiIoError(0, `TwitterAPI.io request timed out after ${TWITTERAPI_FETCH_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const body = await response.text();
@@ -211,7 +227,7 @@ export async function searchTwitterApiUsers(
     if (cursor) params.cursor = cursor;
 
     const response = await twitterApiRequest<z.infer<typeof TwitterApiSearchUsersResponseSchema>>(
-      "/search_user",
+      "/twitter/user/search",
       params,
     );
     const parsed = TwitterApiSearchUsersResponseSchema.parse(response);
