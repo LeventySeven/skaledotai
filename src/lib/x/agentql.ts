@@ -74,7 +74,7 @@ export function buildAgentQlQueryRequest(
     query: AGENTQL_QUERIES[mode],
     params: {
       // People search pages need more time to load results
-      wait_for: mode === "people_search" ? 5 : 3,
+      wait_for: mode === "people_search" ? 5 : 5,
       mode: mode === "people_search" ? "standard" : "fast",
       browser_profile: "stealth",
       is_screenshot_enabled: false,

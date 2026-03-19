@@ -47,7 +47,7 @@ const TwitterApiBatchUsersResponseSchema = z.object({
   users: z.array(TwitterApiUserSchema).default([]),
   status: z.enum(["success", "error"]).optional(),
   msg: z.string().optional(),
-}).strict();
+}).passthrough();
 
 type TwitterApiUser = z.infer<typeof TwitterApiUserSchema>;
 
@@ -159,11 +159,21 @@ async function twitterApiRequest<T>(
 }
 
 const TwitterApiFollowersResponseSchema = z.object({
-  users: z.array(TwitterApiUserSchema).default([]),
+  followers: z.array(TwitterApiUserSchema).default([]),
   has_next_page: z.boolean().optional(),
   next_cursor: z.string().nullable().optional(),
   status: z.enum(["success", "error"]).optional(),
   msg: z.string().optional(),
+  message: z.string().optional(),
+}).passthrough();
+
+const TwitterApiFollowingsResponseSchema = z.object({
+  followings: z.array(TwitterApiUserSchema).default([]),
+  has_next_page: z.boolean().optional(),
+  next_cursor: z.string().nullable().optional(),
+  status: z.enum(["success", "error"]).optional(),
+  msg: z.string().optional(),
+  message: z.string().optional(),
 }).passthrough();
 
 export async function getTwitterApiFollowersPage(
@@ -179,7 +189,7 @@ export async function getTwitterApiFollowersPage(
   );
   const parsed = TwitterApiFollowersResponseSchema.parse(response);
   return {
-    profiles: parsed.users.map(mapTwitterApiUserToProfile),
+    profiles: parsed.followers.map(mapTwitterApiUserToProfile),
     nextToken: parsed.has_next_page && parsed.next_cursor ? parsed.next_cursor : undefined,
   };
 }
@@ -191,13 +201,13 @@ export async function getTwitterApiFollowingPage(
   const params: Record<string, string> = { userName };
   if (cursor) params.cursor = cursor;
 
-  const response = await twitterApiRequest<z.infer<typeof TwitterApiFollowersResponseSchema>>(
+  const response = await twitterApiRequest<z.infer<typeof TwitterApiFollowingsResponseSchema>>(
     "/twitter/user/followings",
     params,
   );
-  const parsed = TwitterApiFollowersResponseSchema.parse(response);
+  const parsed = TwitterApiFollowingsResponseSchema.parse(response);
   return {
-    profiles: parsed.users.map(mapTwitterApiUserToProfile),
+    profiles: parsed.followings.map(mapTwitterApiUserToProfile),
     nextToken: parsed.has_next_page && parsed.next_cursor ? parsed.next_cursor : undefined,
   };
 }

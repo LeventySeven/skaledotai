@@ -44,11 +44,10 @@ export function buildTavilySearchRequest(
   }
 
   return {
-    api_key: requireEnv("TAVILY_API_KEY"),
     query: enhancedQuery,
     search_depth: "advanced",
     include_domains: ["x.com", "twitter.com"],
-    max_results: Math.max(5, Math.min(20, Math.ceil(limit / 2))),
+    max_results: 20,
   };
 }
 
@@ -78,6 +77,7 @@ async function searchTavilyInternal(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${requireEnv("TAVILY_API_KEY")}`,
       },
       body: JSON.stringify(buildTavilySearchRequest(query, limit, options)),
       cache: "no-store",

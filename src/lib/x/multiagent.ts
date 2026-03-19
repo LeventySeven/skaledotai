@@ -1923,10 +1923,10 @@ const graph = new StateGraph(MultiAgentState)
     // bioTerms/phrase list — those are too long and produce bad results.
     const twitterApiKeywords = dedupeQueries([
       ...(state.normalizedQuery ? [state.normalizedQuery] : []),
-      ...state.roleTerms.slice(0, 2),
+      ...state.roleTerms.slice(0, 4),
     ]).filter((term) =>
       !alreadyProcessed.has(`twitterapi:search:${term.toLowerCase()}`),
-    ).slice(0, 3);
+    ).slice(0, 5);
 
     if (twitterApiKeywords.length > 0) {
       const twitterResults = await mapWithConcurrency(
@@ -1934,7 +1934,7 @@ const graph = new StateGraph(MultiAgentState)
         2,
         async (term) => {
           try {
-            const profiles = await searchTwitterApiUsers(term, { maxPages: 2 });
+            const profiles = await searchTwitterApiUsers(term, { maxPages: 3 });
             return { term, profiles };
           } catch (error) {
             console.warn("[multiagent][people_search] TwitterAPI.io search failed:", term, describeUpstreamError(error));
