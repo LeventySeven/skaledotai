@@ -72,7 +72,7 @@ const MULTIAGENT_MIN_URLS = 20;
 const MULTIAGENT_MAX_URLS = 160;
 const MULTIAGENT_MIN_BATCH_SIZE = 4;
 const MULTIAGENT_MAX_BATCH_SIZE = 16;
-const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 45_000;
+const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 60_000;
 const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
 const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 120_000;
 
@@ -1945,6 +1945,8 @@ const graph = new StateGraph(MultiAgentState)
 
       for (const { term, profiles } of twitterResults) {
         processedUrls.push(`twitterapi:search:${term.toLowerCase()}`);
+        let accepted = 0;
+        let filtered = 0;
         for (const profile of dedupeProfiles(profiles)) {
           const candidate = buildLeadCandidate(
             "multiagent",
@@ -1954,10 +1956,19 @@ const graph = new StateGraph(MultiAgentState)
             [],
           );
           if (state.minFollowers && state.minFollowers > 0 && candidate.account.followers < state.minFollowers) {
+            filtered++;
             continue;
           }
+          accepted++;
           candidates.push(candidate);
         }
+        console.log("[multiagent][people_search][twitterapi]", JSON.stringify({
+          term,
+          returned: profiles.length,
+          accepted,
+          filteredByMinFollowers: filtered,
+          minFollowers: state.minFollowers,
+        }));
       }
     }
 

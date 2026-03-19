@@ -19,7 +19,7 @@ services:
       - key: MULTIAGENT_PLANNER_MODEL
         sync: false
       - key: MULTIAGENT_PLANNER_TIMEOUT_MS
-        value: 45000
+        value: 60000
       - key: TAVILY_API_KEY
         sync: false
       - key: AGENTQL_API_KEY
