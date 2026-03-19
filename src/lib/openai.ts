@@ -305,20 +305,20 @@ export async function screenProfilesForLeadSearchDetailed(
     ].filter(Boolean).join("\n")
     : "";
 
-  const screeningPrompt = `Verify pre-screened X/Twitter profiles against the search query. These candidates already passed an initial relevance check.
+  const screeningPrompt = `Verify pre-screened X/Twitter profiles against the search query. These candidates already passed an initial relevance check. Your job is to keep ONLY genuinely relevant leads.
 
-YOUR GOAL: Keep as many RELEVANT leads as possible. Do NOT artificially limit the number. Every real match should be included.
+YOUR GOAL: Include leads who ACTUALLY hold the queried role or work directly in the queried niche. Quality over quantity — irrelevant leads in the final list are worse than missing a borderline match.
 
 RULES:
-1. Include anyone who holds the queried role, a close synonym, or works directly in the queried niche. Cast a wide net — more relevant leads is always better.
-2. Only REJECT if the person clearly holds a DIFFERENT role, is an organization, or there is zero evidence of relevance.
-3. Do NOT use partial keyword matches as the sole evidence. But if someone's display name says "Product Designer" — that IS evidence even if the bio doesn't repeat it.
+1. Include ONLY if the person's bio, display name, or posts contain SPECIFIC evidence they hold the queried role or a close synonym. A "Product Designer" query should find product designers, not random people who mentioned "product" once.
+2. REJECT if: (a) different role even if adjacent (a "UX Researcher" is NOT a "Product Designer"), (b) organization/company/brand account, (c) only tangential keyword overlap with no role match, (d) the keyword appears in a different context (e.g. "product manager" is not "product designer").
+3. Display name IS valid evidence (e.g. "Sarah | Product Designer"). Bio keywords ARE valid evidence. A single keyword in a post without bio confirmation is NOT enough.
 4. Follower count is irrelevant.
-5. When in doubt, INCLUDE with a lower score. A borderline relevant lead is better than a missed one.
+5. When in doubt, REJECT. It is better to have fewer, highly relevant leads than many loosely related ones.
 ${criteriaBlock}
 
-Score: 80-100 clearly holds the exact role, 50-79 likely or adjacent match, 30-49 weak but possible match. Set include=false ONLY if score < 30.
-Reason: quote the specific part of bio/name/posts that shows relevance. 1-2 sentences.`;
+Score: 80-100 clearly holds the exact role with bio/name proof, 50-79 likely match with at least one strong signal, below 50 set include=false.
+Reason: quote the specific part of bio/name/posts that proves relevance. 1-2 sentences.`;
 
   const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
 
@@ -358,10 +358,10 @@ Reason: quote the specific part of bio/name/posts that shows relevance. 1-2 sent
 
     for (const decision of result.data.decisions) {
       if (!validIds.has(decision.profileId) || !decision.include) continue;
-      // Accept any lead the model marked as include — the goal is to keep ALL relevant
-      // leads, not filter aggressively. Pre-screening already removed obvious mismatches.
-      // Only reject if score is extremely low (clear model error).
-      if (decision.score < 30) continue;
+      // Strict threshold — only keep leads the model is confident about.
+      // Pre-screening already removed obvious mismatches, so anything reaching here
+      // with a low score is a borderline case that would pollute the final list.
+      if (decision.score < 50) continue;
       const current = selectedScores.get(decision.profileId) ?? -1;
       if (decision.score > current) {
         selectedScores.set(decision.profileId, decision.score);

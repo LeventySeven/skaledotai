@@ -439,8 +439,8 @@ async function discoverCandidatesUntilGoal(
     attemptedQueries.push(currentQuery);
     if (attempt === 1) firstPassCount = attemptCandidates.length;
 
-    // NOTE: minFollowers NOT applied during discovery — relevance > popularity.
-    // The user's minFollowers preference is applied AFTER screening, in the final lead list.
+    // minFollowers is applied inside the multiagent graph during candidate normalization.
+    // Other providers may still need service-level filtering.
     combinedCandidates = dedupeCandidates(
       [...combinedCandidates, ...attemptCandidates],
     );

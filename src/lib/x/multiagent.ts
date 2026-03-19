@@ -579,36 +579,37 @@ function buildGoogleDorkQueries(input: {
   if (cleanSeed) {
     const vf = `site:x.com/${cleanSeed}/verified_followers`;
     return dedupeQueries([
+      `intitle:"${primaryTerm}" ${vf}`,
       `${vf} "${primaryTerm}"`,
       `${vf}`,
       roleBlock ? `${vf} ("${roleBlock}")` : "",
-      bioBlock ? `${vf} ("${bioBlock}")` : "",
       geoBlock ? `${vf} "${primaryTerm}" "${geoBlock}"` : "",
     ]).slice(0, input.queryBudget);
   }
 
-  // Generate targeted queries that find PROFILES, not articles or listicles.
-  // Each query uses roleTerms/bioTerms directly — these are how people describe
-  // themselves in bios, so Google will match the actual profile pages.
+  // intitle: dorks are the HIGHEST priority — they match the X page title, which is
+  // the person's display name. intitle:"product designer" site:x.com finds profiles where
+  // "Product Designer" is literally in the display name = almost always the real role.
   const queries: string[] = [];
 
-  // Primary: individual roleTerms as separate queries (each finds different profiles)
-  for (const term of input.interpretation.roleTerms.slice(0, 4)) {
+  // TOP PRIORITY: intitle: dorks — display name matches are the strongest signal
+  queries.push(`intitle:"${primaryTerm}" site:x.com`);
+  for (const term of input.interpretation.roleTerms.slice(1, 3)) {
+    queries.push(`intitle:"${term}" site:x.com`);
+  }
+
+  // intitle: with twitter.com for older indexed profiles
+  queries.push(`intitle:"${primaryTerm}" site:twitter.com`);
+
+  // Supplementary: site: with quoted terms for bio/page body matches
+  for (const term of input.interpretation.roleTerms.slice(0, 2)) {
     queries.push(`site:x.com "${term}"`);
   }
 
-  // Bio-phrase queries: find profiles where people wrote these specific phrases
-  for (const term of input.interpretation.bioTerms.slice(0, 3)) {
-    queries.push(`site:x.com "${term}"`);
-  }
-
-  // Geo-targeted variant
+  // Geo-targeted intitle: variant
   if (geoBlock) {
-    queries.push(`site:x.com "${primaryTerm}" "${geoBlock}"`);
+    queries.push(`intitle:"${primaryTerm}" site:x.com "${geoBlock}"`);
   }
-
-  // twitter.com variant for older indexed profiles
-  queries.push(`site:twitter.com "${primaryTerm}"`);
 
   return dedupeQueries(queries).slice(0, input.queryBudget);
 }
@@ -637,11 +638,13 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
     ]).slice(0, resolveMultiAgentQueryBudget(input));
   }
 
-  // Use site:x.com with quoted role terms — finds actual profiles, not listicles.
-  // Each variant (singular, plural, discipline) finds different people.
+  // intitle: dorks are highest priority — match display name = strongest role signal.
+  // Supplementary site: dorks catch profiles where the role is in bio but not display name.
   return dedupeQueries([
-    ...variants.slice(0, 3).map((v) => `site:x.com "${v}"`),
-    `site:twitter.com "${variants[0] || normalized}"`,
+    `intitle:"${normalized}" site:x.com`,
+    ...variants.slice(1, 3).map((v) => `intitle:"${v}" site:x.com`),
+    `site:x.com "${variants[0] || normalized}"`,
+    `intitle:"${variants[0] || normalized}" site:twitter.com`,
   ]).slice(0, resolveMultiAgentQueryBudget(input));
 }
 
@@ -655,10 +658,11 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
     return dedupeQueries(variants.slice(0, 2).map((v) => `${vf} "${v}"`));
   }
 
-  // Use role variants with site: prefix — each finds different profiles
-  return dedupeQueries(
-    variants.slice(0, 3).map((v) => `site:x.com "${v}"`),
-  );
+  // intitle: dorks prioritized — strongest signal for finding real role holders
+  return dedupeQueries([
+    ...variants.slice(0, 2).map((v) => `intitle:"${v}" site:x.com`),
+    `site:x.com "${variants[0] || normalized}"`,
+  ]);
 }
 
 function resolveMultiAgentUrlLimit(limit: number, goalCount?: number): number {
@@ -786,10 +790,10 @@ function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): 
   const postScore = Math.min(30, postPhraseHits * 10);
 
   const rawScore = profileScore + postScore;
-  // No phrase match → reduce score but don't hard-cap. A person with multiple word matches
-  // and person signals may still be relevant (e.g. truncated bio from scraping).
+  // No phrase match → hard penalty. Single-word matches alone are weak signals
+  // that let irrelevant profiles leak through (e.g. "product" appearing anywhere).
   const hasAnyPhraseMatch = profilePhraseHits > 0 || postPhraseHits > 0;
-  const score = clampScore(hasAnyPhraseMatch ? rawScore : Math.max(0, rawScore - 10));
+  const score = clampScore(hasAnyPhraseMatch ? rawScore : Math.max(0, Math.floor(rawScore * 0.3)));
 
   const reasons: string[] = [];
   if (profilePhraseHits > 0) reasons.push(`Profile contains: ${phraseKeywords.filter((kw) => profileText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
@@ -1004,11 +1008,11 @@ async function buildPlannerQueries(
 
   if (input.recoveryState === "precision_filtered") {
     // Candidates were found but almost all were the wrong role.
-    // Generate highly targeted queries using the exact role terms from interpretation.
+    // intitle: dorks are the most precise — they match display name only.
     const roleTargetedQueries = [
-      ...interpretation.roleTerms.slice(0, 5).map((term) => `site:x.com "${term}"`),
+      ...interpretation.roleTerms.slice(0, 5).map((term) => `intitle:"${term}" site:x.com`),
+      ...interpretation.roleTerms.slice(0, 2).map((term) => `intitle:"${term}" site:twitter.com`),
       ...interpretation.bioTerms.slice(0, 3).map((term) => `site:x.com "${term}"`),
-      ...interpretation.roleTerms.slice(0, 2).map((term) => `site:twitter.com "${term}"`),
     ];
     const precisionQueries = withNewQueries(
       [...roleTargetedQueries, ...dorkQueries],
@@ -1167,10 +1171,10 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
         tweets.filter((tweet) => !tweet.authorId || tweet.authorId === profile.xUserId),
       );
 
-      // NOTE: minFollowers is intentionally NOT applied during discovery.
-      // Filtering by followers biases toward popularity over relevance — a real
-      // motion designer with 200 followers is more valuable than a CEO with 50K.
-      // The user can still filter by followers in the UI after leads are found.
+      // Apply minFollowers filter during discovery if configured
+      if (state.minFollowers && state.minFollowers > 0 && candidate.account.followers < state.minFollowers) {
+        continue;
+      }
 
       const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
       const existing = byHandle.get(key);
@@ -1519,17 +1523,19 @@ async function preScreenCandidates(
 
   try {
     const result = await withTimeout("OpenAI planner", 30_000, () => model.invoke([
-      `Quick relevance check: does each profile ACTUALLY hold the role "${niche}"?`,
+      `Strict relevance check: does each profile ACTUALLY hold the role "${niche}"?`,
       "",
       "For each profile, check their bio and posts to decide if they genuinely do this work.",
-      "- relevant=true: the person holds this exact role or a close synonym.",
-      "- relevant=false: different role, organization, or insufficient evidence.",
-      "- confidence: 80-100 clear match, 60-79 likely match, below 60 not a match.",
+      "- relevant=true: the person's bio or display name clearly identifies them as this exact role or a close synonym.",
+      "- relevant=false: different role, adjacent role, organization, or no clear evidence in bio/name.",
+      "- confidence: 80-100 bio/name clearly states the role, 60-79 strong indirect evidence, below 60 = set relevant=false.",
       "",
       "Key rules:",
       "- A keyword from the query appearing in a different context is NOT a match.",
-      "- Organizations, communities, newsletters, job boards = always irrelevant.",
-      "- Adjacent senior roles (VP, Head of, Director of) are NOT the same as the hands-on role unless the query specifically asks for them.",
+      "- Organizations, communities, newsletters, job boards, brand accounts = always irrelevant.",
+      "- Adjacent roles are NOT the same role. 'UX researcher' is NOT 'product designer'. 'Engineering manager' is NOT 'software engineer'. Be precise.",
+      "- A person who MENTIONS the niche in a post but doesn't HOLD the role is NOT relevant.",
+      "- When in doubt, set relevant=false. Quality matters more than quantity.",
       contextRules,
       "",
       JSON.stringify({ niche, candidates: candidateSummaries }),
@@ -1540,7 +1546,7 @@ async function preScreenCandidates(
     // The final AI screening (in the middle of the pipeline loop) does the strict check.
     const passed = new Set<string>();
     for (const d of result.decisions) {
-      if (d.relevant && d.confidence >= 40) {
+      if (d.relevant && d.confidence >= 60) {
         passed.add(d.handle.replace(/^@/, "").toLowerCase());
       }
     }
@@ -1632,15 +1638,20 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
       });
     }
 
-    // Phase 3: AI pre-screen — filter obvious non-matches before they enter the pool
+    // Phase 3: Heuristic gate — candidates with no phrase match and very low scores
+    // are not worth sending to the AI pre-screen. They are almost certainly irrelevant.
+    const MIN_HEURISTIC_SCORE = 10;
+    const heuristicPassed = prescoredCandidates.filter((c) => c.heuristic.score >= MIN_HEURISTIC_SCORE || c.evidence.length > 0);
+
+    // Phase 4: AI pre-screen — filter obvious non-matches before they enter the pool
     // Pass roleTerms/bioTerms/antiGoals so the pre-screen has full interpreted context
-    const passedHandles = await preScreenCandidates(state.niche, prescoredCandidates, {
+    const passedHandles = await preScreenCandidates(state.niche, heuristicPassed, {
       roleTerms: state.roleTerms,
       bioTerms: state.bioTerms,
       antiGoals: state.antiGoals,
     });
 
-    const scored: ScoredCandidate[] = prescoredCandidates
+    const scored: ScoredCandidate[] = heuristicPassed
       .filter((c) => passedHandles.has(c.candidate.account.handle.replace(/^@/, "").toLowerCase()))
       .map((c) => ({
         candidate: c.candidate,
@@ -1787,7 +1798,7 @@ const graph = new StateGraph(MultiAgentState)
     // Detect precision filtering: many raw candidates scraped but few survived pre-screen
     // This means the queries found people, but the WRONG people — need more targeted queries
     const rawCount = state.lastAttemptRawCount;
-    const precisionFiltered = rawCount > 0 && attemptYield < Math.ceil(rawCount * 0.15);
+    const precisionFiltered = rawCount > 0 && attemptYield < Math.ceil(rawCount * 0.20);
 
     const satisfied = candidates.length >= state.goalCount;
     const queryExhausted = !satisfied
@@ -1865,23 +1876,21 @@ const graph = new StateGraph(MultiAgentState)
   // page scraped, yielding 10-20 highly relevant profiles per term.
   .addNode("people_search", async (state) => {
     const terms = dedupeQueries([
+      // Direct user query — always the primary People Search term
+      ...(state.normalizedQuery ? [state.normalizedQuery] : []),
       // All roleTerms — each one finds different people
       ...state.roleTerms.slice(0, 8),
       // Top bioTerms for variety
       ...state.bioTerms.slice(0, 3),
     ]);
 
-    if (terms.length === 0 && state.normalizedQuery) {
-      terms.push(state.normalizedQuery);
-    }
-
     // Skip terms whose People Search URLs were already scraped in a previous pass
     const alreadyScraped = new Set(state.processedUrls.map((u) => u.toLowerCase()));
     const newTerms = terms.filter((term) => {
-      // Check both variants (with and without min_faves)
-      const withFilter = `https://x.com/search?q=${encodeURIComponent(term + " min_faves:50")}&f=user`.toLowerCase();
-      const withoutFilter = `https://x.com/search?q=${encodeURIComponent(term)}&f=user`.toLowerCase();
-      return !alreadyScraped.has(withFilter) || !alreadyScraped.has(withoutFilter);
+      // Check both variants (with and without min_faves) — URL format matches scrapeXPeopleSearch
+      const withFilter = `https://x.com/search?q=${encodeURIComponent(term + " min_faves:50")}&src=typed_query&f=user`.toLowerCase();
+      const withoutFilter = `https://x.com/search?q=${encodeURIComponent(term)}&src=typed_query&f=user`.toLowerCase();
+      return !alreadyScraped.has(withFilter) && !alreadyScraped.has(withoutFilter);
     });
 
     if (newTerms.length === 0) {
@@ -1909,7 +1918,7 @@ const graph = new StateGraph(MultiAgentState)
         const payload = await scrapeXPeopleSearch(term, minFaves ? { minFaves } : undefined);
         if (!payload) return null;
         const queryStr = minFaves ? `${term} min_faves:${minFaves}` : term;
-        const url = `https://x.com/search?q=${encodeURIComponent(queryStr)}&f=user`;
+        const url = `https://x.com/search?q=${encodeURIComponent(queryStr)}&src=typed_query&f=user`;
         return { url, payload } satisfies ScrapedPayload;
       },
     );
@@ -1930,9 +1939,18 @@ const graph = new StateGraph(MultiAgentState)
   .addEdge(START, "planner")
   .addEdge("planner", "people_search")
   .addConditionalEdges("people_search", (state) => {
-    // After People Search, also run Tavily-based source fanout for supplementary profiles
-    if (state.currentQueries.length > 0) {
-      return state.currentQueries.map((query) => new Send("source_fanout", {
+    // After People Search, also run Tavily-based source fanout for supplementary profiles.
+    // Always include intitle: dork for the normalizedQuery — strongest signal for real profiles.
+    const queries = [...state.currentQueries];
+    if (state.normalizedQuery) {
+      const intitleQuery = `intitle:"${state.normalizedQuery}" site:x.com`;
+      if (!queries.some((q) => q.toLowerCase() === intitleQuery.toLowerCase())) {
+        queries.unshift(intitleQuery);
+      }
+    }
+
+    if (queries.length > 0) {
+      return queries.map((query) => new Send("source_fanout", {
         attempt: state.attempt,
         goalCount: state.goalCount,
         limit: state.limit,
