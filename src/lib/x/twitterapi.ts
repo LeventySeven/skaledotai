@@ -11,36 +11,36 @@ const TWITTERAPI_FETCH_TIMEOUT_MS = 30_000;
 const TWITTERAPI_BASE = "https://api.twitterapi.io";
 
 const TwitterApiUrlEntitySchema = z.object({
-  expanded_url: z.string().optional(),
+  expanded_url: z.string().nullish(),
 }).passthrough();
 
 const TwitterApiProfileBioSchema = z.object({
-  description: z.string().optional(),
+  description: z.string().nullish(),
   entities: z.object({
     url: z.object({
       urls: z.array(TwitterApiUrlEntitySchema).default([]),
-    }).optional(),
-  }).optional(),
+    }).nullish(),
+  }).nullish(),
 }).passthrough();
 
 const TwitterApiUserSchema = z.object({
   id: z.string(),
-  userName: z.string().optional(),
-  username: z.string().optional(),
-  url: z.string().optional(),
-  name: z.string().optional(),
-  isBlueVerified: z.boolean().optional(),
-  verifiedType: z.string().optional(),
-  profilePicture: z.string().optional(),
-  description: z.string().optional(),
-  location: z.string().optional(),
-  followers: z.number().optional(),
-  following: z.number().optional(),
-  statusesCount: z.number().optional(),
-  favouritesCount: z.number().optional(),
-  canDm: z.boolean().optional(),
-  createdAt: z.string().optional(),
-  profile_bio: TwitterApiProfileBioSchema.optional(),
+  userName: z.string().nullish(),
+  username: z.string().nullish(),
+  url: z.string().nullish(),
+  name: z.string().nullish(),
+  isBlueVerified: z.boolean().nullish(),
+  verifiedType: z.string().nullish(),
+  profilePicture: z.string().nullish(),
+  description: z.string().nullish(),
+  location: z.string().nullish(),
+  followers: z.number().nullish(),
+  following: z.number().nullish(),
+  statusesCount: z.number().nullish(),
+  favouritesCount: z.number().nullish(),
+  canDm: z.boolean().nullish(),
+  createdAt: z.string().nullish(),
+  profile_bio: TwitterApiProfileBioSchema.nullish(),
 }).passthrough();
 
 const TwitterApiBatchUsersResponseSchema = z.object({
@@ -87,7 +87,7 @@ function unsupported(capability: "discovery" | "tweets"): never {
 
 function readProfileBioUrl(user: TwitterApiUser): string | undefined {
   const urls = user.profile_bio?.entities?.url?.urls ?? [];
-  return urls.find((item) => typeof item.expanded_url === "string" && item.expanded_url.trim().length > 0)?.expanded_url;
+  return urls.find((item) => typeof item.expanded_url === "string" && item.expanded_url.trim().length > 0)?.expanded_url ?? undefined;
 }
 
 function mapTwitterApiUserToProfile(user: TwitterApiUser): XProfile {
@@ -103,7 +103,7 @@ function mapTwitterApiUserToProfile(user: TwitterApiUser): XProfile {
     profileUrl: user.url?.trim() || (username ? `https://x.com/${username}` : undefined),
     followersCount: user.followers ?? 0,
     followingCount: user.following ?? 0,
-    tweetCount: user.statusesCount,
+    tweetCount: user.statusesCount ?? undefined,
     listedCount: undefined,
     verified: user.isBlueVerified ?? false,
     verifiedType: user.verifiedType?.trim() || undefined,
