@@ -208,10 +208,18 @@ export const internalLeads = pgTable("internal_leads", {
   price: integer("price"), // cents
   notes: text("notes"),
 
+  // TurboPuffer sync fields
+  bio: text("bio").notNull().default(""),
+  tags: text("tags").array().notNull().default([]),
+  relevancy: integer("relevancy").notNull().default(0),
+  sourceLeadId: uuid("source_lead_id").references(() => leads.id, { onDelete: "set null" }),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("internal_leads_user_id_idx").on(table.userId),
+  uniqueIndex("internal_leads_user_handle_platform_idx").on(table.userId, table.handle, table.platform),
 ]);
 
 // ── DM Jobs (outreach service) ───────────────────────────────────────────────

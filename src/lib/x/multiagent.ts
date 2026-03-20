@@ -28,6 +28,8 @@ import {
   normalizeDiscoveredUrls,
 } from "./tavily";
 import { searchGrokXUsers, isGrokConfigured } from "./grok";
+import { searchLeadMemory, mapMemoryHitToCandidate } from "@/server/services/lead-memory";
+import { isTurboPufferConfigured } from "@/lib/turbopuffer";
 import {
   queryAgentQl,
   queryAgentQlBestEffort,
@@ -137,6 +139,7 @@ const mergeCandidates = (left: XLeadCandidate[], right: XLeadCandidate[]): XLead
 const MultiAgentState = Annotation.Root({
   niche: Annotation<string>,
   seedHandle: Annotation<string | undefined>,
+  userId: Annotation<string | undefined>,
   limit: Annotation<number>,
   minFollowers: Annotation<number | undefined>,
   targetLeadCount: Annotation<number>,
@@ -1821,8 +1824,51 @@ const graph = new StateGraph(MultiAgentState)
       traceBatchUrls: state.repairUrls,
     };
   })
+  // Lead Memory node — searches TurboPuffer for previously seen high-quality leads.
+  // Runs after planner, before people_search.
+  .addNode("lead_memory", async (state) => {
+    if (!state.userId || !isTurboPufferConfigured()) {
+      console.log("[multiagent][lead_memory] No userId or TurboPuffer not configured, skipping");
+      return {
+        activeNode: "lead_memory" as const,
+        activeSubagent: "source_researcher" as const,
+        completedNodes: ["lead_memory" as const],
+        candidates: [],
+        traceQuery: undefined,
+        traceBatchUrls: [],
+      };
+    }
+
+    const query = state.normalizedQuery || state.niche;
+    const candidates: XLeadCandidate[] = [];
+
+    try {
+      const hits = await searchLeadMemory(state.userId, query, { topK: 30 });
+
+      for (const hit of hits) {
+        candidates.push(mapMemoryHitToCandidate(hit, state.niche));
+      }
+
+      console.log("[multiagent][lead_memory]", JSON.stringify({
+        query: query.slice(0, 50),
+        hits: hits.length,
+        candidates: candidates.length,
+      }));
+    } catch (error) {
+      console.warn("[multiagent][lead_memory] Search failed:", error instanceof Error ? error.message : String(error));
+    }
+
+    return {
+      activeNode: "lead_memory" as const,
+      activeSubagent: "source_researcher" as const,
+      completedNodes: ["lead_memory" as const],
+      candidates,
+      traceQuery: undefined,
+      traceBatchUrls: [],
+    };
+  })
   // Grok X-Search node — uses Grok API's x_search tool to discover leads.
-  // Runs in parallel with people_search after planner.
+  // Runs after people_search.
   .addNode("grok_search", async (state) => {
     if (!isGrokConfigured()) {
       console.log("[multiagent][grok_search] XAI_API_KEY not configured, skipping");
@@ -2021,7 +2067,8 @@ const graph = new StateGraph(MultiAgentState)
     };
   })
   .addEdge(START, "planner")
-  .addEdge("planner", "people_search")
+  .addEdge("planner", "lead_memory")
+  .addEdge("lead_memory", "people_search")
   .addEdge("people_search", "grok_search")
   .addConditionalEdges("grok_search", (state) => {
     // After People Search, also run Tavily-based source fanout for supplementary profiles.
@@ -2089,6 +2136,7 @@ export const multiAgentDiscoveryProvider: XDiscoveryProvider = {
       const stream = await graph.stream({
         niche: input.niche,
         seedHandle: input.seedHandle,
+        userId: input.userId,
         limit: input.limit,
         minFollowers: input.minFollowers,
         targetLeadCount: input.targetLeadCount ?? input.limit,

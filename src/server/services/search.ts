@@ -44,6 +44,10 @@ import {
   X_PROVIDER_NETWORK_PAGE_SIZE,
 } from "@/lib/constants";
 import { toXProviderTrpcError } from "@/lib/x/error-handling";
+import {
+  searchLeadMemory,
+  mapMemoryHitToCandidate,
+} from "./lead-memory";
 
 type CanonicalCandidate = XProfile & {
   samplePosts: string[];
@@ -467,6 +471,7 @@ async function discoverCandidatesWithProviderOwnedLoop(
   targetLeadCount: number,
   parseAccountsTarget: number,
   progress?: SearchProgressHandlers,
+  userId?: string,
 ): Promise<DiscoveryResult> {
   const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
   const goalCount = getDiscoveryCandidateGoal(targetLeadCount);
@@ -484,6 +489,7 @@ async function discoverCandidatesWithProviderOwnedLoop(
   const candidates = await discoveryProvider.discoverCandidates({
     niche: query,
     seedHandle,
+    userId,
     limit: parseAccountsTarget,
     minFollowers: discoveryMinFollowers,
     targetLeadCount,
@@ -595,6 +601,44 @@ export async function searchAndAddLeads(
       onSnapshot: progress.onSnapshot,
     } : undefined;
 
+    // ── Lead Memory: Search TurboPuffer first ────────────────────────────────
+    // If we already have high-quality leads from previous searches, use them
+    // to seed the known pool and reduce how many new leads we need to find.
+    const knownHandles = new Set<string>();
+    let screenedCandidates: XLeadCandidate[] = [];
+
+    try {
+      const memoryHits = await searchLeadMemory(userId, input.query, { topK: 30 });
+      if (memoryHits.length > 0) {
+        const memoryCandidates = memoryHits.map((hit) => mapMemoryHitToCandidate(hit, input.query));
+        for (const c of memoryCandidates) {
+          const key = c.account.handle.replace(/^@/, "").toLowerCase();
+          knownHandles.add(key);
+        }
+        // Pre-seed screened candidates with memory hits
+        screenedCandidates = memoryCandidates;
+
+        trace.addStep(await emitStep(progress, {
+          id: "lead-memory",
+          title: "Lead Memory Lookup",
+          summary: `Found ${memoryHits.length} previously seen leads in memory.`,
+          status: memoryHits.length > 0 ? "success" : "warning",
+          provider: "multiagent",
+          tools: ["TurboPuffer"],
+          bullets: [
+            `${memoryHits.length} leads recalled from previous searches.`,
+            `${targetLeadCount - screenedCandidates.length} more needed from fresh discovery.`,
+          ],
+          metrics: [
+            { label: "Memory hits", value: memoryHits.length },
+            { label: "Remaining target", value: Math.max(0, targetLeadCount - screenedCandidates.length) },
+          ],
+        }));
+      }
+    } catch (error) {
+      console.warn("[search][lead-memory] Lookup failed (non-fatal):", error instanceof Error ? error.message : String(error));
+    }
+
     // ── Discover → Screen → Check → Loop architecture ──────────────────────────
     // Screening happens IN THE MIDDLE of the pipeline, not at the end.
     // After each pass: discover candidates → screen for relevance → check count.
@@ -602,13 +646,15 @@ export async function searchAndAddLeads(
     // This ensures the user gets both ACCURACY and QUANTITY.
 
     const MAX_SEARCH_PASSES = 6;
-    const knownHandles = new Set<string>();
-    let screenedCandidates: XLeadCandidate[] = [];
     let latestInterpretation: SearchInterpretation | undefined;
     let totalDiscovered = 0;
     let totalScreenedPool = 0;
     /** Collected screening reasons across all passes for inline reasoning persistence */
     const allSelectedReasons = new Map<string, string>();
+    /** All raw discovered candidates (before screening) — used for fallback salvage */
+    let allDiscoveredCandidates: XLeadCandidate[] = [];
+
+    try {
 
     for (let pass = 1; pass <= MAX_SEARCH_PASSES; pass++) {
       const remaining = targetLeadCount - screenedCandidates.length;
@@ -630,6 +676,7 @@ export async function searchAndAddLeads(
           passTarget,
           passParseTarget,
           progressWithPersistence,
+          userId,
         )
         : await discoverCandidatesUntilGoal(
           discoveryProvider,
@@ -654,6 +701,7 @@ export async function searchAndAddLeads(
       });
 
       totalDiscovered += newCandidates.length;
+      allDiscoveredCandidates = [...allDiscoveredCandidates, ...newCandidates];
 
       trace.addStep(await emitStep(progress, {
         id: `discovery-${pass}`,
@@ -750,6 +798,93 @@ export async function searchAndAddLeads(
         code: "NOT_FOUND",
         message: "No relevant X leads passed AI screening for this query.",
       });
+    }
+
+    } catch (pipelineError) {
+      // ── Fallback salvage: insert whatever we found so far ────────────────
+      // If something broke mid-pipeline, we still have candidates. Insert them
+      // so the user isn't left empty-handed. Screened leads are preferred, but
+      // if screening failed, we fall back to raw discovered candidates.
+      const salvageCandidates = screenedCandidates.length > 0
+        ? screenedCandidates
+        : allDiscoveredCandidates;
+
+      if (salvageCandidates.length > 0) {
+        console.warn("[search][salvage] Pipeline error, salvaging", salvageCandidates.length, "candidates");
+
+        try {
+          const salvageProfiles = salvageCandidates.map((c) => ({
+            ...toXProfileFromCandidate(c),
+            samplePosts: getCandidateSampleTexts(c),
+            source: c.discoverySource,
+          }));
+
+          const salvageLeads = await addProfilesToProject({
+            userId,
+            projectId: project.id,
+            profiles: salvageProfiles,
+            discoverySource: "profile_search",
+            discoveryQuery: input.query,
+          });
+
+
+          trace.addStep(await emitStep(progress, {
+            id: "salvage",
+            title: "Partial Results Saved",
+            summary: `An error occurred mid-pipeline. We saved ${salvageLeads.length} leads that were already found.`,
+            status: "warning",
+            provider: discoveryProvider.provider,
+            bullets: [
+              "Sorry, something went wrong during the search pipeline.",
+              `We saved ${salvageLeads.length} leads we had already found/parsed into your campaign.`,
+              "These results may be less filtered than usual, but they're still real accounts matching your query.",
+              "You can run the search again to find more leads.",
+            ],
+            metrics: [
+              { label: "Salvaged leads", value: salvageLeads.length },
+              { label: "Screened", value: screenedCandidates.length },
+              { label: "Raw discovered", value: allDiscoveredCandidates.length },
+            ],
+            tools: [],
+          }));
+
+          const finalTrace = trace.build(
+            `Partial results: saved ${salvageLeads.length} leads after a pipeline error.`,
+            "warning",
+          );
+
+          await recordProjectRun({
+            projectId: project.id,
+            operationType: "search",
+            requestedProvider: provider,
+            discoveryProvider: discoveryProvider.provider,
+            lookupProvider: provider,
+            networkProvider: provider,
+            tweetsProvider: provider,
+            query: input.query,
+            seedUsername: input.followerUsername?.replace(/^@/, ""),
+            minFollowers: input.minFollowers,
+            targetLeadCount: input.targetLeadCount,
+            leadCount: salvageLeads.length,
+            traceData: finalTrace,
+            status: "partial",
+          });
+
+          return {
+            leads: salvageLeads,
+            project: {
+              ...project,
+              sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
+            },
+            trace: finalTrace,
+          };
+        } catch (salvageError) {
+          console.error("[search][salvage] Failed to save partial results:", salvageError);
+        }
+      }
+
+      // If salvage also failed or there were no candidates, rethrow
+      throw pipelineError;
     }
 
     const finalCandidates = screenedCandidates;

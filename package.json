@@ -31,6 +31,7 @@
     "@trpc/client": "11",
     "@trpc/react-query": "11",
     "@trpc/server": "11",
+    "@turbopuffer/turbopuffer": "^1.21.0",
     "better-auth": "^1.5.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

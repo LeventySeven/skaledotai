@@ -98,6 +98,8 @@ export type XDiscoveryInput = {
   goalCount?: number;
   attempt?: number;
   maxAttempts?: number;
+  /** User ID for lead memory lookups (TurboPuffer) */
+  userId?: string;
   traceRecorder?: (step: ProjectRunTraceStep) => void | Promise<void>;
   snapshotRecorder?: (snapshot: SearchRunStreamSnapshot) => void | Promise<void>;
   /** Callback to capture the planner's interpreted search context (roleTerms, bioTerms, antiGoals) */
