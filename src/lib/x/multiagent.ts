@@ -73,9 +73,9 @@ const MULTIAGENT_MIN_URLS = 40;
 const MULTIAGENT_MAX_URLS = 250;
 const MULTIAGENT_MIN_BATCH_SIZE = 8;
 const MULTIAGENT_MAX_BATCH_SIZE = 24;
-const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 60_000;
+const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 180_000;
 const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
-const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 120_000;
+const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 180_000;
 
 const mergeUniqueStrings = (left: string[], right: string[]): string[] => {
   const merged = [...left];
@@ -1496,7 +1496,7 @@ async function semanticMatchViaAI(
     : "";
 
   try {
-    const result = await withTimeout("OpenAI planner", 30_000, () => model.invoke([
+    const result = await withTimeout("OpenAI planner", 180_000, () => model.invoke([
       `Does each person semantically match "${niche}"?`,
       "Check their display name, bio, and website. Match broadly — if the user is looking for designers,",
       "then product designers, motion designers, heads of design, etc. all match.",

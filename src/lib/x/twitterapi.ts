@@ -6,7 +6,7 @@ import { parseJsonResponse, tryParseJsonText } from "./json";
 import type { XDataClient, XProfilesPage, XPostSearchResult, XResolvedTweet } from "./types";
 import { XProviderRuntimeError } from "./types";
 
-const TWITTERAPI_FETCH_TIMEOUT_MS = 30_000;
+const TWITTERAPI_FETCH_TIMEOUT_MS = 180_000;
 
 const TWITTERAPI_BASE = "https://api.twitterapi.io";
 
