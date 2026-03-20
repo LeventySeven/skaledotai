@@ -90,6 +90,10 @@ function resolveNodeTools(
     return ["AgentQL", "TwitterAPI.io"];
   }
 
+  if (nodeName === "lead_memory") {
+    return ["TurboPuffer"];
+  }
+
   if (nodeName === "grok_search") {
     return ["Grok API"];
   }
@@ -192,6 +196,31 @@ export function buildMultiAgentTraceStep(
       metrics: [
         ...attemptMetric,
         { label: "Candidates", value: candidates.length },
+      ],
+    };
+  }
+
+  if (nodeName === "lead_memory") {
+    const candidates = update.candidates ?? [];
+    return {
+      id: `multiagent-${index}-${nodeName}`,
+      title: MULTIAGENT_NODE_TITLES[nodeName],
+      summary: candidates.length > 0
+        ? `Recalled ${candidates.length} leads from memory.`
+        : "No matching leads found in memory.",
+      status: candidates.length > 0 ? "success" : "warning",
+      subagent: update.activeSubagent,
+      provider: "multiagent",
+      tools,
+      bullets: candidates.length > 0
+        ? [
+          `${candidates.length} previously seen leads matched the query.`,
+          ...candidates.slice(0, 3).map((c) => `@${c.account.handle}: ${c.account.bio.slice(0, 80)}${c.account.bio.length > 80 ? "..." : ""}`),
+        ]
+        : ["No leads recalled from memory — fresh discovery will proceed."],
+      metrics: [
+        ...attemptMetric,
+        { label: "Memory hits", value: candidates.length },
       ],
     };
   }

@@ -3,6 +3,7 @@ import type { XProviderRuntimeError } from "./types";
 
 export const MULTIAGENT_NODE_TITLES = {
   planner: "Planner",
+  lead_memory: "Lead Memory",
   people_search: "People Search",
   grok_search: "Grok X-Search",
   source_fanout: "Source Fanout",

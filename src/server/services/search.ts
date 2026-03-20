@@ -44,6 +44,11 @@ import {
   X_PROVIDER_NETWORK_PAGE_SIZE,
 } from "@/lib/constants";
 import { toXProviderTrpcError } from "@/lib/x/error-handling";
+import {
+  searchLeadMemory,
+  mapMemoryHitToCandidate,
+  upsertLeadMemoryRows,
+} from "./lead-memory";
 
 type CanonicalCandidate = XProfile & {
   samplePosts: string[];
@@ -467,6 +472,7 @@ async function discoverCandidatesWithProviderOwnedLoop(
   targetLeadCount: number,
   parseAccountsTarget: number,
   progress?: SearchProgressHandlers,
+  userId?: string,
 ): Promise<DiscoveryResult> {
   const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
   const goalCount = getDiscoveryCandidateGoal(targetLeadCount);
@@ -484,6 +490,7 @@ async function discoverCandidatesWithProviderOwnedLoop(
   const candidates = await discoveryProvider.discoverCandidates({
     niche: query,
     seedHandle,
+    userId,
     limit: parseAccountsTarget,
     minFollowers: discoveryMinFollowers,
     targetLeadCount,
@@ -595,6 +602,44 @@ export async function searchAndAddLeads(
       onSnapshot: progress.onSnapshot,
     } : undefined;
 
+    // ── Lead Memory: Search TurboPuffer first ────────────────────────────────
+    // If we already have high-quality leads from previous searches, use them
+    // to seed the known pool and reduce how many new leads we need to find.
+    const knownHandles = new Set<string>();
+    let screenedCandidates: XLeadCandidate[] = [];
+
+    try {
+      const memoryHits = await searchLeadMemory(userId, input.query, { topK: 30 });
+      if (memoryHits.length > 0) {
+        const memoryCandidates = memoryHits.map((hit) => mapMemoryHitToCandidate(hit, input.query));
+        for (const c of memoryCandidates) {
+          const key = c.account.handle.replace(/^@/, "").toLowerCase();
+          knownHandles.add(key);
+        }
+        // Pre-seed screened candidates with memory hits
+        screenedCandidates = memoryCandidates;
+
+        trace.addStep(await emitStep(progress, {
+          id: "lead-memory",
+          title: "Lead Memory Lookup",
+          summary: `Found ${memoryHits.length} previously seen leads in memory.`,
+          status: memoryHits.length > 0 ? "success" : "warning",
+          provider: "multiagent",
+          tools: ["TurboPuffer"],
+          bullets: [
+            `${memoryHits.length} leads recalled from previous searches.`,
+            `${targetLeadCount - screenedCandidates.length} more needed from fresh discovery.`,
+          ],
+          metrics: [
+            { label: "Memory hits", value: memoryHits.length },
+            { label: "Remaining target", value: Math.max(0, targetLeadCount - screenedCandidates.length) },
+          ],
+        }));
+      }
+    } catch (error) {
+      console.warn("[search][lead-memory] Lookup failed (non-fatal):", error instanceof Error ? error.message : String(error));
+    }
+
     // ── Discover → Screen → Check → Loop architecture ──────────────────────────
     // Screening happens IN THE MIDDLE of the pipeline, not at the end.
     // After each pass: discover candidates → screen for relevance → check count.
@@ -602,8 +647,6 @@ export async function searchAndAddLeads(
     // This ensures the user gets both ACCURACY and QUANTITY.
 
     const MAX_SEARCH_PASSES = 6;
-    const knownHandles = new Set<string>();
-    let screenedCandidates: XLeadCandidate[] = [];
     let latestInterpretation: SearchInterpretation | undefined;
     let totalDiscovered = 0;
     let totalScreenedPool = 0;
@@ -630,6 +673,7 @@ export async function searchAndAddLeads(
           passTarget,
           passParseTarget,
           progressWithPersistence,
+          userId,
         )
         : await discoverCandidatesUntilGoal(
           discoveryProvider,
@@ -843,6 +887,20 @@ export async function searchAndAddLeads(
       ],
       tools: [],
     }));
+
+    // ── Lead Memory: Upsert qualifying leads into TurboPuffer ──────────────
+    // Non-blocking — if TurboPuffer fails, search still succeeds.
+    try {
+      const memoryResult = await upsertLeadMemoryRows(userId, finalCandidates, input.query);
+      if (memoryResult.synced > 0) {
+        console.log("[search][lead-memory] upsert success", JSON.stringify({
+          synced: memoryResult.synced,
+          skipped: memoryResult.skipped,
+        }));
+      }
+    } catch (error) {
+      console.warn("[search][lead-memory] upsert failed (non-fatal):", error instanceof Error ? error.message : String(error));
+    }
 
     const operationProviders = resolveSearchOperationProviders(provider, lookupResolution.effectiveProvider);
 
