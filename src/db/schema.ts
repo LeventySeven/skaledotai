@@ -203,6 +203,8 @@ export const internalLeads = pgTable("internal_leads", {
   deliverables: text("deliverables").array().notNull().default([]),
   url: text("url"),
   email: text("email"),
+  site: text("site"), // personal website / portfolio
+  linkedinUrl: text("linkedin_url"),
   price: integer("price"), // cents
   notes: text("notes"),
 
