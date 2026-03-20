@@ -185,11 +185,11 @@ export function getSearchQueryTerms(query: string): string[] {
 }
 
 function buildSearchCandidateText(candidate: SearchScreeningCandidate): string {
+  // Only use nickname, bio, and handle for search lead filtering — no posts
   return [
     candidate.displayName,
     candidate.username,
     candidate.bio,
-    candidate.samplePosts?.join(" ") ?? "",
   ]
     .join(" ")
     .toLowerCase();
@@ -247,11 +247,10 @@ export function getFallbackSearchScore(query: string, candidate: SearchScreening
   const personSignal = hasPersonSignal(candidate, haystack);
   const hasWeakNonLeadSignal = hasNonLeadSignal(candidate, haystack);
   const isOrgAccount = SEARCH_ORG_TERMS.some((term) => haystack.includes(term));
-  const postScore = candidate.samplePosts?.length ? 10 : 0;
 
   // Phrase matches are the primary signal. Single words are weaker but still count.
   // Goal: keep ALL relevant leads. Only reject if there's truly no match.
-  let score = Math.min(55, matchedPhrases * 22) + Math.min(12, matchedSingleWords * 4) + postScore;
+  let score = Math.min(60, matchedPhrases * 25) + Math.min(15, matchedSingleWords * 5);
   if (personSignal) score += 12;
   if (!personSignal) score -= 8;
   if (isOrgAccount) score -= 25;
@@ -285,13 +284,13 @@ export function getFallbackScreeningDecisions(
   const queryTerms = getSearchQueryTerms(query);
   return candidates.map((candidate) => {
     const score = getFallbackSearchScore(query, candidate);
-    const haystack = [candidate.displayName, candidate.username, candidate.bio, candidate.samplePosts?.join(" ") ?? ""].join(" ").toLowerCase();
+    const haystack = [candidate.displayName, candidate.username, candidate.bio].join(" ").toLowerCase();
     const matched = queryTerms.filter((term) => haystack.includes(term)).slice(0, 3);
     return {
       profileId: candidate.xUserId,
       include: score >= SEARCH_FALLBACK_SCORE_THRESHOLD,
       score,
-      reason: matched.length > 0 ? `Bio/posts contain: ${matched.map((t) => `"${t}"`).join(", ")}` : "",
+      reason: matched.length > 0 ? `Bio/name contain: ${matched.map((t) => `"${t}"`).join(", ")}` : "",
     };
   });
 }

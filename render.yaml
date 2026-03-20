@@ -24,6 +24,8 @@ services:
         sync: false
       - key: AGENTQL_API_KEY
         sync: false
+      - key: XAI_API_KEY
+        sync: false
       - key: TWITTERAPI_IO_KEY
         sync: false
       - key: MULTIAGENT_SERVICE_SHARED_SECRET

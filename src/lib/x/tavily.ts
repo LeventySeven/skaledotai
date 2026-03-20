@@ -47,7 +47,7 @@ export function buildTavilySearchRequest(
     query: enhancedQuery,
     search_depth: "advanced",
     include_domains: ["x.com", "twitter.com"],
-    max_results: 20,
+    max_results: 30,
   };
 }
 

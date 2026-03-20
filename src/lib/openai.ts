@@ -223,7 +223,6 @@ export async function rankProfilesForQuery(
         handle: `@${c.username}`,
         name: c.displayName,
         bio: c.bio,
-        posts: c.samplePosts?.slice(0, 3) ?? [],
       })),
     }),
     fallback: { profileIds: fallback },
@@ -278,7 +277,6 @@ export async function screenProfilesForLeadSearchDetailed(
     };
   }
 
-  const selectedScores = new Map<string, number>();
   const selectedReasons = new Map<string, string>();
   const batchSummaries: Array<{
     candidateCount: number;
@@ -286,39 +284,23 @@ export async function screenProfilesForLeadSearchDetailed(
     usedFallback: boolean;
   }> = [];
 
-  // Build context-specific decision criteria from the planner's interpretation
-  const hasInterpretation = interpretation && (interpretation.roleTerms.length > 0 || interpretation.antiGoals.length > 0);
-
-  const criteriaBlock = hasInterpretation
-    ? [
-      "",
-      "DECISION CRITERIA (from planner — these define what matches and what doesn't for THIS specific query):",
-      interpretation!.roleTerms.length > 0
-        ? `Include if the person is: ${interpretation!.roleTerms.slice(0, 12).join(", ")}.`
-        : "",
-      interpretation!.bioTerms.length > 0
-        ? `Bio signals that indicate a match: ${interpretation!.bioTerms.slice(0, 10).join(", ")}.`
-        : "",
-      interpretation!.antiGoals.length > 0
-        ? `REJECT if the person is: ${interpretation!.antiGoals.join(", ")}. These are different roles.`
-        : "",
-    ].filter(Boolean).join("\n")
+  // Build context hints from planner interpretation
+  const roleHint = interpretation?.roleTerms?.length
+    ? `Matching roles: ${interpretation.roleTerms.slice(0, 10).join(", ")}.`
+    : "";
+  const antiHint = interpretation?.antiGoals?.length
+    ? `NOT these: ${interpretation.antiGoals.join(", ")}.`
     : "";
 
-  const screeningPrompt = `Verify pre-screened X/Twitter profiles against the search query. These candidates already passed an initial relevance check. Your job is to keep ONLY genuinely relevant leads.
+  const screeningPrompt = `For each profile, answer: does this person semantically match "${query}"?
+Check ONLY their display name, bio, and website. Match broadly — synonyms, related titles, and variations all count.
+For example if looking for "designers", then product designers, motion designers, UX designers, heads of design all match.
+Only reject if clearly a different field, an organization/brand, or no relevant signal at all.
+${roleHint}
+${antiHint}
 
-YOUR GOAL: Include leads who ACTUALLY hold the queried role or work directly in the queried niche. Quality over quantity — irrelevant leads in the final list are worse than missing a borderline match.
-
-RULES:
-1. Include ONLY if the person's bio, display name, or posts contain SPECIFIC evidence they hold the queried role or a close synonym. A "Product Designer" query should find product designers, not random people who mentioned "product" once.
-2. REJECT if: (a) different role even if adjacent (a "UX Researcher" is NOT a "Product Designer"), (b) organization/company/brand account, (c) only tangential keyword overlap with no role match, (d) the keyword appears in a different context (e.g. "product manager" is not "product designer").
-3. Display name IS valid evidence (e.g. "Sarah | Product Designer"). Bio keywords ARE valid evidence. A single keyword in a post without bio confirmation is NOT enough.
-4. Follower count is irrelevant.
-5. When in doubt, REJECT. It is better to have fewer, highly relevant leads than many loosely related ones.
-${criteriaBlock}
-
-Score: 80-100 clearly holds the exact role with bio/name proof, 50-79 likely match with at least one strong signal, below 50 set include=false.
-Reason: quote the specific part of bio/name/posts that proves relevance. 1-2 sentences.`;
+For each candidate set include=true if they match, include=false if not. Score 70 for matches, 0 for non-matches.
+Reason: one short sentence explaining the match or rejection.`;
 
   const batches = chunk(prefilteredCandidates, SEARCH_AI_BATCH_SIZE);
 
@@ -341,7 +323,6 @@ Reason: quote the specific part of bio/name/posts that proves relevance. 1-2 sen
             name: candidate.displayName,
             bio: candidate.bio,
             website: websiteMatch?.[0] ?? null,
-            posts: candidate.samplePosts?.slice(0, 2) ?? [],
           };
         }),
       }),
@@ -353,21 +334,16 @@ Reason: quote the specific part of bio/name/posts that proves relevance. 1-2 sen
     return { batch, validIds, result };
   }));
 
+  const selectedIds: string[] = [];
+
   for (const { batch, validIds, result } of batchResults) {
     let includedCount = 0;
 
     for (const decision of result.data.decisions) {
       if (!validIds.has(decision.profileId) || !decision.include) continue;
-      // Strict threshold — only keep leads the model is confident about.
-      // Pre-screening already removed obvious mismatches, so anything reaching here
-      // with a low score is a borderline case that would pollute the final list.
-      if (decision.score < 50) continue;
-      const current = selectedScores.get(decision.profileId) ?? -1;
-      if (decision.score > current) {
-        selectedScores.set(decision.profileId, decision.score);
-        if (decision.reason) {
-          selectedReasons.set(decision.profileId, decision.reason);
-        }
+      selectedIds.push(decision.profileId);
+      if (decision.reason) {
+        selectedReasons.set(decision.profileId, decision.reason);
       }
       includedCount += 1;
     }
@@ -378,18 +354,6 @@ Reason: quote the specific part of bio/name/posts that proves relevance. 1-2 sen
       usedFallback: result.usedFallback,
     });
   }
-
-  // Keep ALL relevant leads — more relevant leads = better. No artificial cap.
-  const selectedIds = prefilteredCandidates
-    .filter((candidate) => selectedScores.has(candidate.xUserId))
-    .sort((a, b) => {
-      const scoreDiff = (selectedScores.get(b.xUserId) ?? 0) - (selectedScores.get(a.xUserId) ?? 0);
-      if (scoreDiff !== 0) return scoreDiff;
-      // Tiebreaker: prefer candidates with sample posts (active niche participation)
-      const postDiff = (b.samplePosts?.length ?? 0) - (a.samplePosts?.length ?? 0);
-      return postDiff || b.bio.length - a.bio.length;
-    })
-    .map((candidate) => candidate.xUserId);
 
   return {
     selectedIds: selectedIds.length > 0

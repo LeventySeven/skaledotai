@@ -208,14 +208,8 @@ function getDiscoveryMinFollowers(provider: XDataProvider, minFollowers: number)
 }
 
 function byRelevanceDesc(a: XLeadCandidate, b: XLeadCandidate): number {
-  // Prefer candidates with posts (active niche participation) over those with just a profile
-  const postDiff = b.posts.length - a.posts.length;
-  if (postDiff !== 0) return postDiff;
-  // Then prefer candidates with longer bios (more identity signal)
-  const bioDiff = b.account.bio.length - a.account.bio.length;
-  return bioDiff;
-  // NOTE: follower count is intentionally NOT used as a tiebreaker — it biases toward
-  // high-follower accounts that are often irrelevant (CEOs, companies, influencers).
+  // Prefer candidates with longer bios (more identity signal)
+  return b.account.bio.length - a.account.bio.length;
 }
 
 function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
@@ -234,30 +228,16 @@ function dedupeCandidates(candidates: XLeadCandidate[]): XLeadCandidate[] {
 }
 
 function buildScreeningPool(candidates: XLeadCandidate[], _targetLeadCount: number): XLeadCandidate[] {
-  // Send ALL discovered candidates to AI screening — more relevant leads = better.
-  // The AI screener will reject irrelevant ones. No artificial pre-screening cap.
-  const seen = new Set<string>();
-  const pool: XLeadCandidate[] = [];
-
-  function push(candidate: XLeadCandidate): void {
-    const key = candidate.account.handle.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    pool.push(candidate);
+  // Dedupe by handle, prefer longer bios. No post-based prioritization.
+  const seen = new Map<string, XLeadCandidate>();
+  for (const candidate of candidates) {
+    const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
+    const existing = seen.get(key);
+    if (!existing || candidate.account.bio.length > existing.account.bio.length) {
+      seen.set(key, candidate);
+    }
   }
-
-  // Priority 1: candidates with posts (evidence of active niche participation)
-  for (const candidate of candidates.filter((candidate) => candidate.posts.length > 0)) push(candidate);
-  // Priority 2: candidates with substantive bios (identity signal)
-  for (const candidate of candidates.filter((candidate) => candidate.account.bio.trim().length >= 30)) push(candidate);
-  // Priority 3: reply/profile search sources (direct niche discovery)
-  for (const candidate of candidates.filter((candidate) => candidate.discoverySource === "profile_search" || candidate.discoverySource === "reply_search")) {
-    push(candidate);
-  }
-  // Priority 4: all remaining candidates
-  for (const candidate of candidates) push(candidate);
-
-  return pool;
+  return [...seen.values()];
 }
 
 function toScreeningCandidate(candidate: XLeadCandidate): XProfile & { samplePosts: string[]; source: string } {
@@ -621,7 +601,7 @@ export async function searchAndAddLeads(
     // If not enough relevant leads, discover MORE (new ones, not duplicates).
     // This ensures the user gets both ACCURACY and QUANTITY.
 
-    const MAX_SEARCH_PASSES = 4;
+    const MAX_SEARCH_PASSES = 6;
     const knownHandles = new Set<string>();
     let screenedCandidates: XLeadCandidate[] = [];
     let latestInterpretation: SearchInterpretation | undefined;
@@ -695,7 +675,7 @@ export async function searchAndAddLeads(
           ...(pass > 1 ? [{ label: "Leads so far", value: screenedCandidates.length }] : []),
         ],
         tools: discoveryProvider.provider === "multiagent"
-          ? ["OpenAI", "Tavily", "AgentQL"]
+          ? ["OpenAI", "Tavily", "AgentQL", "Grok API"]
           : [],
       }));
 

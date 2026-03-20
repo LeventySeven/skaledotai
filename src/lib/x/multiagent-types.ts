@@ -4,6 +4,7 @@ import type { XProviderRuntimeError } from "./types";
 export const MULTIAGENT_NODE_TITLES = {
   planner: "Planner",
   people_search: "People Search",
+  grok_search: "Grok X-Search",
   source_fanout: "Source Fanout",
   scraper: "Scraper",
   scorer: "Scorer",
@@ -24,7 +25,7 @@ export const MULTIAGENT_SUBAGENT_TITLES = {
   recovery: "Recovery",
 } as const;
 
-export const MULTIAGENT_MAX_QUERIES = 8;
+export const MULTIAGENT_MAX_QUERIES = 12;
 
 export type MultiAgentNodeName = keyof typeof MULTIAGENT_NODE_TITLES;
 export type MultiAgentSubagentName = keyof typeof MULTIAGENT_SUBAGENT_TITLES;

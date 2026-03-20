@@ -2,18 +2,18 @@
 export const SEARCH_TARGET_MIN = 1;
 export const SEARCH_TARGET = 100;
 export const SEARCH_TARGET_MAX = 300;
-export const SEARCH_CANDIDATE_OVERFETCH_FACTOR = 3;
-export const SEARCH_CANDIDATE_POOL_LIMIT = 1200;
+export const SEARCH_CANDIDATE_OVERFETCH_FACTOR = 4;
+export const SEARCH_CANDIDATE_POOL_LIMIT = 2000;
 export const SEARCH_POST_SEARCH_PAGE_LIMIT = 2;
-export const SEARCH_AI_BATCH_SIZE = 30;
+export const SEARCH_AI_BATCH_SIZE = 40;
 export const SEARCH_DISCOVERY_METADATA = {
-  parseAccountsTarget: 350,
-  retryParseAccountsTarget: 350,
-  minimumFinalLeadsBeforeRetry: 15,
-  // With strict pre-screening, ~40-60% of candidates may be filtered.
-  // Overfetch 3x to ensure enough survive screening to meet the target.
-  candidateGoalOverfetchFactor: 3,
-  maxAttempts: 5,
+  parseAccountsTarget: 500,
+  retryParseAccountsTarget: 500,
+  minimumFinalLeadsBeforeRetry: 10,
+  // Simple semantic filtering passes more candidates through.
+  // Overfetch 4x to ensure enough volume to meet the target.
+  candidateGoalOverfetchFactor: 4,
+  maxAttempts: 7,
 } as const;
 export const NETWORK_TARGET = 1000;
 export const X_PROVIDER_SEARCH_USERS_LIMIT = 200;

@@ -27,6 +27,7 @@ import {
   searchTavilyWithExclusions,
   normalizeDiscoveredUrls,
 } from "./tavily";
+import { searchGrokXUsers, isGrokConfigured } from "./grok";
 import {
   queryAgentQl,
   queryAgentQlBestEffort,
@@ -67,11 +68,11 @@ export type { MultiAgentStateSnapshot } from "./multiagent-trace";
 export { buildTavilySearchRequest, normalizeDiscoveredUrls } from "./tavily";
 export { buildAgentQlQueryRequest } from "./agentql";
 
-const MULTIAGENT_MIN_QUERIES = 4;
-const MULTIAGENT_MIN_URLS = 20;
-const MULTIAGENT_MAX_URLS = 160;
-const MULTIAGENT_MIN_BATCH_SIZE = 4;
-const MULTIAGENT_MAX_BATCH_SIZE = 16;
+const MULTIAGENT_MIN_QUERIES = 6;
+const MULTIAGENT_MIN_URLS = 40;
+const MULTIAGENT_MAX_URLS = 250;
+const MULTIAGENT_MIN_BATCH_SIZE = 8;
+const MULTIAGENT_MAX_BATCH_SIZE = 24;
 const DEFAULT_MULTIAGENT_PLANNER_TIMEOUT_MS = 60_000;
 const MIN_MULTIAGENT_PLANNER_TIMEOUT_MS = 5_000;
 const MAX_MULTIAGENT_PLANNER_TIMEOUT_MS = 120_000;
@@ -622,9 +623,9 @@ function buildGoogleDorkQueries(input: {
 function resolveMultiAgentQueryBudget(input: Pick<XDiscoveryInput, "goalCount" | "targetLeadCount" | "limit">): number {
   const requestedCount = input.goalCount ?? input.targetLeadCount ?? input.limit;
   // More queries = more diverse candidate sources. Scale with target.
-  if (requestedCount >= 220) return 10;
-  if (requestedCount >= 120) return 8;
-  if (requestedCount >= 60) return 6;
+  if (requestedCount >= 200) return 12;
+  if (requestedCount >= 100) return 10;
+  if (requestedCount >= 50) return 8;
   return MULTIAGENT_MIN_QUERIES;
 }
 
@@ -673,8 +674,8 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
 function resolveMultiAgentUrlLimit(limit: number, goalCount?: number): number {
   const requested = Math.max(limit, goalCount ?? 0);
   // Scale URL budget with target: more leads requested → more URLs to scrape.
-  // Factor 0.4 means 100-lead target → 40 URLs, 300-lead target → 120 URLs.
-  return Math.max(MULTIAGENT_MIN_URLS, Math.min(MULTIAGENT_MAX_URLS, Math.ceil(requested * 0.4)));
+  // Factor 0.6 means 100-lead target → 60 URLs, 300-lead target → 180 URLs.
+  return Math.max(MULTIAGENT_MIN_URLS, Math.min(MULTIAGENT_MAX_URLS, Math.ceil(requested * 0.6)));
 }
 
 function resolveMultiAgentScrapeBatchSize(limit: number, goalCount?: number): number {
@@ -772,42 +773,6 @@ function extractKeywords(niche: string): string[] {
   return [...new Set(phrases)];
 }
 
-function clampScore(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function scoreCandidateHeuristically(niche: string, candidate: XLeadCandidate): { score: number; reasons: string[] } {
-  const keywords = extractKeywords(niche);
-  // Include display name + bio + handle — display names like "Gaga | Product Designer" are strong signals
-  const profileText = normalizeText([candidate.account.name, candidate.account.bio, candidate.account.handle].join(" "));
-  const postTexts = candidate.posts.slice(0, 15).map((post) => normalizeText(post.text));
-
-  const phraseKeywords = keywords.filter((kw) => kw.includes(" "));
-  const singleKeywords = keywords.filter((kw) => !kw.includes(" "));
-  const profilePhraseHits = phraseKeywords.filter((kw) => profileText.includes(kw)).length;
-  const profileWordHits = singleKeywords.filter((kw) => profileText.includes(kw)).length;
-
-  // Phrases worth 20 each, single words worth 3 each
-  const profileScore = Math.min(60, profilePhraseHits * 20 + profileWordHits * 3);
-
-  // Post relevance — phrase matches in posts confirm the role
-  const postPhraseHits = postTexts.filter((text) => phraseKeywords.some((kw) => text.includes(kw))).length;
-  const postScore = Math.min(30, postPhraseHits * 10);
-
-  const rawScore = profileScore + postScore;
-  // No phrase match → hard penalty. Single-word matches alone are weak signals
-  // that let irrelevant profiles leak through (e.g. "product" appearing anywhere).
-  const hasAnyPhraseMatch = profilePhraseHits > 0 || postPhraseHits > 0;
-  const score = clampScore(hasAnyPhraseMatch ? rawScore : Math.max(0, Math.floor(rawScore * 0.3)));
-
-  const reasons: string[] = [];
-  if (profilePhraseHits > 0) reasons.push(`Profile contains: ${phraseKeywords.filter((kw) => profileText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
-  else if (profileWordHits > 0) reasons.push(`Profile mentions: ${singleKeywords.filter((kw) => profileText.includes(kw)).slice(0, 3).map((k) => `"${k}"`).join(", ")}`);
-  if (postPhraseHits > 0) reasons.push(`${postPhraseHits} post(s) discuss the niche`);
-
-  return { score, reasons };
-}
-
 function extractBioWebsiteUrl(bio: string): string | null {
   const urlMatch = bio.match(/https?:\/\/[^\s,)]+/i);
   if (urlMatch) return urlMatch[0];
@@ -815,28 +780,6 @@ function extractBioWebsiteUrl(bio: string): string | null {
   const domainMatch = bio.match(/\b([a-z0-9][-a-z0-9]*\.(com|io|co|dev|app|xyz|ai|org|net|me|so|gg))\b/i);
   if (domainMatch) return `https://${domainMatch[1]}`;
   return null;
-}
-
-async function scrapeWebsiteForEvidence(
-  url: string,
-  niche: string,
-  keywords: string[],
-): Promise<SelectionEvidence | null> {
-  try {
-    const payload = await queryAgentQlBestEffort(url, "discovery");
-    if (!payload) return null;
-    const text = JSON.stringify(payload).toLowerCase().slice(0, 3000);
-    const matched = keywords.filter((kw) => text.includes(kw)).slice(0, 3);
-    if (matched.length === 0) return null;
-    const snippet = text.slice(0, 200).replace(/["\n\r]/g, " ").trim();
-    return {
-      source: "bio" as const,
-      snippet: `Website (${url}): ${snippet}...`,
-      whyItAligns: `Website contains: ${matched.map((h) => `"${h}"`).join(", ")}`,
-    };
-  } catch {
-    return null;
-  }
 }
 
 function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): SelectionEvidence[] {
@@ -863,27 +806,6 @@ function extractSelectionEvidence(niche: string, candidate: XLeadCandidate): Sel
     }
   }
 
-  // Post evidence — only posts with actual niche keyword matches
-  const nicheMatchingPosts = candidate.posts
-    .filter((post) => {
-      const text = normalizeText(post.text);
-      return keywords.some((kw) => kw.includes(" ") ? text.includes(kw) : text.includes(kw));
-    })
-    .slice(0, 2);
-
-  for (const post of nicheMatchingPosts) {
-    const postSnippet = post.text.length > 180
-      ? post.text.slice(0, 180) + "..."
-      : post.text;
-    const postText = normalizeText(post.text);
-    const matched = keywords.filter((kw) => postText.includes(kw)).slice(0, 3);
-    evidence.push({
-      source: "post",
-      snippet: postSnippet,
-      whyItAligns: `Post contains: ${matched.map((h) => `"${h}"`).join(", ")}`,
-    });
-  }
-
   // Handle signal — only phrase-level matches (not single words)
   const handleText = normalizeText(candidate.account.handle);
   const handleHits = keywords.filter((kw) => handleText.includes(kw));
@@ -905,8 +827,8 @@ function sortScoredCandidates(items: ScoredCandidate[]): ScoredCandidate[] {
     // Tiebreaker: prefer candidates with more evidence pieces (deeper niche fit)
     const evidenceDiff = (right.evidence?.length ?? 0) - (left.evidence?.length ?? 0);
     if (evidenceDiff !== 0) return evidenceDiff;
-    // Final tiebreaker: prefer candidates with posts (active participation)
-    return right.candidate.posts.length - left.candidate.posts.length;
+    // Final tiebreaker: prefer candidates with longer bios
+    return right.candidate.account.bio.length - left.candidate.account.bio.length;
   });
 }
 
@@ -1212,13 +1134,13 @@ function normalizeCandidatesFromScrapedState(state: typeof MultiAgentState.State
     uniqueCandidates: byHandle.size,
   }));
 
-  // Sort by bio/post relevance to the niche, not by follower count
+  // Sort by bio/name relevance to the niche, not by follower count or posts
   const keywords = extractKeywords(state.niche);
   return [...byHandle.values()].sort((left, right) => {
-    const leftRelevance = keywords.filter((kw) => normalizeText([left.account.bio, ...left.posts.map((p) => p.text)].join(" ")).includes(kw)).length;
-    const rightRelevance = keywords.filter((kw) => normalizeText([right.account.bio, ...right.posts.map((p) => p.text)].join(" ")).includes(kw)).length;
+    const leftRelevance = keywords.filter((kw) => normalizeText([left.account.name, left.account.bio, left.account.handle].join(" ")).includes(kw)).length;
+    const rightRelevance = keywords.filter((kw) => normalizeText([right.account.name, right.account.bio, right.account.handle].join(" ")).includes(kw)).length;
     if (rightRelevance !== leftRelevance) return rightRelevance - leftRelevance;
-    return right.posts.length - left.posts.length;
+    return right.account.bio.length - left.account.bio.length;
   });
 }
 
@@ -1495,16 +1417,15 @@ const sourceResearchSubgraph = new StateGraph(SourceResearchSubgraphState)
   .addEdge("source_researcher", END)
   .compile();
 
-// ── Lightweight AI pre-screen ────────────────────────────────────────────────
-// Runs inside the scorer node to filter obvious non-matches BEFORE they
-// accumulate in the candidate pool and influence the validator's goal-reached
-// decision. Uses the planner model (already warm) with a small structured output.
+// ── Simple semantic match ─────────────────────────────────────────────────────
+// For each candidate, check ONLY their nickname, bio, and website against the
+// query. Two questions: does the follower count pass? Does the profile
+// semantically match the user's query? That's it — no posts, no complex scoring.
 
-const PreScreenDecisionSchema = z.object({
+const SemanticMatchSchema = z.object({
   decisions: z.array(z.object({
     handle: z.string(),
-    relevant: z.boolean(),
-    confidence: z.number().min(0).max(100),
+    match: z.boolean(),
   })),
 }).strict();
 
@@ -1514,75 +1435,88 @@ type SearchContext = {
   antiGoals: string[];
 };
 
-async function preScreenCandidates(
+async function semanticMatchCandidates(
   niche: string,
-  candidates: Array<{ candidate: XLeadCandidate; heuristic: { score: number; reasons: string[] }; evidence: SelectionEvidence[] }>,
+  candidates: XLeadCandidate[],
   context?: SearchContext,
 ): Promise<Set<string>> {
   if (candidates.length === 0) return new Set();
 
-  const model = getPlannerModel({ reasoning: true }).withStructuredOutput(PreScreenDecisionSchema, { name: "lead_pre_screen" });
+  // Fast heuristic pass first — if bio/name clearly contains role terms, accept immediately
+  const passed = new Set<string>();
+  const needsAiCheck: XLeadCandidate[] = [];
 
-  const candidateSummaries = candidates.map((c) => ({
-    handle: c.candidate.account.handle,
-    name: c.candidate.account.name,
-    bio: c.candidate.account.bio.slice(0, 200),
-    posts: c.candidate.posts.slice(0, 2).map((p) => p.text.slice(0, 120)),
+  const roleTermsLower = (context?.roleTerms ?? []).map((t) => t.toLowerCase());
+  const nicheTerms = extractKeywords(niche);
+  const phraseTerms = nicheTerms.filter((t) => t.includes(" "));
+
+  for (const candidate of candidates) {
+    const profileText = normalizeText([candidate.account.name, candidate.account.bio, candidate.account.handle].join(" "));
+    const hasPhraseMatch = phraseTerms.some((term) => profileText.includes(term));
+    const hasRoleMatch = roleTermsLower.some((term) => profileText.includes(term));
+
+    if (hasPhraseMatch || hasRoleMatch) {
+      // Clear keyword match in bio/name — accept without AI
+      passed.add(candidate.account.handle.replace(/^@/, "").toLowerCase());
+    } else {
+      needsAiCheck.push(candidate);
+    }
+  }
+
+  // For candidates without a clear keyword match, ask AI for semantic matching
+  if (needsAiCheck.length > 0) {
+    const aiPassed = await semanticMatchViaAI(niche, needsAiCheck, context);
+    for (const handle of aiPassed) {
+      passed.add(handle);
+    }
+  }
+
+  return passed;
+}
+
+async function semanticMatchViaAI(
+  niche: string,
+  candidates: XLeadCandidate[],
+  context?: SearchContext,
+): Promise<Set<string>> {
+  const model = getPlannerModel().withStructuredOutput(SemanticMatchSchema, { name: "semantic_match" });
+
+  const summaries = candidates.map((c) => ({
+    handle: c.account.handle,
+    name: c.account.name,
+    bio: c.account.bio.slice(0, 200),
+    website: extractBioWebsiteUrl(c.account.bio),
   }));
 
-  // Build context-specific rules from the planner's interpretation
-  const hasContext = context && (context.roleTerms.length > 0 || context.antiGoals.length > 0);
-
-  const contextRules = hasContext
-    ? [
-      "",
-      "DECISION CRITERIA (from planner — use these as your primary reference):",
-      context!.roleTerms.length > 0
-        ? `A person is relevant if their bio/posts indicate they are: ${context!.roleTerms.slice(0, 10).join(", ")}.`
-        : "",
-      context!.bioTerms.length > 0
-        ? `Look for these bio signals: ${context!.bioTerms.slice(0, 8).join(", ")}.`
-        : "",
-      context!.antiGoals.length > 0
-        ? `A person is NOT relevant if they are: ${context!.antiGoals.join(", ")}. These are different roles — reject them.`
-        : "",
-    ].filter(Boolean).join("\n")
+  const roleHint = context?.roleTerms?.length
+    ? `Matching roles: ${context.roleTerms.slice(0, 8).join(", ")}.`
+    : "";
+  const antiHint = context?.antiGoals?.length
+    ? `NOT these: ${context.antiGoals.slice(0, 5).join(", ")}.`
     : "";
 
   try {
     const result = await withTimeout("OpenAI planner", 30_000, () => model.invoke([
-      `Strict relevance check: does each profile ACTUALLY hold the role "${niche}"?`,
+      `Does each person semantically match "${niche}"?`,
+      "Check their display name, bio, and website. Match broadly — if the user is looking for designers,",
+      "then product designers, motion designers, heads of design, etc. all match.",
+      "Only reject if clearly a different field, an organization, or no relevant signal.",
+      roleHint,
+      antiHint,
       "",
-      "For each profile, check their bio and posts to decide if they genuinely do this work.",
-      "- relevant=true: the person's bio or display name clearly identifies them as this exact role or a close synonym.",
-      "- relevant=false: different role, adjacent role, organization, or no clear evidence in bio/name.",
-      "- confidence: 80-100 bio/name clearly states the role, 60-79 strong indirect evidence, below 60 = set relevant=false.",
-      "",
-      "Key rules:",
-      "- A keyword from the query appearing in a different context is NOT a match.",
-      "- Organizations, communities, newsletters, job boards, brand accounts = always irrelevant.",
-      "- Adjacent roles are NOT the same role. 'UX researcher' is NOT 'product designer'. 'Engineering manager' is NOT 'software engineer'. Be precise.",
-      "- A person who MENTIONS the niche in a post but doesn't HOLD the role is NOT relevant.",
-      "- When in doubt, set relevant=false. Quality matters more than quantity.",
-      contextRules,
-      "",
-      JSON.stringify({ niche, candidates: candidateSummaries }),
-    ].join("\n")));
+      JSON.stringify(summaries),
+    ].filter(Boolean).join("\n")));
 
-    // Build set of handles that passed. The pre-screen is a COARSE filter —
-    // its job is to remove obvious non-matches (wrong role, orgs), not borderline ones.
-    // The final AI screening (in the middle of the pipeline loop) does the strict check.
     const passed = new Set<string>();
     for (const d of result.decisions) {
-      if (d.relevant && d.confidence >= 60) {
+      if (d.match) {
         passed.add(d.handle.replace(/^@/, "").toLowerCase());
       }
     }
     return passed;
   } catch (error) {
-    console.warn("[multiagent][pre-screen] AI pre-screen failed, passing all candidates through:", describeUpstreamError(error));
-    // On failure, pass everyone through — the final screening will catch them
-    return new Set(candidates.map((c) => c.candidate.account.handle.replace(/^@/, "").toLowerCase()));
+    console.warn("[multiagent][semantic-match] AI failed, passing all through:", describeUpstreamError(error));
+    return new Set(candidates.map((c) => c.account.handle.replace(/^@/, "").toLowerCase()));
   }
 }
 
@@ -1638,13 +1572,17 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
   .addNode("profile_hydrator", async (state) => {
     const hydrated = await hydrateCandidates(state.candidates);
 
-    // Apply minFollowers filter AFTER hydration — hydration fetches real follower
+    // Apply follower filters AFTER hydration — hydration fetches real follower
     // counts from TwitterAPI.io, so we have reliable data here. Filtering before
     // hydration would drop candidates with unreliable AgentQL-scraped counts.
     const minFollowers = state.minFollowers ?? 0;
-    const filtered = minFollowers > 0
-      ? hydrated.candidates.filter((c) => c.account.followers >= minFollowers)
-      : hydrated.candidates;
+    const MAX_FOLLOWERS = 100_000;
+    const filtered = hydrated.candidates.filter((c) => {
+      if (minFollowers > 0 && c.account.followers < minFollowers) return false;
+      // Accounts with >100k followers are unlikely target leads — exclude them
+      if (c.account.followers > MAX_FOLLOWERS) return false;
+      return true;
+    });
 
     return {
       activeSubagent: "profile_hydrator" as const,
@@ -1654,57 +1592,28 @@ const hydrationScoringSubgraph = new StateGraph(HydrationScoringSubgraphState)
     };
   })
   .addNode("candidate_scorer", async (state) => {
-    const keywords = extractKeywords(state.niche);
-
-    // Phase 1: Score all candidates and collect website URLs to scrape
-    const prescoredCandidates = state.candidates.map((candidate) => ({
-      candidate,
-      heuristic: scoreCandidateHeuristically(state.niche, candidate),
-      evidence: extractSelectionEvidence(state.niche, candidate),
-      websiteUrl: extractBioWebsiteUrl(candidate.account.bio),
-    }));
-
-    // Phase 2: Scrape websites in parallel (only for candidates that have one)
-    const websiteCandidates = prescoredCandidates.filter((c) => c.websiteUrl);
-    if (websiteCandidates.length > 0) {
-      const websiteResults = await mapWithConcurrency(
-        websiteCandidates,
-        MULTIAGENT_SCRAPE_CONCURRENCY,
-        async (c) => scrapeWebsiteForEvidence(c.websiteUrl!, state.niche, keywords),
-      );
-      websiteCandidates.forEach((c, i) => {
-        const result = websiteResults[i];
-        if (result) c.evidence.push(result);
-      });
-    }
-
-    // Phase 3: Heuristic gate — candidates with no phrase match and very low scores
-    // are not worth sending to the AI pre-screen. They are almost certainly irrelevant.
-    const MIN_HEURISTIC_SCORE = 10;
-    const heuristicPassed = prescoredCandidates.filter((c) => c.heuristic.score >= MIN_HEURISTIC_SCORE || c.evidence.length > 0);
-
-    // Phase 4: AI pre-screen — filter obvious non-matches before they enter the pool
-    // Pass roleTerms/bioTerms/antiGoals so the pre-screen has full interpreted context
-    const passedHandles = await preScreenCandidates(state.niche, heuristicPassed, {
+    // Simple semantic match: for each candidate, check if their
+    // nickname/bio/website semantically matches the query. No posts, no complex scoring.
+    const passedHandles = await semanticMatchCandidates(state.niche, state.candidates, {
       roleTerms: state.roleTerms,
       bioTerms: state.bioTerms,
       antiGoals: state.antiGoals,
     });
 
-    const scored: ScoredCandidate[] = heuristicPassed
-      .filter((c) => passedHandles.has(c.candidate.account.handle.replace(/^@/, "").toLowerCase()))
+    const scored: ScoredCandidate[] = state.candidates
+      .filter((c) => passedHandles.has(c.account.handle.replace(/^@/, "").toLowerCase()))
       .map((c) => ({
-        candidate: c.candidate,
-        score: c.heuristic.score,
-        reasons: c.heuristic.reasons,
+        candidate: c,
+        score: 70, // All matched candidates get a flat passing score
+        reasons: ["Semantic match on bio/name"],
         attempt: state.attempt,
-        evidence: c.evidence,
+        evidence: extractSelectionEvidence(state.niche, c),
       }));
 
     return {
       activeSubagent: "candidate_scorer" as const,
       scored,
-      rawCandidateCount: prescoredCandidates.length,
+      rawCandidateCount: state.candidates.length,
     };
   })
   .addEdge(START, "profile_hydrator")
@@ -1912,6 +1821,78 @@ const graph = new StateGraph(MultiAgentState)
       traceBatchUrls: state.repairUrls,
     };
   })
+  // Grok X-Search node — uses Grok API's x_search tool to discover leads.
+  // Runs in parallel with people_search after planner.
+  .addNode("grok_search", async (state) => {
+    if (!isGrokConfigured()) {
+      console.log("[multiagent][grok_search] XAI_API_KEY not configured, skipping");
+      return {
+        activeNode: "grok_search" as const,
+        activeSubagent: "source_researcher" as const,
+        completedNodes: ["grok_search" as const],
+        candidates: [],
+        processedUrls: [],
+        traceQuery: undefined,
+        traceBatchUrls: [],
+      };
+    }
+
+    const query = state.normalizedQuery || state.niche;
+    const candidates: XLeadCandidate[] = [];
+    const processedUrls: string[] = [];
+
+    try {
+      const profiles = await searchGrokXUsers(query, {
+        roleTerms: state.roleTerms.slice(0, 8),
+        limit: 30,
+      });
+
+      for (const profile of dedupeProfiles(profiles)) {
+        const candidate = buildLeadCandidate(
+          "multiagent",
+          state.niche,
+          profile,
+          "profile_search",
+          [],
+        );
+        // Apply follower filters (though Grok profiles start with 0 followers,
+        // they'll be hydrated later — skip >100k if somehow present)
+        if (candidate.account.followers > 100_000) continue;
+        candidates.push(candidate);
+      }
+
+      processedUrls.push(`grok:search:${query.toLowerCase()}`);
+
+      console.log("[multiagent][grok_search]", JSON.stringify({
+        query,
+        returned: profiles.length,
+        accepted: candidates.length,
+      }));
+    } catch (error) {
+      console.warn("[multiagent][grok_search] Grok search failed:", error instanceof Error ? error.message : String(error));
+      // Non-fatal — other sources will still provide candidates
+    }
+
+    // Dedupe by handle
+    const byHandle = new Map<string, XLeadCandidate>();
+    for (const candidate of candidates) {
+      const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
+      const existing = byHandle.get(key);
+      if (!existing || candidate.account.bio.length > existing.account.bio.length) {
+        byHandle.set(key, candidate);
+      }
+    }
+
+    return {
+      activeNode: "grok_search" as const,
+      activeSubagent: "source_researcher" as const,
+      completedNodes: ["grok_search" as const],
+      candidates: [...byHandle.values()],
+      processedUrls,
+      traceQuery: undefined,
+      traceBatchUrls: [],
+    };
+  })
   // People Search node — uses BOTH AgentQL (X People Search scraping) AND
   // TwitterAPI.io (keyword user search) as discovery sources in parallel.
   .addNode("people_search", async (state) => {
@@ -1964,10 +1945,10 @@ const graph = new StateGraph(MultiAgentState)
     // bioTerms/phrase list — those are too long and produce bad results.
     const twitterApiKeywords = dedupeQueries([
       ...(state.normalizedQuery ? [state.normalizedQuery] : []),
-      ...state.roleTerms.slice(0, 4),
+      ...state.roleTerms.slice(0, 6),
     ]).filter((term) =>
       !alreadyProcessed.has(`twitterapi:search:${term.toLowerCase()}`),
-    ).slice(0, 5);
+    ).slice(0, 7);
 
     if (twitterApiKeywords.length > 0) {
       const twitterResults = await mapWithConcurrency(
@@ -1975,7 +1956,7 @@ const graph = new StateGraph(MultiAgentState)
         2,
         async (term) => {
           try {
-            const profiles = await searchTwitterApiUsers(term, { maxPages: 3 });
+            const profiles = await searchTwitterApiUsers(term, { maxPages: 5 });
             return { term, profiles };
           } catch (error) {
             console.warn("[multiagent][people_search] TwitterAPI.io search failed:", term, describeUpstreamError(error));
@@ -1997,6 +1978,11 @@ const graph = new StateGraph(MultiAgentState)
             [],
           );
           if (state.minFollowers && state.minFollowers > 0 && candidate.account.followers < state.minFollowers) {
+            filtered++;
+            continue;
+          }
+          // Accounts with >100k followers are unlikely target leads
+          if (candidate.account.followers > 100_000) {
             filtered++;
             continue;
           }
@@ -2036,7 +2022,8 @@ const graph = new StateGraph(MultiAgentState)
   })
   .addEdge(START, "planner")
   .addEdge("planner", "people_search")
-  .addConditionalEdges("people_search", (state) => {
+  .addEdge("people_search", "grok_search")
+  .addConditionalEdges("grok_search", (state) => {
     // After People Search, also run Tavily-based source fanout for supplementary profiles.
     // Always include intitle: dork for the normalizedQuery — strongest signal for real profiles.
     const queries = [...state.currentQueries];

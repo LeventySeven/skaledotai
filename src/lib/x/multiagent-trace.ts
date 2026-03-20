@@ -90,6 +90,10 @@ function resolveNodeTools(
     return ["AgentQL", "TwitterAPI.io"];
   }
 
+  if (nodeName === "grok_search") {
+    return ["Grok API"];
+  }
+
   if (nodeName === "source_fanout") {
     return ["Tavily"];
   }
@@ -183,6 +187,27 @@ export function buildMultiAgentTraceStep(
       tools,
       bullets: [
         `Searched role/bio terms via TwitterAPI.io user search.`,
+        ...candidates.slice(0, 3).map((c) => `@${c.account.handle}: ${c.account.bio.slice(0, 80)}${c.account.bio.length > 80 ? "..." : ""}`),
+      ],
+      metrics: [
+        ...attemptMetric,
+        { label: "Candidates", value: candidates.length },
+      ],
+    };
+  }
+
+  if (nodeName === "grok_search") {
+    const candidates = update.candidates ?? [];
+    return {
+      id: `multiagent-${index}-${nodeName}`,
+      title: MULTIAGENT_NODE_TITLES[nodeName],
+      summary: `Found ${candidates.length} candidates via Grok X-Search.`,
+      status: candidates.length > 0 ? "success" : "warning",
+      subagent: update.activeSubagent,
+      provider: "multiagent",
+      tools,
+      bullets: [
+        `Searched X via Grok API x_search tool.`,
         ...candidates.slice(0, 3).map((c) => `@${c.account.handle}: ${c.account.bio.slice(0, 80)}${c.account.bio.length > 80 ? "..." : ""}`),
       ],
       metrics: [
