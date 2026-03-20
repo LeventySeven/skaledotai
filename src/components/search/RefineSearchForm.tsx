@@ -134,9 +134,13 @@ export function RefineSearchForm() {
             utils.projects.list.invalidate(),
             utils.leads.list.invalidate(),
           ]);
+
+          const isSalvage = event.result.trace.status === "warning";
           toastManager.add({
-            type: "success",
-            title: `Added ${event.result.leads.length} leads to ${event.result.project.name}.`,
+            type: isSalvage ? "warning" : "success",
+            title: isSalvage
+              ? `We hit a snag mid-search, but saved ${event.result.leads.length} leads we already found to ${event.result.project.name}. You can search again for more.`
+              : `Added ${event.result.leads.length} leads to ${event.result.project.name}.`,
           });
           window.setTimeout(() => {
             router.push(`/leads?project=${event.result.project.id}`);

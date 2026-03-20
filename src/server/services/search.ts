@@ -47,7 +47,6 @@ import { toXProviderTrpcError } from "@/lib/x/error-handling";
 import {
   searchLeadMemory,
   mapMemoryHitToCandidate,
-  upsertLeadMemoryRows,
 } from "./lead-memory";
 
 type CanonicalCandidate = XProfile & {
@@ -652,6 +651,10 @@ export async function searchAndAddLeads(
     let totalScreenedPool = 0;
     /** Collected screening reasons across all passes for inline reasoning persistence */
     const allSelectedReasons = new Map<string, string>();
+    /** All raw discovered candidates (before screening) — used for fallback salvage */
+    let allDiscoveredCandidates: XLeadCandidate[] = [];
+
+    try {
 
     for (let pass = 1; pass <= MAX_SEARCH_PASSES; pass++) {
       const remaining = targetLeadCount - screenedCandidates.length;
@@ -698,6 +701,7 @@ export async function searchAndAddLeads(
       });
 
       totalDiscovered += newCandidates.length;
+      allDiscoveredCandidates = [...allDiscoveredCandidates, ...newCandidates];
 
       trace.addStep(await emitStep(progress, {
         id: `discovery-${pass}`,
@@ -796,6 +800,93 @@ export async function searchAndAddLeads(
       });
     }
 
+    } catch (pipelineError) {
+      // ── Fallback salvage: insert whatever we found so far ────────────────
+      // If something broke mid-pipeline, we still have candidates. Insert them
+      // so the user isn't left empty-handed. Screened leads are preferred, but
+      // if screening failed, we fall back to raw discovered candidates.
+      const salvageCandidates = screenedCandidates.length > 0
+        ? screenedCandidates
+        : allDiscoveredCandidates;
+
+      if (salvageCandidates.length > 0) {
+        console.warn("[search][salvage] Pipeline error, salvaging", salvageCandidates.length, "candidates");
+
+        try {
+          const salvageProfiles = salvageCandidates.map((c) => ({
+            ...toXProfileFromCandidate(c),
+            samplePosts: getCandidateSampleTexts(c),
+            source: c.discoverySource,
+          }));
+
+          const salvageLeads = await addProfilesToProject({
+            userId,
+            projectId: project.id,
+            profiles: salvageProfiles,
+            discoverySource: "profile_search",
+            discoveryQuery: input.query,
+          });
+
+
+          trace.addStep(await emitStep(progress, {
+            id: "salvage",
+            title: "Partial Results Saved",
+            summary: `An error occurred mid-pipeline. We saved ${salvageLeads.length} leads that were already found.`,
+            status: "warning",
+            provider: discoveryProvider.provider,
+            bullets: [
+              "Sorry, something went wrong during the search pipeline.",
+              `We saved ${salvageLeads.length} leads we had already found/parsed into your campaign.`,
+              "These results may be less filtered than usual, but they're still real accounts matching your query.",
+              "You can run the search again to find more leads.",
+            ],
+            metrics: [
+              { label: "Salvaged leads", value: salvageLeads.length },
+              { label: "Screened", value: screenedCandidates.length },
+              { label: "Raw discovered", value: allDiscoveredCandidates.length },
+            ],
+            tools: [],
+          }));
+
+          const finalTrace = trace.build(
+            `Partial results: saved ${salvageLeads.length} leads after a pipeline error.`,
+            "warning",
+          );
+
+          await recordProjectRun({
+            projectId: project.id,
+            operationType: "search",
+            requestedProvider: provider,
+            discoveryProvider: discoveryProvider.provider,
+            lookupProvider: provider,
+            networkProvider: provider,
+            tweetsProvider: provider,
+            query: input.query,
+            seedUsername: input.followerUsername?.replace(/^@/, ""),
+            minFollowers: input.minFollowers,
+            targetLeadCount: input.targetLeadCount,
+            leadCount: salvageLeads.length,
+            traceData: finalTrace,
+            status: "partial",
+          });
+
+          return {
+            leads: salvageLeads,
+            project: {
+              ...project,
+              sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
+            },
+            trace: finalTrace,
+          };
+        } catch (salvageError) {
+          console.error("[search][salvage] Failed to save partial results:", salvageError);
+        }
+      }
+
+      // If salvage also failed or there were no candidates, rethrow
+      throw pipelineError;
+    }
+
     const finalCandidates = screenedCandidates;
 
     const { profiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, finalCandidates);
@@ -887,20 +978,6 @@ export async function searchAndAddLeads(
       ],
       tools: [],
     }));
-
-    // ── Lead Memory: Upsert qualifying leads into TurboPuffer ──────────────
-    // Non-blocking — if TurboPuffer fails, search still succeeds.
-    try {
-      const memoryResult = await upsertLeadMemoryRows(userId, finalCandidates, input.query);
-      if (memoryResult.synced > 0) {
-        console.log("[search][lead-memory] upsert success", JSON.stringify({
-          synced: memoryResult.synced,
-          skipped: memoryResult.skipped,
-        }));
-      }
-    } catch (error) {
-      console.warn("[search][lead-memory] upsert failed (non-fatal):", error instanceof Error ? error.message : String(error));
-    }
 
     const operationProviders = resolveSearchOperationProviders(provider, lookupResolution.effectiveProvider);
 
