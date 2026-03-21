@@ -596,12 +596,16 @@ function buildGoogleDorkQueries(input: {
     ]).slice(0, input.queryBudget);
   }
 
-  // intitle: dorks are the HIGHEST priority — they match the X page title, which is
-  // the person's display name. intitle:"product designer" site:x.com finds profiles where
-  // "Product Designer" is literally in the display name = almost always the real role.
   const queries: string[] = [];
 
-  // TOP PRIORITY: intitle: dorks — display name matches are the strongest signal
+  // ── Plain queries — "product designer on X", natural search phrasing ────
+  queries.push(`${primaryTerm} on X`);
+  queries.push(`${normalized} twitter`);
+  if (input.interpretation.roleTerms.length > 1) {
+    queries.push(`${input.interpretation.roleTerms[1]} on X`);
+  }
+
+  // ── Google Dork: intitle — display name matches are the strongest signal ──
   queries.push(`intitle:"${primaryTerm}" site:x.com`);
   for (const term of input.interpretation.roleTerms.slice(1, 3)) {
     queries.push(`intitle:"${term}" site:x.com`);
@@ -610,14 +614,15 @@ function buildGoogleDorkQueries(input: {
   // intitle: with twitter.com for older indexed profiles
   queries.push(`intitle:"${primaryTerm}" site:twitter.com`);
 
-  // Supplementary: site: with quoted terms for bio/page body matches
+  // ── Google Dork: site: — bio/page body matches ────────────────────────────
   for (const term of input.interpretation.roleTerms.slice(0, 2)) {
     queries.push(`site:x.com "${term}"`);
   }
 
-  // Geo-targeted intitle: variant
+  // Geo-targeted variant
   if (geoBlock) {
     queries.push(`intitle:"${primaryTerm}" site:x.com "${geoBlock}"`);
+    queries.push(`${primaryTerm} ${geoBlock} on X`);
   }
 
   return dedupeQueries(queries).slice(0, input.queryBudget);
@@ -647,9 +652,10 @@ export function buildMultiAgentHeuristicQueries(input: XDiscoveryInput): string[
     ]).slice(0, resolveMultiAgentQueryBudget(input));
   }
 
-  // intitle: dorks are highest priority — match display name = strongest role signal.
-  // Supplementary site: dorks catch profiles where the role is in bio but not display name.
+  // Mix of plain queries, intitle: dorks, and site: dorks for broad coverage.
   return dedupeQueries([
+    `${normalized} on X`,
+    `${normalized} twitter`,
     `intitle:"${normalized}" site:x.com`,
     ...variants.slice(1, 3).map((v) => `intitle:"${v}" site:x.com`),
     `site:x.com "${variants[0] || normalized}"`,
@@ -667,8 +673,9 @@ function buildAttemptVariantQueries(niche: string, seedHandle: string | undefine
     return dedupeQueries(variants.slice(0, 2).map((v) => `${vf} "${v}"`));
   }
 
-  // intitle: dorks prioritized — strongest signal for finding real role holders
+  // Mix plain + dork queries for retry attempts
   return dedupeQueries([
+    `${normalized} on X`,
     ...variants.slice(0, 2).map((v) => `intitle:"${v}" site:x.com`),
     `site:x.com "${variants[0] || normalized}"`,
   ]);
@@ -1954,26 +1961,20 @@ const graph = new StateGraph(MultiAgentState)
     const processedUrls: string[] = [];
 
     // ── Source 1: AgentQL — scrape X People Search pages ──────────────────────
+    // No min_faves filter — just plain search terms. Follower filtering is strict downstream.
     const agentQlTerms = terms.filter((term) => {
-      const withFilter = `https://x.com/search?q=${encodeURIComponent(term + " min_faves:50")}&src=typed_query&f=user`.toLowerCase();
-      const withoutFilter = `https://x.com/search?q=${encodeURIComponent(term)}&src=typed_query&f=user`.toLowerCase();
-      return !alreadyProcessed.has(withFilter) && !alreadyProcessed.has(withoutFilter);
+      const url = `https://x.com/search?q=${encodeURIComponent(term)}&src=typed_query&f=user`.toLowerCase();
+      return !alreadyProcessed.has(url);
     });
 
     if (agentQlTerms.length > 0) {
-      const allScrapeJobs: Array<{ term: string; minFaves?: number }> = [
-        ...agentQlTerms.map((term) => ({ term, minFaves: 50 })),
-        ...agentQlTerms.map((term) => ({ term, minFaves: undefined })),
-      ];
-
       const agentQlResults = await mapWithConcurrency(
-        allScrapeJobs,
+        agentQlTerms,
         3,
-        async ({ term, minFaves }) => {
-          const payload = await scrapeXPeopleSearch(term, minFaves ? { minFaves } : undefined);
+        async (term) => {
+          const payload = await scrapeXPeopleSearch(term);
           if (!payload) return null;
-          const queryStr = minFaves ? `${term} min_faves:${minFaves}` : term;
-          const url = `https://x.com/search?q=${encodeURIComponent(queryStr)}&src=typed_query&f=user`;
+          const url = `https://x.com/search?q=${encodeURIComponent(term)}&src=typed_query&f=user`;
           return { url, payload } satisfies ScrapedPayload;
         },
       );

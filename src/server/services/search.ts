@@ -889,11 +889,24 @@ export async function searchAndAddLeads(
 
     const finalCandidates = screenedCandidates;
 
-    const { profiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, finalCandidates);
+    const { profiles: rawProfiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, finalCandidates);
+
+    // ── Strict minFollowers enforcement after canonicalization ──────────────
+    // Canonicalization resolves real follower counts. Drop any leads that
+    // don't meet the user's minimum — no exceptions.
+    const profiles = minFollowers > 0
+      ? rawProfiles.filter((p) => p.followersCount >= minFollowers)
+      : rawProfiles;
+
+    if (profiles.length < rawProfiles.length) {
+      console.log("[search][follower-filter] Dropped", rawProfiles.length - profiles.length,
+        "leads below minFollowers", minFollowers);
+    }
+
     trace.addStep(await emitStep(progress, {
       id: "canonicalization",
       title: "Canonicalization",
-      summary: `Prepared ${profiles.length} lead rows for insertion.`,
+      summary: `Prepared ${profiles.length} lead rows for insertion${profiles.length < rawProfiles.length ? ` (${rawProfiles.length - profiles.length} dropped below ${minFollowers} followers)` : ""}.`,
       status: lookupResolution.usedFallback ? "warning" : "success",
       provider: lookupResolution.effectiveProvider,
       bullets: [
