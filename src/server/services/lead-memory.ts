@@ -34,7 +34,8 @@ export type LeadMemoryDocument = {
   url: string | null;
   email: string | null;
   priceCents: number | null;
-  relevancy: number;
+  relevancy: string;
+  followers: number;
   searchText: string;
   sourceLeadId: string | null;
   updatedAt: string;
@@ -289,7 +290,7 @@ export async function upsertLeadMemoryRows(
 export async function searchLeadMemory(
   userId: string,
   query: string,
-  options?: { topK?: number; tags?: string[] },
+  options?: { topK?: number; tags?: string[]; minFollowers?: number },
 ): Promise<LeadMemoryHit[]> {
   if (!isTurboPufferConfigured()) {
     console.log("[lead-memory][lookup] TurboPuffer not configured, skipping");
@@ -304,8 +305,11 @@ export async function searchLeadMemory(
     // Generate query embedding
     const queryVector = await generateEmbedding(query);
 
-    // Run hybrid search: vector ANN + BM25 full-text + BM25 tags, fused with RRF
-    const hits = await multiQuery(namespace, queryVector, query, topK, options?.tags);
+    // Run hybrid search: vector ANN + BM25 search_text + BM25 tags + BM25 bio, fused with RRF
+    const hits = await multiQuery(namespace, queryVector, query, topK, {
+      tags: options?.tags,
+      minFollowers: options?.minFollowers,
+    });
 
     const latencyMs = Date.now() - startMs;
 
@@ -360,7 +364,8 @@ function hitToMemoryResult(hit: TurboPufferHit): LeadMemoryHit | null {
       url: attrs.url ? String(attrs.url) : null,
       email: attrs.email ? String(attrs.email) : null,
       priceCents: typeof attrs.price_cents === "number" ? attrs.price_cents : null,
-      relevancy: typeof attrs.relevancy === "number" ? attrs.relevancy : 0,
+      relevancy: String(attrs.relevancy ?? ""),
+      followers: typeof attrs.followers === "number" ? attrs.followers : 0,
       searchText: String(attrs.search_text ?? ""),
       sourceLeadId: attrs.source_lead_id ? String(attrs.source_lead_id) : null,
       updatedAt: String(attrs.updated_at ?? ""),
@@ -384,7 +389,7 @@ export function mapMemoryHitToCandidate(hit: LeadMemoryHit, niche: string): XLea
       handle: doc.handle,
       name: doc.name,
       bio: doc.bio,
-      followers: 0, // Will be hydrated later
+      followers: doc.followers ?? 0,
       following: 0,
       profileUrl: doc.url ?? undefined,
       xUserId: doc.handle.toLowerCase(),

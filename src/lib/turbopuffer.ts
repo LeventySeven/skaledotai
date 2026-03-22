@@ -84,6 +84,7 @@ export async function upsertRows(
       notes: "string",
       platform: "string",
       source_lead_id: "string",
+      followers: "int",
       updated_at: "datetime",
     },
   });
@@ -93,54 +94,133 @@ export async function upsertRows(
  * Hybrid search: run vector ANN + BM25 full-text in one multi-query call,
  * then fuse results client-side with reciprocal rank fusion.
  */
-const ALL_ATTRIBUTES = ["name", "handle", "bio", "search_text", "tags", "deliverables", "relevancy", "url", "site", "linkedin_url", "email", "price_cents", "notes", "platform", "source_lead_id", "updated_at"];
+const ALL_ATTRIBUTES = ["name", "handle", "bio", "search_text", "tags", "deliverables", "relevancy", "url", "site", "linkedin_url", "email", "price_cents", "notes", "platform", "source_lead_id", "updated_at", "followers"];
+
+// ── Tag generalization ─────────────────────────────────────────────────────
+
+const TAG_GENERALIZATIONS: Record<string, string[]> = {
+  designer: ["designers", "design", "creative"],
+  developer: ["developers", "dev", "engineering", "engineers"],
+  engineer: ["engineers", "engineering", "developers", "tech people"],
+  founder: ["founders", "solopreneurs", "operators"],
+  marketer: ["marketers", "growth", "marketing"],
+  researcher: ["researchers", "research", "data scientists"],
+  investor: ["investors", "vc", "angel"],
+  creator: ["creators", "creative", "content"],
+  writer: ["writers", "content", "journalists"],
+  product: ["product people", "product", "pm"],
+};
 
 /**
- * Hybrid search: vector ANN + BM25 on search_text + BM25 on tags.
- * Tags let us find leads by niche category (e.g. "designers", "founders", "web3").
- * All results are fused client-side with reciprocal rank fusion.
+ * Generalize specific query terms into broader tag categories.
+ * "product designer" → ["designers", "design", "creative", "product people", "product", "pm"]
+ */
+export function generalizeToTags(terms: string[]): string[] {
+  const tags = new Set<string>();
+  for (const term of terms) {
+    const lower = term.toLowerCase();
+    // Add the term itself
+    tags.add(lower);
+    // Check each generalization key
+    for (const [key, expansions] of Object.entries(TAG_GENERALIZATIONS)) {
+      if (lower.includes(key)) {
+        for (const tag of expansions) tags.add(tag);
+      }
+    }
+  }
+  return [...tags];
+}
+
+/**
+ * Hybrid search: vector ANN + BM25 on search_text + BM25 on tags + BM25 on bio.
+ * Tags are generalized so "product designer" matches the "designers" tag.
+ * Results are fused client-side with reciprocal rank fusion.
  */
 export async function multiQuery(
   namespace: string,
   queryVector: number[],
   queryText: string,
   topK: number,
-  tags?: string[],
+  options?: { tags?: string[]; minFollowers?: number },
 ): Promise<TurboPufferHit[]> {
   const tpuf = getClient();
   if (!tpuf) throw new Error("TURBOPUFFER_API_KEY is not configured.");
 
   const ns = tpuf.namespace(namespace);
 
+  // Generalize tags: "product designer" → ["designers", "design", "creative", ...]
+  const generalizedTags = generalizeToTags(options?.tags ?? [queryText]);
+  const tagQuery = generalizedTags.join(" ");
+
+  // Use a high top_k for the tag query to get ALL matching leads
+  const tagTopK = Math.max(topK, 200);
+
   const queries: Array<Record<string, unknown>> = [
+    // 1. Vector ANN — semantic similarity
     {
       rank_by: ["vector", "ANN", queryVector],
       top_k: topK,
       include_attributes: ALL_ATTRIBUTES,
     },
+    // 2. BM25 on search_text — keyword match on full profile text
     {
       rank_by: ["search_text", "BM25", queryText],
       top_k: topK,
       include_attributes: ALL_ATTRIBUTES,
     },
+    // 3. BM25 on tags — niche category match (generalized)
+    // High top_k to return ALL leads with matching tags
+    {
+      rank_by: ["tags", "BM25", tagQuery],
+      top_k: tagTopK,
+      include_attributes: ALL_ATTRIBUTES,
+    },
+    // 4. BM25 on bio — direct bio text match
+    {
+      rank_by: ["bio", "BM25", queryText],
+      top_k: topK,
+      include_attributes: ALL_ATTRIBUTES,
+    },
   ];
-
-  // Add tag-based BM25 search — search the tags field directly
-  // Tags like "designers", "founders", "web3" are stored as []string with BM25
-  const tagQuery = tags?.length ? tags.join(" ") : queryText;
-  queries.push({
-    rank_by: ["tags", "BM25", tagQuery],
-    top_k: topK,
-    include_attributes: ALL_ATTRIBUTES,
-  });
 
   const response = await ns.multiQuery({
     queries: queries as Parameters<typeof ns.multiQuery>[0]["queries"],
   });
 
-  // Client-side reciprocal rank fusion across all queries
-  const resultSets = response.results.map((r) => r.rows ?? []);
-  return reciprocalRankFusion(resultSets, topK);
+  // Separate tag results from the rest — tag matches are ALL included, not just top-k
+  const [vectorRows, searchRows, tagRows, bioRows] = response.results.map((r) => r.rows ?? []);
+
+  // RRF fusion on vector + search_text + bio (ranked results)
+  const rankedHits = reciprocalRankFusion([vectorRows, searchRows, bioRows], topK);
+  const rankedIds = new Set(rankedHits.map((h) => h.id));
+
+  // Add ALL tag-matched leads that weren't already in ranked results
+  const tagOnlyHits: TurboPufferHit[] = [];
+  for (const row of tagRows) {
+    const id = String(row.id);
+    if (rankedIds.has(id)) continue;
+    const attributes: Record<string, TurboPufferAttributeValue> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (key === "id" || key === "vector" || key === "$dist") continue;
+      attributes[key] = value as TurboPufferAttributeValue;
+    }
+    tagOnlyHits.push({ id, dist: row.$dist, attributes });
+  }
+
+  // Merge: ranked results first, then remaining tag matches
+  let allHits = [...rankedHits, ...tagOnlyHits];
+
+  // Post-filter by minFollowers if specified
+  if (options?.minFollowers && options.minFollowers > 0) {
+    const min = options.minFollowers;
+    allHits = allHits.filter((hit) => {
+      const followers = typeof hit.attributes.followers === "number"
+        ? hit.attributes.followers : 0;
+      return followers >= min;
+    });
+  }
+
+  return allHits;
 }
 
 // ── Rank Fusion ──────────────────────────────────────────────────────────────

@@ -202,6 +202,7 @@ async function main() {
         notes: lead.notes ?? "",
         platform: lead.platform,
         source_lead_id: lead.sourceLeadId ?? "",
+        followers: (lead as Record<string, unknown>).followers as number ?? 0,
         updated_at: lead.updatedAt,
       }));
 
@@ -227,6 +228,7 @@ async function main() {
             notes: "string",
             platform: "string",
             source_lead_id: "string",
+            followers: "int",
             updated_at: "datetime",
           },
         });

@@ -1859,6 +1859,7 @@ const graph = new StateGraph(MultiAgentState)
       const hits = await searchLeadMemory(state.userId, query, {
         topK: 30,
         tags: searchTags.length > 0 ? searchTags : undefined,
+        minFollowers: state.minFollowers ?? 0,
       });
 
       for (const hit of hits) {
