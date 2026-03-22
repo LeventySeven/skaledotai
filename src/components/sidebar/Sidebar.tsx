@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, LogOutIcon } from "lucide-react";
+import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, LogOutIcon, SparklesIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { signOutAction } from "@/app/(auth)/actions";
@@ -28,6 +28,7 @@ const navItems = [
   { href: "/outreach", label: "Outreach", icon: SendIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
   { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
+  { href: "/pricing", label: "Pricing", icon: SparklesIcon },
 ];
 
 function CampaignsList({ onNav, initialProjects }: { onNav?: () => void; initialProjects?: Project[] }) {
