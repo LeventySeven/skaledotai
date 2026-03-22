@@ -10,7 +10,7 @@ const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 1536;
 const BATCH_SIZE = 50;
 
-const NS_PREFIX = process.env.TURBOPUFFER_NAMESPACE_PREFIX ?? "skale";
+const NAMESPACE = process.env.TURBOPUFFER_NAMESPACE ?? "skale-leads";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,9 +38,8 @@ type LeadRow = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildNamespace(userId: string): string {
-  const sanitized = userId.replace(/[^A-Za-z0-9\-_.]/g, "-").slice(0, 50);
-  return `${NS_PREFIX}-${sanitized}`;
+function buildNamespace(_userId?: string): string {
+  return NAMESPACE;
 }
 
 function buildSearchText(lead: LeadRow): string {

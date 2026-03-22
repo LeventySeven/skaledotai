@@ -6,7 +6,7 @@ import { XProviderRuntimeError } from "./types";
 
 const GROK_API_BASE = "https://api.x.ai";
 // Use non-reasoning model — documented for x_search tool use
-const GROK_MODEL = process.env.XAI_MODEL ?? "grok-3-fast-latest";
+const GROK_MODEL = process.env.XAI_MODEL ?? "grok-4-fast";
 const GROK_SEARCH_TIMEOUT_MS = 180_000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

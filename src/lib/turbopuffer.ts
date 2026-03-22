@@ -36,15 +36,12 @@ export type TurboPufferHit = {
 
 // ── Namespace helpers ────────────────────────────────────────────────────────
 
-const NS_PREFIX = process.env.TURBOPUFFER_NAMESPACE_PREFIX ?? "skale";
-
 /**
- * Build a TurboPuffer namespace from a user ID.
- * Sanitized to alphanumeric + hyphens + dots + underscores, max 64 chars.
+ * Single shared namespace for all leads.
+ * TurboPuffer lead memory is a global pool — every user searches the same leads.
  */
-export function buildNamespace(userId: string): string {
-  const sanitized = userId.replace(/[^A-Za-z0-9\-_.]/g, "-").slice(0, 50);
-  return `${NS_PREFIX}-${sanitized}`;
+export function buildNamespace(_userId?: string): string {
+  return process.env.TURBOPUFFER_NAMESPACE ?? "skale-leads";
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────

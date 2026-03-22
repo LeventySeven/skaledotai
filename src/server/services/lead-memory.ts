@@ -325,13 +325,20 @@ export async function searchLeadMemory(
     return mapped;
   } catch (error) {
     const latencyMs = Date.now() - startMs;
-    console.warn("[lead-memory][lookup] error", JSON.stringify({
-      userId: userId.slice(0, 8),
-      namespace,
-      query: query.slice(0, 50),
-      latencyMs,
-      error: error instanceof Error ? error.message : String(error),
-    }));
+    const errMsg = error instanceof Error ? error.message : String(error);
+    // Namespace not found = no leads synced yet for this user, not an error
+    const isNotFound = errMsg.includes("404") || errMsg.includes("not found");
+    if (isNotFound) {
+      console.log("[lead-memory][lookup] No namespace yet for user, skipping");
+    } else {
+      console.warn("[lead-memory][lookup] error", JSON.stringify({
+        userId: userId.slice(0, 8),
+        namespace,
+        query: query.slice(0, 50),
+        latencyMs,
+        error: errMsg,
+      }));
+    }
     return [];
   }
 }
