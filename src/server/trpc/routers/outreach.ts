@@ -7,6 +7,7 @@ import {
   getOutreachQueue,
   getStandardOutreachTemplates,
 } from "@/server/services/outreach";
+import { billing } from "@/server/services/billing";
 import {
   deleteOutreachTemplate,
   listOutreachTemplates,
@@ -80,7 +81,14 @@ export const outreachRouter = router({
         message: z.string().min(1).max(10000),
       })).min(1).max(50),
     }))
-    .mutation(({ ctx, input }) => enqueueDmBatch(ctx.userId, input.leads)),
+    .mutation(async ({ ctx, input }) => {
+      const { allowed } = await billing.checkDmOutreach(ctx.userId);
+      if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "DM limit reached. Upgrade your plan." });
+
+      const result = await enqueueDmBatch(ctx.userId, input.leads);
+      await billing.trackDm(ctx.userId, input.leads.length);
+      return result;
+    }),
 
   /** Send DMs to selected leads via X API. Requires connected X account.
    *  Rate limits: 15 DMs per 15 min, 1440 per 24h.
