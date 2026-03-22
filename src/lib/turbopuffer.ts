@@ -78,10 +78,15 @@ export async function upsertRows(
       deliverables: "[]string",
       name: "string",
       handle: "string",
-      relevancy: "int",
+      relevancy: "string",
       url: "string",
+      site: "string",
+      linkedin_url: "string",
       email: "string",
       price_cents: "int",
+      notes: "string",
+      platform: "string",
+      source_lead_id: "string",
       updated_at: "datetime",
     },
   });
@@ -107,12 +112,12 @@ export async function multiQuery(
       {
         rank_by: ["vector", "ANN", queryVector],
         top_k: topK,
-        include_attributes: true,
+        include_attributes: ["name", "handle", "bio", "search_text", "tags", "deliverables", "relevancy", "url", "site", "linkedin_url", "email", "price_cents", "notes", "platform", "source_lead_id", "updated_at"],
       },
       {
         rank_by: ["search_text", "BM25", queryText],
         top_k: topK,
-        include_attributes: true,
+        include_attributes: ["name", "handle", "bio", "search_text", "tags", "deliverables", "relevancy", "url", "site", "linkedin_url", "email", "price_cents", "notes", "platform", "source_lead_id", "updated_at"],
       },
     ],
   });
