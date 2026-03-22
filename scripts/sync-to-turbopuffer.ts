@@ -215,7 +215,7 @@ async function main() {
           schema: {
             search_text: { type: "string", full_text_search: true },
             bio: { type: "string", full_text_search: true },
-            tags: "[]string",
+            tags: { type: "[]string", full_text_search: true },
             deliverables: "[]string",
             name: "string",
             handle: "string",

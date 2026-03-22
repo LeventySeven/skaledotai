@@ -289,7 +289,7 @@ export async function upsertLeadMemoryRows(
 export async function searchLeadMemory(
   userId: string,
   query: string,
-  options?: { topK?: number },
+  options?: { topK?: number; tags?: string[] },
 ): Promise<LeadMemoryHit[]> {
   if (!isTurboPufferConfigured()) {
     console.log("[lead-memory][lookup] TurboPuffer not configured, skipping");
@@ -304,8 +304,8 @@ export async function searchLeadMemory(
     // Generate query embedding
     const queryVector = await generateEmbedding(query);
 
-    // Run hybrid search: vector ANN + BM25 full-text, fused with RRF
-    const hits = await multiQuery(namespace, queryVector, query, topK);
+    // Run hybrid search: vector ANN + BM25 full-text + BM25 tags, fused with RRF
+    const hits = await multiQuery(namespace, queryVector, query, topK, options?.tags);
 
     const latencyMs = Date.now() - startMs;
 

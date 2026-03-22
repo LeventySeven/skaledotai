@@ -1849,8 +1849,17 @@ const graph = new StateGraph(MultiAgentState)
     const query = state.normalizedQuery || state.niche;
     const candidates: XLeadCandidate[] = [];
 
+    // Derive search tags from roleTerms — e.g. "product designer" → "designers"
+    const searchTags = [
+      ...state.roleTerms.slice(0, 5),
+      ...state.bioTerms.slice(0, 3),
+    ].map((t) => t.toLowerCase());
+
     try {
-      const hits = await searchLeadMemory(state.userId, query, { topK: 30 });
+      const hits = await searchLeadMemory(state.userId, query, {
+        topK: 30,
+        tags: searchTags.length > 0 ? searchTags : undefined,
+      });
 
       for (const hit of hits) {
         candidates.push(mapMemoryHitToCandidate(hit, state.niche));
