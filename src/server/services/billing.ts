@@ -18,7 +18,7 @@ export async function trackUsage(userId: string, featureId: string, value = 1) {
 /** Get a checkout URL to subscribe the user to a plan. */
 export async function attachPlan(userId: string, planId: string) {
   const result = await autumn.billing.attach({ customerId: userId, planId });
-  return { paymentUrl: result.payment_url ?? null };
+  return { paymentUrl: result.paymentUrl ?? null };
 }
 
 /** Helpers scoped to specific features */
