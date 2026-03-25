@@ -87,6 +87,7 @@ export function RefineSearchForm() {
     followerUsername?: string;
     minFollowers: number;
     targetLeadCount: number;
+    enableWebSearch?: boolean;
   }) {
     setLiveSearchPending(true);
     setStreamSteps([]);

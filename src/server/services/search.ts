@@ -574,6 +574,14 @@ export async function searchAndAddLeads(
     const minFollowers = input.minFollowers ?? 0;
     const parseAccountsTarget = getDiscoveryParseTarget(provider, targetLeadCount);
 
+    console.log("[search] starting", JSON.stringify({
+      query: input.query,
+      seedHandle: seedHandle ?? null,
+      enableWebSearch: input.enableWebSearch ?? false,
+      minFollowers,
+      targetLeadCount,
+    }));
+
     // Progressive trace persistence — save to DB periodically so progress survives navigation.
     // Aligned with LangGraph checkpoint pattern: "save state at every super-step."
     const collectedSteps: Array<unknown> = [];
@@ -1059,7 +1067,7 @@ export async function searchAndAddLeads(
       metrics: [
         { label: "Rows", value: profiles.length },
       ],
-      tools: lookupResolution.effectiveProvider === "multiagent" ? ["AgentQL"] : [],
+      tools: needsWebSearch && lookupResolution.effectiveProvider === "multiagent" ? ["AgentQL"] : [],
     }));
     const leadsList = await addProfilesToProject({
       userId,

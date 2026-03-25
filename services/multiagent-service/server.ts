@@ -193,6 +193,8 @@ async function handleLiveSearch(req: IncomingMessage, res: ServerResponse): Prom
     userId: auth.sub,
     query: parsed.data.query,
     targetLeadCount: parsed.data.targetLeadCount ?? null,
+    followerUsername: parsed.data.followerUsername ?? null,
+    enableWebSearch: parsed.data.enableWebSearch ?? false,
   }));
 
   let cancelled = false;
