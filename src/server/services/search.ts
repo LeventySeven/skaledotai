@@ -622,97 +622,162 @@ export async function searchAndAddLeads(
     const enableWebSearch = input.enableWebSearch ?? false;
 
     if (seedHandle) {
-      try {
-        // Check if followers are already cached
-        const cacheStatus = await getFollowerCacheStatus(seedHandle);
+      // ── Follower-only mode: fetch → cache → search within followers ────
+      // When a seed handle is provided, ONLY search within that user's followers.
+      // No warm/cold database search. No web search.
 
-        if (cacheStatus.state === "missing" || cacheStatus.state === "failed") {
-          // Fetch and cache verified followers into TurboPuffer
-          trace.addStep(await emitStep(progress, {
-            id: "follower-fetch",
-            title: "Fetching Verified Followers",
-            summary: `Fetching verified followers of @${seedHandle} via TwitterAPI.io...`,
-            status: "success",
-            provider: "multiagent",
-            tools: ["TwitterAPI.io", "TurboPuffer"],
-            bullets: [`Caching @${seedHandle}'s verified followers for fast future searches.`],
-            metrics: [],
-          }));
+      // Check if followers are already cached
+      const cacheStatus = await getFollowerCacheStatus(seedHandle);
 
-          const result = await fetchAndCacheFollowers(seedHandle);
+      if (cacheStatus.state === "missing" || cacheStatus.state === "failed") {
+        // Fetch and cache verified followers into TurboPuffer
+        trace.addStep(await emitStep(progress, {
+          id: "follower-fetch",
+          title: "Fetching Verified Followers",
+          summary: `Fetching verified followers of @${seedHandle} via TwitterAPI.io...`,
+          status: "success",
+          provider: "multiagent",
+          tools: ["TwitterAPI.io", "TurboPuffer"],
+          bullets: [`Caching @${seedHandle}'s verified followers for fast future searches.`],
+          metrics: [],
+        }));
 
-          trace.addStep(await emitStep(progress, {
-            id: "follower-cached",
-            title: "Followers Cached",
-            summary: `Cached ${result.total} verified followers of @${seedHandle}.`,
-            status: "success",
-            provider: "multiagent",
-            tools: ["TwitterAPI.io", "TurboPuffer"],
-            bullets: [`${result.total} verified followers stored in TurboPuffer.`, "Future searches will be instant."],
-            metrics: [{ label: "Followers cached", value: result.total }],
-          }));
-        }
+        const result = await fetchAndCacheFollowers(seedHandle);
 
-        // Search within the cached followers
-        const followerProfiles = await searchWithinFollowers({
-          seedHandle,
-          query: input.query,
-          topK: Math.max(targetLeadCount, 50),
-          minFollowers,
+        trace.addStep(await emitStep(progress, {
+          id: "follower-cached",
+          title: "Followers Cached",
+          summary: `Cached ${result.total} verified followers of @${seedHandle}.`,
+          status: "success",
+          provider: "multiagent",
+          tools: ["TwitterAPI.io", "TurboPuffer"],
+          bullets: [`${result.total} verified followers stored in TurboPuffer.`, "Future searches will be instant."],
+          metrics: [{ label: "Followers cached", value: result.total }],
+        }));
+      } else if (cacheStatus.state === "fetching") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Still fetching @${seedHandle}'s followers. Please wait and try again.`,
         });
-
-        if (followerProfiles.length > 0) {
-          // Convert to XLeadCandidate format
-          for (const profile of followerProfiles) {
-            const handle = profile.username.replace(/^@/, "").toLowerCase();
-            if (knownHandles.has(handle)) continue;
-            knownHandles.add(handle);
-            screenedCandidates.push({
-              source: "multiagent",
-              niche: input.query,
-              discoverySource: "followers",
-              account: {
-                handle: profile.username,
-                name: profile.displayName,
-                bio: profile.bio,
-                followers: profile.followersCount,
-                following: profile.followingCount,
-                isVerified: profile.verified,
-                profileUrl: profile.profileUrl,
-                avatarUrl: profile.avatarUrl,
-                xUserId: profile.xUserId,
-              },
-              metrics: { avgLikes: 0, avgReplies: 0, avgReposts: 0, postsSampleSize: 0 },
-              posts: [],
-            });
-          }
-
-          trace.addStep(await emitStep(progress, {
-            id: "follower-search",
-            title: "Follower Search",
-            summary: `Found ${followerProfiles.length} matching followers of @${seedHandle}.`,
-            status: "success",
-            provider: "multiagent",
-            tools: ["TurboPuffer"],
-            bullets: [
-              `${followerProfiles.length} verified followers match "${input.query}".`,
-              screenedCandidates.length >= targetLeadCount
-                ? `Target of ~${targetLeadCount} met from followers alone.`
-                : `${targetLeadCount - screenedCandidates.length} more needed.`,
-            ],
-            metrics: [
-              { label: "Follower matches", value: followerProfiles.length },
-              { label: "Target", value: targetLeadCount },
-            ],
-          }));
-        }
-      } catch (error) {
-        console.warn("[search][follower-cache] Failed (non-fatal):", error instanceof Error ? error.message : String(error));
       }
+
+      // Search within the cached followers
+      const followerProfiles = await searchWithinFollowers({
+        seedHandle,
+        query: input.query,
+        topK: Math.max(targetLeadCount, 100),
+        minFollowers,
+      });
+
+      for (const profile of followerProfiles) {
+        const handle = profile.username.replace(/^@/, "").toLowerCase();
+        if (knownHandles.has(handle)) continue;
+        knownHandles.add(handle);
+        screenedCandidates.push({
+          source: "multiagent",
+          niche: input.query,
+          discoverySource: "followers",
+          account: {
+            handle: profile.username,
+            name: profile.displayName,
+            bio: profile.bio,
+            followers: profile.followersCount,
+            following: profile.followingCount,
+            isVerified: profile.verified,
+            profileUrl: profile.profileUrl,
+            avatarUrl: profile.avatarUrl,
+            xUserId: profile.xUserId,
+          },
+          metrics: { avgLikes: 0, avgReplies: 0, avgReposts: 0, postsSampleSize: 0 },
+          posts: [],
+        });
+      }
+
+      trace.addStep(await emitStep(progress, {
+        id: "follower-search",
+        title: "Follower Search",
+        summary: followerProfiles.length > 0
+          ? `Found ${followerProfiles.length} matching followers of @${seedHandle}.`
+          : `No followers of @${seedHandle} match "${input.query}".`,
+        status: followerProfiles.length > 0 ? "success" : "warning",
+        provider: "multiagent",
+        tools: ["TurboPuffer"],
+        bullets: followerProfiles.length > 0
+          ? [`${followerProfiles.length} verified followers match "${input.query}".`]
+          : [`No verified followers of @${seedHandle} match this query.`],
+        metrics: [
+          { label: "Matches", value: followerProfiles.length },
+        ],
+      }));
+
+      if (screenedCandidates.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `No verified followers of @${seedHandle} match "${input.query}".`,
+        });
+      }
+
+      // Skip straight to insertion — no database search, no web search
+      const finalCandidates = screenedCandidates;
+      const profiles = finalCandidates.map((c) => ({
+        ...toXProfileFromCandidate(c),
+        samplePosts: getCandidateSampleTexts(c),
+        source: c.discoverySource,
+      }));
+
+      trace.addStep(await emitStep(progress, {
+        id: "insert",
+        title: "Spreadsheet Insert",
+        summary: `Inserted ${profiles.length} followers into ${project.name}.`,
+        status: "success",
+        provider,
+        bullets: [`Project: ${project.name}`],
+        metrics: [{ label: "Inserted", value: profiles.length }],
+        tools: [],
+      }));
+
+      const leadsList = await addProfilesToProject({
+        userId,
+        projectId: project.id,
+        profiles,
+        discoverySource: "followers",
+        discoveryQuery: input.query,
+      });
+
+      const finalTrace = trace.build(
+        `Added ${leadsList.length} followers of @${seedHandle} to ${project.name}.`,
+        "success",
+      );
+
+      await recordProjectRun({
+        projectId: project.id,
+        operationType: "search",
+        requestedProvider: provider,
+        discoveryProvider: "multiagent",
+        lookupProvider: provider,
+        networkProvider: provider,
+        tweetsProvider: provider,
+        query: input.query,
+        seedUsername: seedHandle,
+        minFollowers: input.minFollowers,
+        targetLeadCount: input.targetLeadCount,
+        leadCount: leadsList.length,
+        traceData: finalTrace,
+        status: "completed",
+      });
+
+      return {
+        leads: leadsList,
+        project: {
+          ...project,
+          sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
+        },
+        trace: finalTrace,
+      };
     }
 
     // ── Lead Memory: Search TurboPuffer (warm → cold) ────────────────────────
-    // Search our general lead databases to supplement follower results.
+    // No seed handle — search our general lead databases.
     try {
       const memoryHits = await searchLeadMemory(userId, input.query, {
         topK: Math.max(targetLeadCount, 50),

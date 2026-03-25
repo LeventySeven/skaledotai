@@ -304,13 +304,17 @@ export async function lookupTwitterApiUserByUsername(username: string): Promise<
   if (!clean) return null;
 
   try {
-    const response = await twitterApiRequest<z.infer<typeof TwitterApiUserSchema>>(
+    // /twitter/user/info returns { data: { ...user }, status, msg }
+    const response = await twitterApiRequest<{ data: unknown; status?: string; msg?: string }>(
       "/twitter/user/info",
       { userName: clean },
     );
-    const parsed = TwitterApiUserSchema.parse(response);
+    const userData = (response as Record<string, unknown>).data;
+    if (!userData || typeof userData !== "object") return null;
+    const parsed = TwitterApiUserSchema.parse(userData);
     return mapTwitterApiUserToProfile(parsed);
-  } catch {
+  } catch (error) {
+    console.warn("[twitterapi] lookupByUsername failed for", clean, error instanceof Error ? error.message : String(error));
     return null;
   }
 }
