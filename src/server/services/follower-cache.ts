@@ -63,6 +63,8 @@ export type FollowerCacheStatus =
   | { state: "missing" }
   | { state: "failed"; error: string };
 
+const STALE_FETCHING_MS = 10 * 60 * 1000; // 10 min — treat stuck "fetching" as failed
+
 export async function getFollowerCacheStatus(seedHandle: string): Promise<FollowerCacheStatus> {
   const handle = seedHandle.replace(/^@/, "").toLowerCase();
   const record = await db.query.followerCache.findFirst({
@@ -71,7 +73,17 @@ export async function getFollowerCacheStatus(seedHandle: string): Promise<Follow
 
   if (!record) return { state: "missing" };
   if (record.status === "failed") return { state: "failed", error: record.errorMessage ?? "Unknown error" };
-  if (record.status === "fetching") return { state: "fetching", totalFetched: record.totalFetched };
+
+  // Bug fix: stuck "fetching" recovery — if fetching for >10min, treat as failed
+  if (record.status === "fetching") {
+    const fetchingAge = record.lastUpdatedAt
+      ? Date.now() - record.lastUpdatedAt.getTime()
+      : Date.now() - record.createdAt.getTime();
+    if (fetchingAge > STALE_FETCHING_MS) {
+      return { state: "missing" }; // Allow re-fetch
+    }
+    return { state: "fetching", totalFetched: record.totalFetched };
+  }
 
   const isExpired = record.expiresAt ? record.expiresAt < new Date() : true;
   if (record.status === "ready" && isExpired) return { state: "stale", totalFetched: record.totalFetched };
@@ -123,9 +135,41 @@ export async function fetchAndCacheFollowers(seedHandle: string): Promise<{ tota
     let cursor: string | undefined;
     let total = 0;
     let batch: XProfile[] = [];
+    let emptyPages = 0;
 
     for (let page = 0; page < MAX_PAGES; page++) {
-      const result = await getTwitterApiVerifiedFollowersPage(userId, cursor);
+      let result: { profiles: XProfile[]; nextToken?: string };
+      try {
+        result = await getTwitterApiVerifiedFollowersPage(userId, cursor);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        // Retry once on rate limit (429) after a longer pause
+        if (msg.includes("429")) {
+          console.warn("[follower-cache] Rate limited, waiting 10s before retry...");
+          await sleep(10_000);
+          try {
+            result = await getTwitterApiVerifiedFollowersPage(userId, cursor);
+          } catch {
+            // Second failure — save what we have and mark as ready
+            console.warn("[follower-cache] Second 429, stopping early with", total, "followers");
+            break;
+          }
+        } else {
+          throw error;
+        }
+      }
+
+      // Empty page guard — Twitter API may return has_next_page=true with 0 results
+      if (result.profiles.length === 0) {
+        emptyPages++;
+        if (emptyPages >= 2) break; // Two empty pages in a row = done
+        if (!result.nextToken) break;
+        cursor = result.nextToken;
+        await sleep(1500);
+        continue;
+      }
+      emptyPages = 0;
+
       batch.push(...result.profiles);
 
       // Flush batch to TurboPuffer when big enough
@@ -137,7 +181,7 @@ export async function fetchAndCacheFollowers(seedHandle: string): Promise<{ tota
         // Update progress in DB
         await db
           .update(followerCache)
-          .set({ totalFetched: total })
+          .set({ totalFetched: total, lastUpdatedAt: new Date() })
           .where(eq(followerCache.seedHandle, handle));
       }
 
@@ -145,7 +189,7 @@ export async function fetchAndCacheFollowers(seedHandle: string): Promise<{ tota
       cursor = result.nextToken;
 
       // Rate limit — twitterapi.io + turbopuffer
-      await sleep(1200);
+      await sleep(1500);
     }
 
     // Flush remaining

@@ -654,6 +654,21 @@ export async function searchAndAddLeads(
           bullets: [`${result.total} verified followers stored in TurboPuffer.`, "Future searches will be instant."],
           metrics: [{ label: "Followers cached", value: result.total }],
         }));
+      } else if (cacheStatus.state === "stale") {
+        // Serve stale cache + trigger background refresh (don't block the search)
+        fetchAndCacheFollowers(seedHandle).catch((err) =>
+          console.warn("[search][follower-cache] Background refresh failed:", err instanceof Error ? err.message : String(err)),
+        );
+        trace.addStep(await emitStep(progress, {
+          id: "follower-refresh",
+          title: "Follower Cache",
+          summary: `Using cached followers of @${seedHandle} (refreshing in background).`,
+          status: "success",
+          provider: "multiagent",
+          tools: ["TurboPuffer"],
+          bullets: [`${cacheStatus.totalFetched} followers cached. Refreshing in background.`],
+          metrics: [{ label: "Cached followers", value: cacheStatus.totalFetched }],
+        }));
       } else if (cacheStatus.state === "fetching") {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
@@ -661,7 +676,7 @@ export async function searchAndAddLeads(
         });
       }
 
-      // Search within the cached followers
+      // Search within the cached followers by query (bio, tags, semantic match)
       const followerProfiles = await searchWithinFollowers({
         seedHandle,
         query: input.query,
