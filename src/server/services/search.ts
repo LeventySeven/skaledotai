@@ -48,6 +48,11 @@ import {
   searchLeadMemory,
   mapMemoryHitToCandidate,
 } from "./lead-memory";
+import {
+  getFollowerCacheStatus,
+  fetchAndCacheFollowers,
+  searchWithinFollowers,
+} from "./follower-cache";
 
 type CanonicalCandidate = XProfile & {
   samplePosts: string[];
@@ -601,13 +606,105 @@ export async function searchAndAddLeads(
       onSnapshot: progress.onSnapshot,
     } : undefined;
 
-    // ── Lead Memory: Search TurboPuffer (warm → cold) ────────────────────────
-    // Always search our lead databases first. Warm = curated high-quality leads,
-    // cold = bulk scraped leads. Web search only runs if explicitly enabled.
+    // ── Search within followers (TurboPuffer-cached) ─────────────────────────
+    // If user specified a seed handle, search their cached verified followers first.
+    // If cache doesn't exist yet, fetch → cache → then search.
     const knownHandles = new Set<string>();
     let screenedCandidates: XLeadCandidate[] = [];
     const enableWebSearch = input.enableWebSearch ?? false;
 
+    if (seedHandle) {
+      try {
+        // Check if followers are already cached
+        const cacheStatus = await getFollowerCacheStatus(seedHandle);
+
+        if (cacheStatus.state === "missing" || cacheStatus.state === "failed") {
+          // Fetch and cache verified followers into TurboPuffer
+          trace.addStep(await emitStep(progress, {
+            id: "follower-fetch",
+            title: "Fetching Verified Followers",
+            summary: `Fetching verified followers of @${seedHandle} via TwitterAPI.io...`,
+            status: "success",
+            provider: "multiagent",
+            tools: ["TwitterAPI.io", "TurboPuffer"],
+            bullets: [`Caching @${seedHandle}'s verified followers for fast future searches.`],
+            metrics: [],
+          }));
+
+          const result = await fetchAndCacheFollowers(seedHandle);
+
+          trace.addStep(await emitStep(progress, {
+            id: "follower-cached",
+            title: "Followers Cached",
+            summary: `Cached ${result.total} verified followers of @${seedHandle}.`,
+            status: "success",
+            provider: "multiagent",
+            tools: ["TwitterAPI.io", "TurboPuffer"],
+            bullets: [`${result.total} verified followers stored in TurboPuffer.`, "Future searches will be instant."],
+            metrics: [{ label: "Followers cached", value: result.total }],
+          }));
+        }
+
+        // Search within the cached followers
+        const followerProfiles = await searchWithinFollowers({
+          seedHandle,
+          query: input.query,
+          topK: Math.max(targetLeadCount, 50),
+          minFollowers,
+        });
+
+        if (followerProfiles.length > 0) {
+          // Convert to XLeadCandidate format
+          for (const profile of followerProfiles) {
+            const handle = profile.username.replace(/^@/, "").toLowerCase();
+            if (knownHandles.has(handle)) continue;
+            knownHandles.add(handle);
+            screenedCandidates.push({
+              source: "multiagent",
+              niche: input.query,
+              discoverySource: "followers",
+              account: {
+                handle: profile.username,
+                name: profile.displayName,
+                bio: profile.bio,
+                followers: profile.followersCount,
+                following: profile.followingCount,
+                isVerified: profile.verified,
+                profileUrl: profile.profileUrl,
+                avatarUrl: profile.avatarUrl,
+                xUserId: profile.xUserId,
+              },
+              metrics: { avgLikes: 0, avgReplies: 0, avgReposts: 0, postsSampleSize: 0 },
+              posts: [],
+            });
+          }
+
+          trace.addStep(await emitStep(progress, {
+            id: "follower-search",
+            title: "Follower Search",
+            summary: `Found ${followerProfiles.length} matching followers of @${seedHandle}.`,
+            status: "success",
+            provider: "multiagent",
+            tools: ["TurboPuffer"],
+            bullets: [
+              `${followerProfiles.length} verified followers match "${input.query}".`,
+              screenedCandidates.length >= targetLeadCount
+                ? `Target of ~${targetLeadCount} met from followers alone.`
+                : `${targetLeadCount - screenedCandidates.length} more needed.`,
+            ],
+            metrics: [
+              { label: "Follower matches", value: followerProfiles.length },
+              { label: "Target", value: targetLeadCount },
+            ],
+          }));
+        }
+      } catch (error) {
+        console.warn("[search][follower-cache] Failed (non-fatal):", error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    // ── Lead Memory: Search TurboPuffer (warm → cold) ────────────────────────
+    // Search our general lead databases to supplement follower results.
     try {
       const memoryHits = await searchLeadMemory(userId, input.query, {
         topK: Math.max(targetLeadCount, 50),
