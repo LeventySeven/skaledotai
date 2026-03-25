@@ -601,37 +601,45 @@ export async function searchAndAddLeads(
       onSnapshot: progress.onSnapshot,
     } : undefined;
 
-    // ── Lead Memory: Search TurboPuffer first ────────────────────────────────
-    // If we already have high-quality leads from previous searches, use them
-    // to seed the known pool and reduce how many new leads we need to find.
+    // ── Lead Memory: Search TurboPuffer (warm → cold) ────────────────────────
+    // Always search our lead databases first. Warm = curated high-quality leads,
+    // cold = bulk scraped leads. Web search only runs if explicitly enabled.
     const knownHandles = new Set<string>();
     let screenedCandidates: XLeadCandidate[] = [];
+    const enableWebSearch = input.enableWebSearch ?? false;
 
     try {
-      const memoryHits = await searchLeadMemory(userId, input.query, { topK: 30 });
+      const memoryHits = await searchLeadMemory(userId, input.query, {
+        topK: Math.max(targetLeadCount, 50),
+        minFollowers: minFollowers,
+      });
+
       if (memoryHits.length > 0) {
         const memoryCandidates = memoryHits.map((hit) => mapMemoryHitToCandidate(hit, input.query));
         for (const c of memoryCandidates) {
           const key = c.account.handle.replace(/^@/, "").toLowerCase();
           knownHandles.add(key);
         }
-        // Pre-seed screened candidates with memory hits
         screenedCandidates = memoryCandidates;
 
         trace.addStep(await emitStep(progress, {
           id: "lead-memory",
           title: "Lead Memory Lookup",
-          summary: `Found ${memoryHits.length} previously seen leads in memory.`,
-          status: memoryHits.length > 0 ? "success" : "warning",
+          summary: `Found ${memoryHits.length} leads from our database.`,
+          status: "success",
           provider: "multiagent",
           tools: ["TurboPuffer"],
           bullets: [
-            `${memoryHits.length} leads recalled from previous searches.`,
-            `${targetLeadCount - screenedCandidates.length} more needed from fresh discovery.`,
+            `${memoryHits.length} leads found across warm and cold databases.`,
+            screenedCandidates.length >= targetLeadCount
+              ? `Target of ~${targetLeadCount} met from database alone.`
+              : enableWebSearch
+                ? `${targetLeadCount - screenedCandidates.length} more needed — web search will run next.`
+                : `${screenedCandidates.length} leads available. Enable web search for more.`,
           ],
           metrics: [
-            { label: "Memory hits", value: memoryHits.length },
-            { label: "Remaining target", value: Math.max(0, targetLeadCount - screenedCandidates.length) },
+            { label: "Database hits", value: memoryHits.length },
+            { label: "Target", value: targetLeadCount },
           ],
         }));
       }
@@ -639,13 +647,32 @@ export async function searchAndAddLeads(
       console.warn("[search][lead-memory] Lookup failed (non-fatal):", error instanceof Error ? error.message : String(error));
     }
 
-    // ── Discover → Screen → Check → Loop architecture ──────────────────────────
-    // Screening happens IN THE MIDDLE of the pipeline, not at the end.
-    // After each pass: discover candidates → screen for relevance → check count.
-    // If not enough relevant leads, discover MORE (new ones, not duplicates).
-    // This ensures the user gets both ACCURACY and QUANTITY.
+    // ── Skip web discovery if not enabled or target already met ──────────────
+    const needsWebSearch = enableWebSearch && screenedCandidates.length < targetLeadCount;
 
-    const MAX_SEARCH_PASSES = 6;
+    if (!needsWebSearch && screenedCandidates.length > 0) {
+      // We have enough from the database — skip straight to insertion
+      if (!enableWebSearch) {
+        trace.addStep(await emitStep(progress, {
+          id: "web-search-skipped",
+          title: "Web Search",
+          summary: "Web search is disabled. Using database results only.",
+          status: "success",
+          provider: discoveryProvider.provider,
+          bullets: [
+            `${screenedCandidates.length} leads from database.`,
+            "Enable 'Also search the web for new leads' to find more.",
+          ],
+          metrics: [
+            { label: "From database", value: screenedCandidates.length },
+          ],
+          tools: [],
+        }));
+      }
+    }
+
+    // ── Discover → Screen → Check → Loop (only if web search enabled) ────────
+    const MAX_SEARCH_PASSES = needsWebSearch ? 6 : 0;
     let latestInterpretation: SearchInterpretation | undefined;
     let totalDiscovered = 0;
     let totalScreenedPool = 0;
@@ -796,7 +823,9 @@ export async function searchAndAddLeads(
     if (screenedCandidates.length === 0) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "No relevant X leads passed AI screening for this query.",
+        message: enableWebSearch
+          ? "No relevant leads found for this query."
+          : "No matching leads found in our database. Try enabling web search to discover new leads.",
       });
     }
 

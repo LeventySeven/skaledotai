@@ -40,6 +40,7 @@ export function SearchForm() {
   const [query, setQuery] = useState(rerunQuery ?? "");
   const [searchFollowersOnly, setSearchFollowersOnly] = useState(false);
   const [followerUsername, setFollowerUsername] = useState("");
+  const [enableWebSearch, setEnableWebSearch] = useState(false);
   const [minFollowers, setMinFollowers] = useState(rerunMinFollowers ? Number(rerunMinFollowers) : 1_000);
   const [targetLeadCount, setTargetLeadCount] = useState(rerunTargetLeadCount ? Number(rerunTargetLeadCount) : 100);
   const [liveSearchPending, setLiveSearchPending] = useState(false);
@@ -195,6 +196,7 @@ export function SearchForm() {
         LEAD_TARGET_BOUNDS.min,
         Math.min(LEAD_TARGET_BOUNDS.max, Number(targetLeadCount) || LEAD_TARGET_BOUNDS.min),
       ),
+      enableWebSearch,
     };
 
     if (provider === "multiagent") {
@@ -280,7 +282,14 @@ export function SearchForm() {
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 text-[1rem]">
+            <Checkbox
+              checked={enableWebSearch}
+              onCheckedChange={(value) => setEnableWebSearch(Boolean(value))}
+            />
+            Also search the web for new leads
+          </label>
           <label className="flex items-center gap-3 text-[1rem]">
             <Checkbox
               checked={searchFollowersOnly}

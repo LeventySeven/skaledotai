@@ -40,8 +40,20 @@ export type TurboPufferHit = {
  * Single shared namespace for all leads.
  * TurboPuffer lead memory is a global pool — every user searches the same leads.
  */
+const WARM_NAMESPACE = process.env.TURBOPUFFER_WARM_NAMESPACE ?? "skale-leads-warm";
+const COLD_NAMESPACE = process.env.TURBOPUFFER_COLD_NAMESPACE ?? "skale-leads-cold";
+
+export function getWarmNamespace(): string {
+  return WARM_NAMESPACE;
+}
+
+export function getColdNamespace(): string {
+  return COLD_NAMESPACE;
+}
+
+/** Default namespace for lead memory lookups — searches warm first, then cold */
 export function buildNamespace(_userId?: string): string {
-  return process.env.TURBOPUFFER_NAMESPACE ?? "skale-leads";
+  return WARM_NAMESPACE;
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────

@@ -222,6 +222,23 @@ export const internalLeads = pgTable("internal_leads", {
   uniqueIndex("internal_leads_user_handle_platform_idx").on(table.userId, table.handle, table.platform),
 ]);
 
+// ── Follower Cache (TurboPuffer-backed) ──────────────────────────────────────
+
+export const followerCache = pgTable("follower_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seedHandle: text("seed_handle").notNull(),
+  seedUserId: text("seed_user_id"),
+  status: text("status").notNull().default("fetching"),
+  totalFetched: integer("total_fetched").notNull().default(0),
+  lastCursor: text("last_cursor"),
+  lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("follower_cache_seed_handle_idx").on(table.seedHandle),
+]);
+
 // ── DM Jobs (outreach service) ───────────────────────────────────────────────
 
 export const dmBatches = pgTable("dm_batches", {

@@ -297,6 +297,24 @@ export async function getTwitterApiVerifiedFollowers(
   return allProfiles;
 }
 
+/** Resolve a single username to its profile (including xUserId). */
+export async function lookupTwitterApiUserByUsername(username: string): Promise<XProfile | null> {
+  requireApiKey();
+  const clean = username.replace(/^@/, "").trim();
+  if (!clean) return null;
+
+  try {
+    const response = await twitterApiRequest<z.infer<typeof TwitterApiUserSchema>>(
+      "/twitter/user/info",
+      { userName: clean },
+    );
+    const parsed = TwitterApiUserSchema.parse(response);
+    return mapTwitterApiUserToProfile(parsed);
+  } catch {
+    return null;
+  }
+}
+
 export async function lookupTwitterApiUsersByIds(userIds: string[]): Promise<XProfile[]> {
   const unique = [...new Set(userIds.map((value) => value.trim()).filter(Boolean))];
   if (unique.length === 0) return [];

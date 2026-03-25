@@ -43,6 +43,13 @@
       "when": 1774018723367,
       "tag": "0005_rich_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774424523632,
+      "tag": "0006_fantastic_union_jack",
+      "breakpoints": true
     }
   ]
 }

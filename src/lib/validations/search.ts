@@ -11,6 +11,7 @@ export const SearchLeadInputSchema = z.object({
   followerUsername: z.string().optional(),
   minFollowers: z.number().int().nonnegative().optional(),
   targetLeadCount: z.number().int().min(SEARCH_TARGET_MIN).max(SEARCH_TARGET_MAX).optional(),
+  enableWebSearch: z.boolean().optional(),
 });
 export type SearchLeadInput = z.infer<typeof SearchLeadInputSchema>;
 
