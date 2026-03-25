@@ -111,16 +111,25 @@ const ALL_ATTRIBUTES = ["name", "handle", "bio", "search_text", "tags", "deliver
 // ── Tag generalization ─────────────────────────────────────────────────────
 
 const TAG_GENERALIZATIONS: Record<string, string[]> = {
-  designer: ["designers", "design", "creative"],
-  developer: ["developers", "dev", "engineering", "engineers"],
-  engineer: ["engineers", "engineering", "developers", "tech people"],
-  founder: ["founders", "solopreneurs", "operators"],
+  designer: ["designers", "design", "creative", "ux", "ui"],
+  developer: ["developers", "dev", "engineering", "engineers", "swe", "programmer", "coder"],
+  dev: ["developers", "dev", "engineering", "engineers", "swe"],
+  engineer: ["engineers", "engineering", "developers", "tech people", "swe"],
+  swe: ["developers", "engineers", "swe", "dev", "engineering"],
+  founder: ["founders", "solopreneurs", "operators", "ceos"],
+  ceo: ["ceos", "founders", "operators", "executives"],
+  cto: ["ctos", "tech people", "engineers", "engineering"],
   marketer: ["marketers", "growth", "marketing"],
-  researcher: ["researchers", "research", "data scientists"],
-  investor: ["investors", "vc", "angel"],
-  creator: ["creators", "creative", "content"],
-  writer: ["writers", "content", "journalists"],
-  product: ["product people", "product", "pm"],
+  researcher: ["researchers", "research", "data scientists", "ai/ml"],
+  investor: ["investors", "vc", "angel", "fintech"],
+  creator: ["creators", "creative", "content", "youtubers"],
+  writer: ["writers", "content", "journalists", "creators"],
+  product: ["product people", "product", "pm", "designers"],
+  ai: ["ai/ml", "data scientists", "researchers", "tech people"],
+  web3: ["web3", "crypto", "defi", "blockchain"],
+  crypto: ["crypto", "web3", "defi", "blockchain"],
+  saas: ["saas", "founders", "operators", "product people"],
+  freelance: ["freelancers", "solopreneurs", "consultants"],
 };
 
 /**
@@ -144,13 +153,13 @@ export function generalizeToTags(terms: string[]): string[] {
 }
 
 /**
- * Hybrid search: vector ANN + BM25 on search_text + BM25 on tags + BM25 on bio.
- * Tags are generalized so "product designer" matches the "designers" tag.
- * Results are fused client-side with reciprocal rank fusion.
+ * Fast BM25-only search on tags + bio + search_text. No embedding needed.
+ * "dev" → searches "dev developer developers engineers swe" across tags and bio.
+ * Returns ALL matching leads — tags first, then bio matches.
  */
 export async function multiQuery(
   namespace: string,
-  queryVector: number[],
+  queryVector: number[] | null,
   queryText: string,
   topK: number,
   options?: { tags?: string[]; minFollowers?: number },
@@ -160,53 +169,62 @@ export async function multiQuery(
 
   const ns = tpuf.namespace(namespace);
 
-  // Generalize tags: "product designer" → ["designers", "design", "creative", ...]
+  // Generalize: "dev" → ["dev", "developers", "engineering", "engineers", "swe"]
   const generalizedTags = generalizeToTags(options?.tags ?? [queryText]);
   const tagQuery = generalizedTags.join(" ");
+  // Expand bio query too: "dev" → "dev developer developers engineer engineers swe"
+  const expandedBioQuery = [...new Set([queryText, ...generalizedTags])].join(" ");
 
-  // Use a high top_k for the tag query to get ALL matching leads
   const tagTopK = Math.max(topK, 200);
 
-  const queries: Array<Record<string, unknown>> = [
-    // 1. Vector ANN — semantic similarity
-    {
+  const queries: Array<Record<string, unknown>> = [];
+
+  // 1. Vector ANN — only if we have an embedding (skipped for fast mode)
+  if (queryVector && queryVector.some((v) => v !== 0)) {
+    queries.push({
       rank_by: ["vector", "ANN", queryVector],
       top_k: topK,
       include_attributes: ALL_ATTRIBUTES,
-    },
-    // 2. BM25 on search_text — keyword match on full profile text
-    {
-      rank_by: ["search_text", "BM25", queryText],
-      top_k: topK,
-      include_attributes: ALL_ATTRIBUTES,
-    },
-    // 3. BM25 on tags — niche category match (generalized)
-    // High top_k to return ALL leads with matching tags
-    {
-      rank_by: ["tags", "BM25", tagQuery],
-      top_k: tagTopK,
-      include_attributes: ALL_ATTRIBUTES,
-    },
-    // 4. BM25 on bio — direct bio text match
-    {
-      rank_by: ["bio", "BM25", queryText],
-      top_k: topK,
-      include_attributes: ALL_ATTRIBUTES,
-    },
-  ];
+    });
+  }
+
+  // 2. BM25 on tags — generalized niche match, high top_k for ALL matches
+  queries.push({
+    rank_by: ["tags", "BM25", tagQuery],
+    top_k: tagTopK,
+    include_attributes: ALL_ATTRIBUTES,
+  });
+
+  // 3. BM25 on bio — expanded query for semantic coverage
+  queries.push({
+    rank_by: ["bio", "BM25", expandedBioQuery],
+    top_k: topK,
+    include_attributes: ALL_ATTRIBUTES,
+  });
+
+  // 4. BM25 on search_text — full profile text match
+  queries.push({
+    rank_by: ["search_text", "BM25", expandedBioQuery],
+    top_k: topK,
+    include_attributes: ALL_ATTRIBUTES,
+  });
 
   const response = await ns.multiQuery({
     queries: queries as Parameters<typeof ns.multiQuery>[0]["queries"],
   });
 
-  // Separate tag results from the rest — tag matches are ALL included, not just top-k
-  const [vectorRows, searchRows, tagRows, bioRows] = response.results.map((r) => r.rows ?? []);
+  const resultSets = response.results.map((r) => r.rows ?? []);
 
-  // RRF fusion on vector + search_text + bio (ranked results)
-  const rankedHits = reciprocalRankFusion([vectorRows, searchRows, bioRows], topK);
+  // Find the tag results (always the first BM25 query, index 0 or 1)
+  const tagResultIdx = queryVector && queryVector.some((v) => v !== 0) ? 1 : 0;
+  const tagRows = resultSets[tagResultIdx] ?? [];
+  const otherResults = resultSets.filter((_, i) => i !== tagResultIdx);
+
+  // RRF on non-tag results
+  const rankedHits = reciprocalRankFusion(otherResults, topK);
   const rankedIds = new Set(rankedHits.map((h) => h.id));
 
-  // Add ALL tag-matched leads that weren't already in ranked results
+  // Add ALL tag-matched leads that aren't already ranked
   const tagOnlyHits: TurboPufferHit[] = [];
   for (const row of tagRows) {
     const id = String(row.id);
@@ -219,10 +237,9 @@ export async function multiQuery(
     tagOnlyHits.push({ id, dist: row.$dist, attributes });
   }
 
-  // Merge: ranked results first, then remaining tag matches
   let allHits = [...rankedHits, ...tagOnlyHits];
 
-  // Post-filter by minFollowers if specified
+  // Post-filter by minFollowers
   if (options?.minFollowers && options.minFollowers > 0) {
     const min = options.minFollowers;
     allHits = allHits.filter((hit) => {

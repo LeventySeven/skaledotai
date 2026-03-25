@@ -299,7 +299,7 @@ export function RefineSearchForm() {
             checked={enableWebSearch}
             onCheckedChange={(value) => setEnableWebSearch(Boolean(value))}
           />
-          Also search the web for new leads
+          Web search
         </label>
 
         <Button

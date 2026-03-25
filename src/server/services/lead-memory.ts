@@ -303,13 +303,14 @@ export async function searchLeadMemory(
   const startMs = Date.now();
 
   try {
-    const queryVector = await generateEmbedding(query);
+    // Skip embedding for fast BM25-only search — tags + bio + search_text
+    // Vector search is optional and slow (adds ~2s for embedding generation)
     const queryOpts = { tags: options?.tags, minFollowers: options?.minFollowers };
 
     // Search BOTH namespaces in parallel — warm (curated) + cold (bulk scraped)
     const [warmHits, coldHits] = await Promise.all([
-      searchNamespaceSafe(getWarmNamespace(), queryVector, query, topK, queryOpts),
-      searchNamespaceSafe(getColdNamespace(), queryVector, query, topK, queryOpts),
+      searchNamespaceSafe(getWarmNamespace(), null, query, topK, queryOpts),
+      searchNamespaceSafe(getColdNamespace(), null, query, topK, queryOpts),
     ]);
 
     // Merge: warm leads first (priority), then cold leads that aren't duplicates
@@ -356,7 +357,7 @@ export async function searchLeadMemory(
 
 async function searchNamespaceSafe(
   namespace: string,
-  queryVector: number[],
+  queryVector: number[] | null,
   queryText: string,
   topK: number,
   options: { tags?: string[]; minFollowers?: number },

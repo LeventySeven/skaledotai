@@ -288,7 +288,7 @@ export function SearchForm() {
               checked={enableWebSearch}
               onCheckedChange={(value) => setEnableWebSearch(Boolean(value))}
             />
-            Also search the web for new leads
+            Web search
           </label>
           <label className="flex items-center gap-3 text-[1rem]">
             <Checkbox
