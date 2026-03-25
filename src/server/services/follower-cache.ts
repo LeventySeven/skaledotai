@@ -252,26 +252,27 @@ export async function searchWithinFollowers(options: {
   }
 
   // Build filters
-  const filters: unknown = minFollowers > 0
-    ? ["followers", "Gte", minFollowers]
-    : undefined;
+  const attrs = ["handle", "name", "bio", "followers", "following", "verified", "location", "profile_url", "avatar_url"];
 
-  // Hybrid: ANN + BM25 on bio
+  const vectorQuery: Record<string, unknown> = {
+    rank_by: ["vector", "ANN", queryVector],
+    top_k: topK,
+    include_attributes: attrs,
+  };
+  const bm25Query: Record<string, unknown> = {
+    rank_by: ["bio", "BM25", query],
+    top_k: topK,
+    include_attributes: attrs,
+  };
+
+  if (minFollowers > 0) {
+    const f = ["followers", "Gte", minFollowers];
+    vectorQuery.filters = f;
+    bm25Query.filters = f;
+  }
+
   const response = await ns.multiQuery({
-    queries: [
-      {
-        rank_by: ["vector", "ANN", queryVector],
-        top_k: topK,
-        ...(filters && { filters }),
-        include_attributes: ["handle", "name", "bio", "followers", "following", "verified", "location", "profile_url", "avatar_url"],
-      },
-      {
-        rank_by: ["bio", "BM25", query],
-        top_k: topK,
-        ...(filters && { filters }),
-        include_attributes: ["handle", "name", "bio", "followers", "following", "verified", "location", "profile_url", "avatar_url"],
-      },
-    ] as Parameters<typeof ns.multiQuery>[0]["queries"],
+    queries: [vectorQuery, bm25Query] as Parameters<typeof ns.multiQuery>[0]["queries"],
   });
 
   // RRF fusion

@@ -11,6 +11,4 @@ CREATE TABLE "follower_cache" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "internal_leads" ADD COLUMN "site" text;--> statement-breakpoint
-ALTER TABLE "internal_leads" ADD COLUMN "linkedin_url" text;--> statement-breakpoint
 CREATE UNIQUE INDEX "follower_cache_seed_handle_idx" ON "follower_cache" USING btree ("seed_handle");
