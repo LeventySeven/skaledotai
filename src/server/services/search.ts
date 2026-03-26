@@ -477,10 +477,11 @@ async function discoverCandidatesWithProviderOwnedLoop(
   parseAccountsTarget: number,
   progress?: SearchProgressHandlers,
   userId?: string,
+  overrideMaxAttempts?: number,
 ): Promise<DiscoveryResult> {
   const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
   const goalCount = getDiscoveryCandidateGoal(targetLeadCount);
-  const maxAttempts = SEARCH_DISCOVERY_METADATA.maxAttempts;
+  const maxAttempts = overrideMaxAttempts ?? SEARCH_DISCOVERY_METADATA.maxAttempts;
   type DiscoverySnapshotSummary = {
     attempt?: number;
     maxAttempts?: number;
@@ -878,6 +879,7 @@ export async function searchAndAddLeads(
           passParseTarget,
           progressWithPersistence,
           userId,
+          1, // Single attempt — run the pipeline once, no retries
         )
         : await discoverCandidatesUntilGoal(
           discoveryProvider,

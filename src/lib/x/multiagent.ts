@@ -1884,74 +1884,14 @@ const graph = new StateGraph(MultiAgentState)
       traceBatchUrls: [],
     };
   })
-  // Grok X-Search node — uses Grok API's x_search tool to discover leads.
-  // Runs after people_search.
-  .addNode("grok_search", async (state) => {
-    if (!isGrokConfigured()) {
-      console.log("[multiagent][grok_search] XAI_API_KEY not configured, skipping");
-      return {
-        activeNode: "grok_search" as const,
-        activeSubagent: "source_researcher" as const,
-        completedNodes: ["grok_search" as const],
-        candidates: [],
-        processedUrls: [],
-        traceQuery: undefined,
-        traceBatchUrls: [],
-      };
-    }
-
-    const query = state.normalizedQuery || state.niche;
-    const candidates: XLeadCandidate[] = [];
-    const processedUrls: string[] = [];
-
-    try {
-      const profiles = await searchGrokXUsers(query, {
-        roleTerms: state.roleTerms.slice(0, 8),
-        limit: 30,
-      });
-
-      for (const profile of dedupeProfiles(profiles)) {
-        const candidate = buildLeadCandidate(
-          "multiagent",
-          state.niche,
-          profile,
-          "profile_search",
-          [],
-        );
-        // Apply follower filters (though Grok profiles start with 0 followers,
-        // they'll be hydrated later — skip >100k if somehow present)
-        if (candidate.account.followers > 100_000) continue;
-        candidates.push(candidate);
-      }
-
-      processedUrls.push(`grok:search:${query.toLowerCase()}`);
-
-      console.log("[multiagent][grok_search]", JSON.stringify({
-        query,
-        returned: profiles.length,
-        accepted: candidates.length,
-      }));
-    } catch (error) {
-      console.warn("[multiagent][grok_search] Grok search failed:", error instanceof Error ? error.message : String(error));
-      // Non-fatal — other sources will still provide candidates
-    }
-
-    // Dedupe by handle
-    const byHandle = new Map<string, XLeadCandidate>();
-    for (const candidate of candidates) {
-      const key = candidate.account.handle.replace(/^@/, "").toLowerCase();
-      const existing = byHandle.get(key);
-      if (!existing || candidate.account.bio.length > existing.account.bio.length) {
-        byHandle.set(key, candidate);
-      }
-    }
-
+  // Grok X-Search — disabled (consistently returns empty responses)
+  .addNode("grok_search", async () => {
     return {
       activeNode: "grok_search" as const,
       activeSubagent: "source_researcher" as const,
       completedNodes: ["grok_search" as const],
-      candidates: [...byHandle.values()],
-      processedUrls,
+      candidates: [],
+      processedUrls: [],
       traceQuery: undefined,
       traceBatchUrls: [],
     };
@@ -1996,65 +1936,8 @@ const graph = new StateGraph(MultiAgentState)
       }
     }
 
-    // ── Source 2: TwitterAPI.io — keyword user search ─────────────────────────
-    // The endpoint takes a simple keyword — send only the normalizedQuery and
-    // the first 1-2 core roleTerms as separate short queries. Not the full
-    // bioTerms/phrase list — those are too long and produce bad results.
-    const twitterApiKeywords = dedupeQueries([
-      ...(state.normalizedQuery ? [state.normalizedQuery] : []),
-      ...state.roleTerms.slice(0, 6),
-    ]).filter((term) =>
-      !alreadyProcessed.has(`twitterapi:search:${term.toLowerCase()}`),
-    ).slice(0, 7);
-
-    if (twitterApiKeywords.length > 0) {
-      const twitterResults = await mapWithConcurrency(
-        twitterApiKeywords,
-        2,
-        async (term) => {
-          try {
-            const profiles = await searchTwitterApiUsers(term, { maxPages: 5 });
-            return { term, profiles };
-          } catch (error) {
-            console.warn("[multiagent][people_search] TwitterAPI.io search failed:", term, describeUpstreamError(error));
-            return { term, profiles: [] as XProfile[] };
-          }
-        },
-      );
-
-      for (const { term, profiles } of twitterResults) {
-        processedUrls.push(`twitterapi:search:${term.toLowerCase()}`);
-        let accepted = 0;
-        let filtered = 0;
-        for (const profile of dedupeProfiles(profiles)) {
-          const candidate = buildLeadCandidate(
-            "multiagent",
-            state.niche,
-            profile,
-            "profile_search",
-            [],
-          );
-          if (state.minFollowers && state.minFollowers > 0 && candidate.account.followers < state.minFollowers) {
-            filtered++;
-            continue;
-          }
-          // Accounts with >100k followers are unlikely target leads
-          if (candidate.account.followers > 100_000) {
-            filtered++;
-            continue;
-          }
-          accepted++;
-          candidates.push(candidate);
-        }
-        console.log("[multiagent][people_search][twitterapi]", JSON.stringify({
-          term,
-          returned: profiles.length,
-          accepted,
-          filteredByMinFollowers: filtered,
-          minFollowers: state.minFollowers,
-        }));
-      }
-    }
+    // TwitterAPI.io user search disabled — rate-limited (429), wastes API credits.
+    // AgentQL people search above is the primary source.
 
     // Dedupe candidates by handle
     const byHandle = new Map<string, XLeadCandidate>();
