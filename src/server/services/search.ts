@@ -832,12 +832,9 @@ export async function searchAndAddLeads(
       console.warn("[search][lead-memory] Lookup failed (non-fatal):", error instanceof Error ? error.message : String(error));
     }
 
-    // ── Skip web discovery if not enabled or target already met ──────────────
-    const needsWebSearch = enableWebSearch && screenedCandidates.length < targetLeadCount;
-
-    if (!needsWebSearch && screenedCandidates.length > 0) {
-      // We have enough from the database — skip straight to insertion
-      if (!enableWebSearch) {
+    // ── Web discovery: only if explicitly enabled ──────────────────────────
+    if (!enableWebSearch) {
+      if (screenedCandidates.length > 0) {
         trace.addStep(await emitStep(progress, {
           id: "web-search-skipped",
           title: "Web Search",
@@ -846,7 +843,7 @@ export async function searchAndAddLeads(
           provider: discoveryProvider.provider,
           bullets: [
             `${screenedCandidates.length} leads from database.`,
-            "Enable 'Also search the web for new leads' to find more.",
+            "Enable web search to discover new leads from X.",
           ],
           metrics: [
             { label: "From database", value: screenedCandidates.length },
@@ -857,7 +854,7 @@ export async function searchAndAddLeads(
     }
 
     // ── Discover → Screen → Check → Loop (only if web search enabled) ────────
-    const MAX_SEARCH_PASSES = needsWebSearch ? 6 : 0;
+    const MAX_SEARCH_PASSES = enableWebSearch ? 6 : 0;
     let latestInterpretation: SearchInterpretation | undefined;
     let totalDiscovered = 0;
     let totalScreenedPool = 0;
@@ -1105,7 +1102,7 @@ export async function searchAndAddLeads(
 
     // Skip canonicalization for DB-only searches — TurboPuffer data is already complete.
     // Only canonicalize when web search ran (candidates need real follower counts).
-    const { profiles: rawProfiles, resolution: lookupResolution } = needsWebSearch
+    const { profiles: rawProfiles, resolution: lookupResolution } = enableWebSearch
       ? await canonicalizeCandidates(provider, finalCandidates)
       : {
         profiles: finalCandidates.map((c) => ({
@@ -1147,7 +1144,7 @@ export async function searchAndAddLeads(
       metrics: [
         { label: "Rows", value: profiles.length },
       ],
-      tools: needsWebSearch && lookupResolution.effectiveProvider === "multiagent" ? ["AgentQL"] : [],
+      tools: enableWebSearch && lookupResolution.effectiveProvider === "multiagent" ? ["AgentQL"] : [],
     }));
     const leadsList = await addProfilesToProject({
       userId,
