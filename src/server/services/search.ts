@@ -1100,23 +1100,19 @@ export async function searchAndAddLeads(
 
     const finalCandidates = screenedCandidates;
 
-    // Skip canonicalization for DB-only searches — TurboPuffer data is already complete.
-    // Only canonicalize when web search ran (candidates need real follower counts).
-    const { profiles: rawProfiles, resolution: lookupResolution } = enableWebSearch
-      ? await canonicalizeCandidates(provider, finalCandidates)
-      : {
-        profiles: finalCandidates.map((c) => ({
-          ...toXProfileFromCandidate(c),
-          samplePosts: getCandidateSampleTexts(c),
-          source: c.discoverySource,
-        })),
-        resolution: {
-          requestedProvider: provider,
-          effectiveProvider: provider,
-          capability: "lookup" as const,
-          usedFallback: false,
-        },
-      };
+    // Skip canonicalization — candidates from TurboPuffer already have full data,
+    // and multiagent web search candidates are already hydrated with real follower counts.
+    const rawProfiles = finalCandidates.map((c) => ({
+      ...toXProfileFromCandidate(c),
+      samplePosts: getCandidateSampleTexts(c),
+      source: c.discoverySource,
+    }));
+    const lookupResolution: XProviderResolution = {
+      requestedProvider: provider,
+      effectiveProvider: provider,
+      capability: "lookup" as const,
+      usedFallback: false,
+    };
 
     // ── Strict minFollowers enforcement after canonicalization ──────────────
     // Canonicalization resolves real follower counts. Drop any leads that
