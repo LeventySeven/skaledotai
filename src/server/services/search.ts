@@ -854,27 +854,19 @@ export async function searchAndAddLeads(
     }
 
     // ── Discover → Screen → Check → Loop (only if web search enabled) ────────
-    const MAX_SEARCH_PASSES = enableWebSearch ? 6 : 0;
+    // Web search: run the full pipeline once, no target cap. Separate from TurboPuffer.
+    const MAX_SEARCH_PASSES = enableWebSearch ? 1 : 0;
     let latestInterpretation: SearchInterpretation | undefined;
     let totalDiscovered = 0;
     let totalScreenedPool = 0;
-    /** Collected screening reasons across all passes for inline reasoning persistence */
     const allSelectedReasons = new Map<string, string>();
-    /** All raw discovered candidates (before screening) — used for fallback salvage */
     let allDiscoveredCandidates: XLeadCandidate[] = [];
 
     try {
 
     for (let pass = 1; pass <= MAX_SEARCH_PASSES; pass++) {
-      const remaining = targetLeadCount - screenedCandidates.length;
-      // Stop if we've met the soft target
-      if (remaining <= 0) break;
-
-      // Scale discovery target: pass 1 = full target, pass 2+ = shortfall
-      const passTarget = pass === 1 ? targetLeadCount : Math.max(20, remaining);
-      const passParseTarget = pass === 1
-        ? parseAccountsTarget
-        : Math.max(100, Math.ceil(passTarget * 3));
+      const passTarget = targetLeadCount;
+      const passParseTarget = parseAccountsTarget;
 
       const discoveryResult = discoveryProvider.provider === "multiagent"
         ? await discoverCandidatesWithProviderOwnedLoop(
@@ -995,11 +987,7 @@ export async function searchAndAddLeads(
         tools: ["OpenAI"],
       }));
 
-      // Stop conditions:
-      // 1. Hit the soft target — we have enough
-      if (screenedCandidates.length >= targetLeadCount) break;
-      // 2. Diminishing returns — this pass found almost nothing new
-      if (pass >= 2 && passScreened.length < 3) break;
+      // Single pass — no stop conditions needed
     }
 
     if (screenedCandidates.length === 0) {
@@ -1012,93 +1000,25 @@ export async function searchAndAddLeads(
     }
 
     } catch (pipelineError) {
-      // ── Fallback salvage: insert whatever we found so far ────────────────
-      // If something broke mid-pipeline, we still have candidates. Insert them
-      // so the user isn't left empty-handed. Screened leads are preferred, but
-      // if screening failed, we fall back to raw discovered candidates.
-      const salvageCandidates = screenedCandidates.length > 0
-        ? screenedCandidates
-        : allDiscoveredCandidates;
-
-      if (salvageCandidates.length > 0) {
-        console.warn("[search][salvage] Pipeline error, salvaging", salvageCandidates.length, "candidates");
-
-        try {
-          const salvageProfiles = salvageCandidates.map((c) => ({
-            ...toXProfileFromCandidate(c),
-            samplePosts: getCandidateSampleTexts(c),
-            source: c.discoverySource,
-          }));
-
-          const salvageLeads = await addProfilesToProject({
-            userId,
-            projectId: project.id,
-            profiles: salvageProfiles,
-            discoverySource: "profile_search",
-            discoveryQuery: input.query,
-          });
-
-
-          trace.addStep(await emitStep(progress, {
-            id: "salvage",
-            title: "Partial Results Saved",
-            summary: `An error occurred mid-pipeline. We saved ${salvageLeads.length} leads that were already found.`,
-            status: "warning",
-            provider: discoveryProvider.provider,
-            bullets: [
-              "Sorry, something went wrong during the search pipeline.",
-              `We saved ${salvageLeads.length} leads we had already found/parsed into your campaign.`,
-              "These results may be less filtered than usual, but they're still real accounts matching your query.",
-              "You can run the search again to find more leads.",
-            ],
-            metrics: [
-              { label: "Salvaged leads", value: salvageLeads.length },
-              { label: "Screened", value: screenedCandidates.length },
-              { label: "Raw discovered", value: allDiscoveredCandidates.length },
-            ],
-            tools: [],
-          }));
-
-          const finalTrace = trace.build(
-            `Partial results: saved ${salvageLeads.length} leads after a pipeline error.`,
-            "warning",
-          );
-
-          await recordProjectRun({
-            projectId: project.id,
-            operationType: "search",
-            requestedProvider: provider,
-            discoveryProvider: discoveryProvider.provider,
-            lookupProvider: provider,
-            networkProvider: provider,
-            tweetsProvider: provider,
-            query: input.query,
-            seedUsername: input.followerUsername?.replace(/^@/, ""),
-            minFollowers: input.minFollowers,
-            targetLeadCount: input.targetLeadCount,
-            leadCount: salvageLeads.length,
-            traceData: finalTrace,
-            status: "partial",
-          });
-
-          return {
-            leads: salvageLeads,
-            project: {
-              ...project,
-              sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
-            },
-            trace: finalTrace,
-          };
-        } catch (salvageError) {
-          console.error("[search][salvage] Failed to save partial results:", salvageError);
-        }
-      }
-
-      // If salvage also failed or there were no candidates, rethrow
-      throw pipelineError;
+      // Web search loop failed — fall through to salvage below
+      console.warn("[search][web-search] Pipeline error:", pipelineError instanceof Error ? pipelineError.message : String(pipelineError));
     }
 
-    const finalCandidates = screenedCandidates;
+    // ── Salvage: if we have ANY candidates at this point, insert them ──────
+    // This covers: DB-only results, partial web search results, or mixed.
+    // The user always gets whatever we found, even if something broke.
+    const finalCandidates = screenedCandidates.length > 0
+      ? screenedCandidates
+      : allDiscoveredCandidates;
+
+    if (finalCandidates.length === 0) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: enableWebSearch
+          ? "No relevant leads found for this query."
+          : "No matching leads found in our database. Try enabling web search to discover new leads.",
+      });
+    }
 
     // Skip canonicalization — candidates from TurboPuffer already have full data,
     // and multiagent web search candidates are already hydrated with real follower counts.
