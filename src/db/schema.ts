@@ -281,6 +281,57 @@ export const dmJobs = pgTable("dm_jobs", {
   index("dm_jobs_status_idx").on(table.status),
 ]);
 
+// ── Contra (unified leads table — no FK) ────────────────────────────────────
+
+export const contra = pgTable("contra", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id"),
+
+  // Identity
+  handle: text("handle").notNull(),
+  name: text("name").notNull(),
+  bio: text("bio").notNull().default(""),
+  platform: text("platform").notNull().default("twitter"),
+  followers: integer("followers").default(0),
+  following: integer("following"),
+  avatarUrl: text("avatar_url"),
+  profileUrl: text("profile_url"),
+  url: text("url"),
+  site: text("site"),
+  linkedinUrl: text("linkedin_url"),
+  email: text("email"),
+
+  // Pricing
+  price: integer("price"),
+  budget: numeric("budget", { precision: 10, scale: 2 }),
+
+  // Categorisation
+  tags: text("tags").array().notNull().default([]),
+  deliverables: text("deliverables").array().notNull().default([]),
+  relevancy: text("relevancy").default("low"),
+  notes: text("notes"),
+  source: text("source"),
+
+  // CRM fields
+  reachedOut: boolean("reached_out").notNull().default(false),
+  stage: text("stage").notNull().default("found"),
+  priority: text("priority").notNull().default("P1"),
+  dmComfort: boolean("dm_comfort").notNull().default(false),
+  theAsk: text("the_ask").notNull().default(""),
+  inOutreach: boolean("in_outreach").notNull().default(false),
+  discoverySource: text("discovery_source"),
+  discoveryQuery: text("discovery_query"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("contra_user_id_idx").on(table.userId),
+  index("contra_handle_idx").on(table.handle),
+  index("contra_stage_idx").on(table.stage),
+  index("contra_relevancy_idx").on(table.relevancy),
+  uniqueIndex("contra_handle_platform_idx").on(table.handle, table.platform),
+]);
+
 // ── API Keys ─────────────────────────────────────────────────────────────────
 
 export const apiKeys = pgTable("api_keys", {
