@@ -20,7 +20,7 @@ import { useState } from "react";
 import type { ContraLead } from "@/lib/validations/contra";
 import { trpc } from "@/lib/trpc/client";
 import { toastManager } from "@/components/ui/toast";
-import * as XLSX from "xlsx";
+// xlsx is dynamically imported in handleExportExcel to avoid webpack build issues
 
 function escapeCSV(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
@@ -66,7 +66,6 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 export function ContraWorkspace() {
-  const router = useRouter();
   const workspace = useContraWorkspace();
   const exportQuery = trpc.contra.exportForDocs.useQuery(undefined, { enabled: false });
   const [isExporting, setIsExporting] = useState(false);
@@ -110,10 +109,10 @@ export function ContraWorkspace() {
       const leads = await fetchLeads();
       if (!leads) return;
 
+      const XLSX = await import("xlsx");
       const rows = leadsToRows(leads);
       const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows]);
 
-      // Auto-size columns
       ws["!cols"] = EXPORT_HEADERS.map((h, i) => {
         const maxLen = Math.max(h.length, ...rows.map((r) => String(r[i]).length));
         return { wch: Math.min(maxLen + 2, 50) };
