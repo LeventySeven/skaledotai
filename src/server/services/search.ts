@@ -911,7 +911,7 @@ export async function searchAndAddLeads(
         title: pass === 1 ? "Discovery" : `Discovery Pass ${pass}`,
         summary: pass === 1
           ? `Collected ${newCandidates.length} candidate accounts.`
-          : `Supplementary pass found ${newCandidates.length} new candidates (needed ~${remaining} more leads).`,
+          : `Supplementary pass found ${newCandidates.length} new candidates.`,
         status: newCandidates.length > 0 ? "success" : "warning",
         provider: discoveryProvider.provider,
         bullets: [

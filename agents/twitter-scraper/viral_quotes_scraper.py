@@ -100,12 +100,26 @@ def is_skippable(handle: str) -> bool:
     return h in MEGA_ACCOUNT_HANDLES or h in KNOWN_ORG_HANDLES
 
 
+QUOTE_LEAD_MIN_FOLLOWERS = 2_500
+
 def is_valid_quote_lead(handle: str, name: str, bio: str, followers: int) -> tuple[bool, str]:
-    """Check if a quote author qualifies as a lead."""
+    """Check if a quote author qualifies as a lead.
+    Uses 2,500 min followers instead of the global 5,000.
+    """
     clean = handle.lstrip("@").lower().strip()
     if clean in MEGA_ACCOUNT_HANDLES:
         return False, f"mega-account: @{clean}"
-    return is_valid_lead(handle, name, bio, followers)
+    if followers < QUOTE_LEAD_MIN_FOLLOWERS:
+        return False, f"needs {QUOTE_LEAD_MIN_FOLLOWERS}+ followers (has {followers})"
+    # Run the rest of is_valid_lead but skip its own min-follower check
+    # by temporarily passing followers that satisfy the global threshold
+    import rules
+    original_min = rules.MIN_FOLLOWERS
+    rules.MIN_FOLLOWERS = QUOTE_LEAD_MIN_FOLLOWERS
+    try:
+        return is_valid_lead(handle, name, bio, followers)
+    finally:
+        rules.MIN_FOLLOWERS = original_min
 
 
 # ── AgentQL Queries ─────────────────────────────────────────────────────────
@@ -235,18 +249,19 @@ async def get_profile_info(page, handle: str) -> dict:
 # ── Core scraping ───────────────────────────────────────────────────────────
 
 
-async def scrape_for_you_feed(page, seen_post_urls: set, seen_quote_handles: set):
-    """Scroll For You feed. Returns (feed_quotes, viral_posts).
+async def scrape_for_you_feed(page, seen_post_urls: set, seen_quote_handles: set,
+                              results: list[dict], maybe_auto_save, elapsed_str):
+    """Scroll For You feed. Saves feed quotes to results IMMEDIATELY.
 
-    feed_quotes: quote tweets spotted directly in the feed (the quoter is the lead)
-    viral_posts: regular posts with 100k+ views to later check their /quotes page
+    Returns viral_posts (regular posts to later check /quotes on).
+    Feed quote leads are enriched and saved inline — never lost on Ctrl+C.
     """
     print("\n  [Feed] Navigating to For You feed...")
     await page.goto("https://x.com/home", wait_until="domcontentloaded")
     await asyncio.sleep(3)
 
-    feed_quotes = []   # quote tweets found directly in feed
-    viral_posts = []   # regular posts to check /quotes on
+    feed_quote_count = 0
+    viral_posts = []
     seen_texts = set()
 
     for scroll_round in range(SCROLL_TIMES_FEED):
@@ -268,8 +283,7 @@ async def scrape_for_you_feed(page, seen_post_urls: set, seen_quote_handles: set
             is_quote = t.get("is_quote_tweet", False)
             quoted_handle = (t.get("quoted_tweet_author_handle") or "").lstrip("@").strip()
 
-            # ── Path A: This is a QUOTE TWEET in the feed ──
-            # The person quoting is the potential lead.
+            # ── Path A: QUOTE TWEET in the feed — enrich + save immediately ──
             if is_quote and views >= MIN_VIEWS:
                 if is_skippable(handle):
                     print(f"    [Skip] @{handle} — mega/org, skipping quote")
@@ -279,23 +293,42 @@ async def scrape_for_you_feed(page, seen_post_urls: set, seen_quote_handles: set
                     continue
                 seen_quote_handles.add(handle_lower)
 
-                feed_quotes.append({
-                    "quote_author_handle": handle,
-                    "quote_author_name": t.get("author_name", ""),
+                print(f"    [FeedQuote] @{handle} quoting @{quoted_handle} — {views:,} views — {text[:50]}")
+
+                # Enrich immediately — navigate to profile, then come back
+                enriched = await enrich_quote_lead(page, handle, t.get("author_name", ""), {
                     "quote_text": t.get("tweet_text", ""),
                     "quote_views": views,
                     "quote_likes": parse_count(t.get("likes_text", "0")),
                     "quote_reposts": parse_count(t.get("reposts_text", "0")),
                     "quote_comments": parse_count(t.get("replies_text", "0")),
+                    "images": [],
                     "quote_link": link,
-                    "quoted_post_author": quoted_handle,
-                    "quoted_post_text": t.get("quoted_tweet_text", ""),
                 })
-                print(f"    [FeedQuote] @{handle} quoting @{quoted_handle} — {views:,} views — {text[:50]}")
+                if enriched:
+                    results.append({
+                        "source": "feed_quote",
+                        "original_post": {
+                            "author_handle": quoted_handle,
+                            "text": t.get("quoted_tweet_text", ""),
+                        },
+                        "viral_quotes": [enriched],
+                        "scraped_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                    feed_quote_count += 1
+                    print(f"    [SAVED] @{handle} | Total: {len(results)} leads")
+                    maybe_auto_save()
+
+                # Return to feed after profile visit
+                await page.goto("https://x.com/home", wait_until="domcontentloaded")
+                await asyncio.sleep(2)
+                # Scroll back down to roughly where we were
+                for _ in range(max(1, scroll_round)):
+                    await page.evaluate("window.scrollBy(0, window.innerHeight * 3)")
+                    await asyncio.sleep(0.5)
                 continue
 
             # ── Path B: Regular post with 100k+ views ──
-            # Collect it to later open /quotes page
             if not is_quote and views >= MIN_VIEWS:
                 if is_skippable(handle):
                     print(f"    [Skip] @{handle} — mega/org, skipping post")
@@ -318,11 +351,11 @@ async def scrape_for_you_feed(page, seen_post_urls: set, seen_quote_handles: set
 
         if scroll_round % 5 == 4:
             print(f"  [Feed] Scrolled {scroll_round + 1}/{SCROLL_TIMES_FEED}"
-                  f" — {len(feed_quotes)} feed quotes, {len(viral_posts)} posts")
+                  f" — {feed_quote_count} feed quotes saved, {len(viral_posts)} posts queued")
 
-    print(f"\n  [Feed] Done: {len(feed_quotes)} quote leads from feed, "
+    print(f"\n  [Feed] Done: {feed_quote_count} quote leads saved from feed, "
           f"{len(viral_posts)} posts to check /quotes on")
-    return feed_quotes, viral_posts
+    return viral_posts
 
 
 async def scrape_post_detail(page, post_url: str) -> dict:
@@ -536,41 +569,12 @@ async def main():
         print(f"{'=' * 60}\n")
 
         try:
-            # ── Step 1: Scroll feed — collect feed quotes + viral posts ──
-            feed_quotes, viral_posts = await scrape_for_you_feed(
-                page, seen_post_urls, seen_quote_handles
+            # ── Step 1: Scroll feed — save feed quotes immediately, collect posts ──
+            viral_posts = await scrape_for_you_feed(
+                page, seen_post_urls, seen_quote_handles,
+                results, maybe_auto_save, elapsed_str
             )
 
-            # ── Step 2: Enrich feed quotes (Path A) ──
-            if feed_quotes:
-                print(f"\n  Enriching {len(feed_quotes)} feed quote leads...\n")
-                for fq in feed_quotes:
-                    if _shutting_down:
-                        break
-                    handle = fq["quote_author_handle"]
-                    enriched = await enrich_quote_lead(page, handle, fq.get("quote_author_name", ""), {
-                        "quote_text": fq["quote_text"],
-                        "quote_views": fq["quote_views"],
-                        "quote_likes": fq["quote_likes"],
-                        "quote_reposts": fq["quote_reposts"],
-                        "quote_comments": fq["quote_comments"],
-                        "images": [],
-                        "quote_link": fq["quote_link"],
-                    })
-                    if enriched:
-                        results.append({
-                            "source": "feed_quote",
-                            "original_post": {
-                                "author_handle": fq.get("quoted_post_author", ""),
-                                "text": fq.get("quoted_post_text", ""),
-                            },
-                            "viral_quotes": [enriched],
-                            "scraped_at": datetime.now(timezone.utc).isoformat(),
-                        })
-                        print(f"  [{elapsed_str()}] +1 feed quote lead: @{handle} | Total: {len(results)}")
-                        maybe_auto_save()
-
-            # ── Step 3: Process viral posts — open /quotes pages (Path B) ──
             if viral_posts:
                 print(f"\n  Processing {len(viral_posts)} viral posts for /quotes...\n")
 

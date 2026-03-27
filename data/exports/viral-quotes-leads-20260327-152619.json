@@ -1,0 +1,110 @@
+[
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "sourceryy",
+      "text": "Anduril CEO @SchimpfBrian’s biggest lesson from Palantir:\n\n“This focus on talent. Everyone says it. In practice—it’s a lot more annoying than you’d think.”\n\n“Often the talented people are super opinionated, kind of aggressive, tell you you’re dumb. It doesn’t always feel good.”"
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "jawwwn_",
+          "name": "Jawwwn",
+          "bio": "posting into the void 📺🫡••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••",
+          "followers": 22600,
+          "following": 1296
+        },
+        "quote_text": "Palantir CEO Alex Karp:\n\n“If I fire someone at Palantir, they laugh at me. They’re like, ‘You’re an idiot. Who would fire me? I have a job. I have five jobs!’”\n\n“Some people at Palantir you try to fire and they’re like, ‘you’re not going to fire me, you’re not that stupid.’”",
+        "quote_views": 2100000,
+        "quote_likes": 2600,
+        "quote_reposts": 90,
+        "quote_comments": 16,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/jawwwn_/status/2037155863958323694"
+      }
+    ],
+    "scraped_at": "2026-03-27T10:20:42.117391+00:00"
+  },
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "karpathy",
+      "text": "When I built menugen ~1 year ago, I observed that the hardest part by far was not the code itself, it was the plethora of services you have to assemble like IKEA furniture to make it real, the DevOps: services, payments, auth, database, security, domain names, etc...\n\nI am really x.com/patrickc/statu…"
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "TukiFromKL",
+          "name": "Tuki",
+          "bio": "20 | The QUANT | I love AI\nBuilding http://maveai.io - an AI agent that runs your startup while you sleep.",
+          "followers": 107000,
+          "following": 368
+        },
+        "quote_text": "🚨 do you understand what Karpathy just said..\n\nthe guy who co-founded OpenAI.. led AI at Tesla.. one of the best engineers alive..\n\nbuilt an app with AI.. and said the code was the easy part..\n\nthe hard part was Stripe.. auth.. DNS.. databases.. deploying it.. connecting 15",
+        "quote_views": 832000,
+        "quote_likes": 4500,
+        "quote_reposts": 377,
+        "quote_comments": 159,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/TukiFromKL/status/2037231149664125253"
+      }
+    ],
+    "scraped_at": "2026-03-27T10:22:56.676160+00:00"
+  },
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "disclosetv",
+      "text": "JUST IN - Leaked documents from Anthropic show that a new generation of super-strong models, \"Claude Mythos,\" is already in testing with Anthropic believing it \"poses unprecedented cybersecurity risks.\" — Fortune"
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "shiri_shh",
+          "name": "shirish",
+          "bio": "AI | Tech | Startups ▪︎ Locked in ▪︎ https://RentMyHeader.com — helping X users collab with their fave brands | DM for collabs 📩",
+          "followers": 24700,
+          "following": 1150
+        },
+        "quote_text": "Rumored to be trained on 10-T parameters and cost $10 billion to run. Yeah… TEN BILLION.\n\nAnthropic just ACCIDENTALLY dropped their secret new AI model.\n\nThey forgot to lock down a public data cache and spills out the full draft about Claude Mythos (codename Capybara).  \n\nIt’s a",
+        "quote_views": 148000,
+        "quote_likes": 443,
+        "quote_reposts": 30,
+        "quote_comments": 45,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/shiri_shh/status/2037429291248418967"
+      }
+    ],
+    "scraped_at": "2026-03-27T10:23:40.288068+00:00"
+  },
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "Bread",
+      "text": null
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "CharlesPattson",
+          "name": "Charles Patterson",
+          "bio": "Principal product designer — building at Microsoft AI",
+          "followers": 94800,
+          "following": 812
+        },
+        "quote_text": "Everything about this absolutely slaps",
+        "quote_views": 108000,
+        "quote_likes": 468,
+        "quote_reposts": 17,
+        "quote_comments": 19,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/CharlesPattson/status/2037174388974354832"
+      }
+    ],
+    "scraped_at": "2026-03-27T10:26:19.273869+00:00"
+  }
+]
