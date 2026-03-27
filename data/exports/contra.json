@@ -1,30 +1,5 @@
 [
   {
-    "id": "185c8686-0326-4ae4-8460-923d0eaf0656",
-    "handle": "iamharaldur",
-    "name": "Haraldur Thorleifsson",
-    "bio": "Product designer, educator. Former design lead at Twitter & Etsy. Design craft, process.",
-    "platform": "twitter",
-    "followers": 265600,
-    "relevancy": "high",
-    "url": "https://x.com/iamharaldur",
-    "site": "https://www.haraldurthorleifsson.com/",
-    "linkedin_url": "https://www.linkedin.com/in/haraldur-thorleifsson-359aaa5b",
-    "email": "haraldur@ueno.co",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "educators",
-      "product people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
     "id": "d4b84166-a783-4a9e-aff5-d5fe0bd4d729",
     "handle": "colebemis",
     "name": "Cole Bemis",
@@ -169,31 +144,6 @@
     "tags": [
       "writers",
       "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "cc707bf4-9d04-4238-bde8-5187cfac2def",
-    "handle": "rrhoover",
-    "name": "Ryan Hoover",
-    "bio": "Founder of Product Hunt. Product design, startup culture, angel investing.",
-    "platform": "twitter",
-    "followers": 331800,
-    "relevancy": "high",
-    "url": "https://x.com/rrhoover",
-    "site": "https://www.ryanhoover.me/",
-    "linkedin_url": "https://www.linkedin.com/in/ryanrhoover",
-    "email": "ryan@weekend.fund",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "product people",
-      "investors"
     ],
     "deliverables": [],
     "source": "internal",
@@ -414,31 +364,6 @@
     "tags": [
       "designers",
       "founders"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "59bf653d-c883-4209-af9a-696c38b187bd",
-    "handle": "swissmiss",
-    "name": "Tina Roth Eisenberg",
-    "bio": "Founder of CreativeMornings, Tattly, TeuxDeux. Design, creativity, community.",
-    "platform": "twitter",
-    "followers": 403200,
-    "relevancy": "high",
-    "url": "https://x.com/swissmiss",
-    "site": "https://www.swiss-miss.com/",
-    "linkedin_url": "https://www.linkedin.com/in/swissmiss",
-    "email": "submissions@swiss-miss.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "designers",
-      "creators"
     ],
     "deliverables": [],
     "source": "internal",
@@ -1994,32 +1919,6 @@
     "updated_at": "2026-03-20T15:25:07.513Z"
   },
   {
-    "id": "173d268b-f6ae-45b6-9209-0f40e67ef01b",
-    "handle": "heyeaslo",
-    "name": "Easlo",
-    "bio": "Notion template creator turned product builder. Design-forward indie maker, ships fast",
-    "platform": "twitter",
-    "followers": 372200,
-    "relevancy": "high",
-    "url": "https://x.com/heyeaslo",
-    "site": "https://linktr.ee/heyeaslo",
-    "linkedin_url": "https://www.linkedin.com/company/easlo/",
-    "email": null,
-    "price": null,
-    "notes": "no button to connect",
-    "tags": [
-      "creators",
-      "product people",
-      "designers",
-      "solopreneurs"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
     "id": "7b27d1db-dae0-4f60-a034-989edc7a7989",
     "handle": "goldenkrishna",
     "name": "Golden Krishna",
@@ -2037,30 +1936,6 @@
       "designers",
       "writers",
       "product people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "6092f0ed-f2f0-45a7-8c4e-efc16e469af5",
-    "handle": "denicmarko",
-    "name": "Marko Denic",
-    "bio": "Software Engineer - Content Creator - Community Builder - Let's grow together \u2192 markodenic.com/go/community",
-    "platform": "twitter",
-    "followers": 268700,
-    "relevancy": "high",
-    "url": null,
-    "site": null,
-    "linkedin_url": null,
-    "email": null,
-    "price": null,
-    "notes": null,
-    "tags": [
-      "developers",
-      "creators"
     ],
     "deliverables": [],
     "source": "internal",
@@ -2213,58 +2088,6 @@
       "founders",
       "writers",
       "researchers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "ea8f076e-0a8b-41c9-950b-9efb1720d024",
-    "handle": "adamwathan",
-    "name": "Adam Wathan",
-    "bio": "Creator of Tailwind CSS. Developer-designer hybrid. Massive audience overlapping design and dev.",
-    "platform": "twitter",
-    "followers": 285800,
-    "relevancy": "high",
-    "url": "https://x.com/adamwathan",
-    "site": "https://tailwindcss.com/",
-    "linkedin_url": "https://www.linkedin.com/in/adam-wathan-9418984a/",
-    "email": "adam@tailwindcss.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "developers",
-      "designers",
-      "open source",
-      "creators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "54b1722b-e2d7-4b5e-a160-d4194c04f270",
-    "handle": "rauchg",
-    "name": "Guillermo Rauch",
-    "bio": "CEO of Vercel. Shares design and dev thinking. Audience is builders, designers, engineers.",
-    "platform": "twitter",
-    "followers": 401600,
-    "relevancy": "high",
-    "url": "https://x.com/rauchg",
-    "site": "https://rauchg.com/",
-    "linkedin_url": "https://www.linkedin.com/in/rauchg/",
-    "email": "guillermo.rauch@vercel.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "developers",
-      "engineers",
-      "designers"
     ],
     "deliverables": [],
     "source": "internal",
@@ -2450,30 +2273,6 @@
     "updated_at": "2026-03-20T15:25:07.513Z"
   },
   {
-    "id": "2eae8c74-c786-40b1-80ed-8084684ccd97",
-    "handle": "khoi",
-    "name": "Khoi Vinh",
-    "bio": "Former NYT Design Director. One of Americas 50 most influential designers. Active design thinker and writer.",
-    "platform": "twitter",
-    "followers": 268200,
-    "relevancy": "high",
-    "url": "https://x.com/khoi",
-    "site": "https://www.subtraction.com/",
-    "linkedin_url": "https://www.linkedin.com/in/khoivinh/",
-    "email": "desk@subtraction.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
     "id": "6db9524d-ca21-4fb5-8345-1e36076745ce",
     "handle": "LukeW",
     "name": "Luke Wroblewski",
@@ -2600,32 +2399,6 @@
     "updated_at": "2026-03-20T15:25:07.513Z"
   },
   {
-    "id": "3760efe5-e7ea-4514-a41f-4cb01d638659",
-    "handle": "addyosmani",
-    "name": "Addy Osmani",
-    "bio": "Engineering manager at Google Chrome. Design-forward developer. Shares performance, UX, and frontend engineering.",
-    "platform": "twitter",
-    "followers": 375700,
-    "relevancy": "high",
-    "url": "https://x.com/addyosmani",
-    "site": "https://addyosmani.com/",
-    "linkedin_url": "https://www.linkedin.com/in/addyosmani/",
-    "email": "hi@addyosmani.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "developers",
-      "frontend",
-      "engineers",
-      "tech people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
     "id": "f44f21d3-ddea-41bb-9347-984c48436ec9",
     "handle": "samhulick",
     "name": "Sam Hulick",
@@ -2676,31 +2449,6 @@
     "updated_at": "2026-03-20T15:25:07.513Z"
   },
   {
-    "id": "f9c76e9e-48da-4b2b-81a5-e7cfdef2fde4",
-    "handle": "wesbos",
-    "name": "Wes Bos",
-    "bio": "Developer and educator. Courses on JavaScript and CSS. Design-dev overlap audience. Very active on X.",
-    "platform": "twitter",
-    "followers": 426600,
-    "relevancy": "high",
-    "url": "https://x.com/wesbos",
-    "site": "https://wesbos.com/",
-    "linkedin_url": "https://www.linkedin.com/in/wesbos/",
-    "email": "hey@wesbos.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "developers",
-      "educators",
-      "frontend"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
     "id": "e7dbd46a-8120-457e-8394-8e3f20c77eff",
     "handle": "chriscoyier",
     "name": "Chris Coyier",
@@ -2719,31 +2467,6 @@
       "frontend",
       "developers",
       "educators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "5d0398d0-82d0-4d64-b421-88a4ca0c3d00",
-    "handle": "sarah_edo",
-    "name": "Sarah Drasner",
-    "bio": "VP of Developer Experience at Netlify. CSS animation and SVG expert. Design and code overlap audience.",
-    "platform": "twitter",
-    "followers": 290900,
-    "relevancy": "high",
-    "url": "https://x.com/sarah_edo",
-    "site": "https://sarah.dev/",
-    "linkedin_url": "https://www.linkedin.com/in/sarahdrasner/overlay/contact-info/",
-    "email": "sdrasner@google.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "devrel",
-      "frontend",
-      "developers"
     ],
     "deliverables": [],
     "source": "internal",
@@ -3026,83 +2749,6 @@
     "updated_at": "2026-03-20T15:25:07.513Z"
   },
   {
-    "id": "7e35c65e-471a-47dc-9c7d-a26ab23f68c3",
-    "handle": "jasonfried",
-    "name": "Jason Fried",
-    "bio": "Co-founder of Basecamp. Opinionated on design, simplicity, and product building. Huge audience of makers and builders.",
-    "platform": "twitter",
-    "followers": 608500,
-    "relevancy": "high",
-    "url": "https://x.com/jasonfried",
-    "site": "https://world.hey.com/jason",
-    "linkedin_url": "https://www.linkedin.com/in/jason-fried/",
-    "email": "jason@hey.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "designers",
-      "product people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "1cde1a3e-836b-4015-8da6-7891b9137109",
-    "handle": "dhh",
-    "name": "David Heinemeier Hansson",
-    "bio": "Creator of Ruby on Rails. Co-founder of Basecamp. Strong opinions on product and design simplicity. Massive audience.",
-    "platform": "twitter",
-    "followers": 612000,
-    "relevancy": "high",
-    "url": "https://x.com/dhh",
-    "site": "https://dhh.dk/",
-    "linkedin_url": "https://www.linkedin.com/in/david-heinemeier-hansson-374b18221/",
-    "email": "dhh@hey.com",
-    "price": null,
-    "notes": "no button to connect",
-    "tags": [
-      "developers",
-      "founders",
-      "open source",
-      "product people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "79b3bc03-de58-4f29-aecd-4d471a83ca11",
-    "handle": "awilkinson",
-    "name": "Andrew Wilkinson",
-    "bio": "Co-founder of Tiny. Built Metalab design agency. Shares design, business, and product building insights.",
-    "platform": "twitter",
-    "followers": 370500,
-    "relevancy": "high",
-    "url": "https://x.com/awilkinson",
-    "site": "https://www.tiny.com/",
-    "linkedin_url": "https://www.linkedin.com/in/awilkinson/",
-    "email": "hi@tiny.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "agency owners",
-      "designers",
-      "product people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
     "id": "e0e535dc-5bc1-47c4-952a-d9be341ac4ff",
     "handle": "okpasquale",
     "name": "Pasquale D'Silva",
@@ -3336,7 +2982,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "Bacardicapital@gmail.com",
-    "price": 30000,
+    "price": null,
     "notes": "good",
     "tags": [],
     "deliverables": [
@@ -3359,7 +3005,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "drapzdzn@gmail.com",
-    "price": 30000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers",
@@ -3385,7 +3031,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "hi@dariusdan.com",
-    "price": 30000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers",
@@ -3413,7 +3059,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "Hparsonsh@gmail.com",
-    "price": 35000,
+    "price": null,
     "notes": "good",
     "tags": [
       "investors",
@@ -3439,7 +3085,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "farazdsgn@gmail.com",
-    "price": 35000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers",
@@ -3448,30 +3094,6 @@
     "deliverables": [
       "quote",
       "thread"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "e0e4114c-635f-417f-91ba-dc213bdf5aa1",
-    "handle": "alphafox",
-    "name": "AlphaFox",
-    "bio": "X Fox \ud83c\uddfa\ud83c\uddf8\ud83e\udd8a\u271d\ufe0f",
-    "platform": "twitter",
-    "followers": 833500,
-    "relevancy": "high",
-    "url": "https://x.com/alphafox",
-    "site": null,
-    "linkedin_url": null,
-    "email": "alphafox78@gmail.com",
-    "price": 50000,
-    "notes": "good",
-    "tags": [],
-    "deliverables": [
-      "quote",
-      "comment"
     ],
     "source": "internal",
     "reached_out": false,
@@ -3490,7 +3112,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "tegapeace88@gmail.com",
-    "price": 75000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers",
@@ -3500,114 +3122,6 @@
     ],
     "deliverables": [
       "quote"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "11c78e7b-fd41-460f-a8ca-4314dd3bc52b",
-    "handle": "parikpatelcfa",
-    "name": "Dr. Parik Patel, BA, CFA, ACCA Esq.",
-    "bio": "Aswath Damodaran \ud83d\ude4f\ud83c\udffe Dhandho Investor Chapter 3:4 \ud83d\udc02 | God first, full employment second \ud83d\ude24 | Investor @SamosaCapital | Subscribe to my newsletter \ud83d\udc47\ud83c\udffe",
-    "platform": "twitter",
-    "followers": 845100,
-    "relevancy": "high",
-    "url": "https://x.com/parikpatelcfa",
-    "site": null,
-    "linkedin_url": null,
-    "email": "parikpatelcfa@gmail.com",
-    "price": 80000,
-    "notes": "good",
-    "tags": [
-      "investors",
-      "writers"
-    ],
-    "deliverables": [
-      "repost",
-      "comment"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "866161e9-fa5e-4017-8475-400c2a2f4919",
-    "handle": "alifarhat79",
-    "name": "Not Jerome Powell",
-    "bio": "Memes. Crypto. Finance \ud83d\udcb5\ud83d\udda8\ufe0f",
-    "platform": "twitter",
-    "followers": 821800,
-    "relevancy": "high",
-    "url": "https://x.com/alifarhat79",
-    "site": null,
-    "linkedin_url": null,
-    "email": "Alifarhat50@hotmail.com",
-    "price": 100000,
-    "notes": "good",
-    "tags": [
-      "crypto",
-      "creators"
-    ],
-    "deliverables": [
-      "quote",
-      "comment"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "63948cc0-d980-4f6e-95fe-cc551f4d3f9c",
-    "handle": "tiktokinvestors",
-    "name": "TTI",
-    "bio": "we curate funny, interesting, and cringy finance / biz content. we are not affiliated with TikTok. posts belong to respective owners. kalshi partner",
-    "platform": "twitter",
-    "followers": 291500,
-    "relevancy": "high",
-    "url": "https://x.com/tiktokinvestors",
-    "site": null,
-    "linkedin_url": null,
-    "email": "tiktokinvestors@gmail.com",
-    "price": 100000,
-    "notes": "good",
-    "tags": [
-      "media",
-      "creators"
-    ],
-    "deliverables": [
-      "quote",
-      "comment"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "ec99a530-081a-4a61-bd3a-7ddb56c7bdec",
-    "handle": "NoContextHumans",
-    "name": "Out of Context Human Race",
-    "bio": "The ORIGINAL Out of Context Human Race page! Subscribe to us for $1!\u2197\ufe0f No Copyright intended.",
-    "platform": "twitter",
-    "followers": 4200000,
-    "relevancy": "high",
-    "url": "https://x.com/NoContextHumans",
-    "site": null,
-    "linkedin_url": null,
-    "email": "Gpsocialmedia98@gmail.com",
-    "price": 125000,
-    "notes": "good",
-    "tags": [
-      "media",
-      "creators"
-    ],
-    "deliverables": [
-      "quote",
-      "comment"
     ],
     "source": "internal",
     "reached_out": false,
@@ -3626,7 +3140,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "isaaczara.s@gmail.com",
-    "price": 130000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers",
@@ -3634,31 +3148,6 @@
     ],
     "deliverables": [
       "full"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "477c54a1-bd00-4540-ac81-347cb3f5eff1",
-    "handle": "therabbithole",
-    "name": "The Rabbit Hole",
-    "bio": "Navigating the discourse",
-    "platform": "twitter",
-    "followers": 1000000,
-    "relevancy": "high",
-    "url": "https://x.com/therabbithole",
-    "site": null,
-    "linkedin_url": null,
-    "email": "darabbithole1@gmail.com",
-    "price": 150000,
-    "notes": "good",
-    "tags": [],
-    "deliverables": [
-      "quote",
-      "like",
-      "comment"
     ],
     "source": "internal",
     "reached_out": false,
@@ -3677,7 +3166,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "hello@dylancalluy.com",
-    "price": 150000,
+    "price": null,
     "notes": "good",
     "tags": [
       "photography",
@@ -3704,124 +3193,13 @@
     "site": null,
     "linkedin_url": null,
     "email": "abrahamjo333@gmail.com",
-    "price": 175000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers"
     ],
     "deliverables": [
       "full"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "c534bdc7-1105-4011-8097-baf4eef87ff2",
-    "handle": "TiffanyFong",
-    "name": "Tiffany Fong",
-    "bio": "i\u2019m a potato \ud83d\udc49 youtube.com/@tiffanyfong \ud83d\udc40 ig: tiffanyfong \ud83e\udd19 more: @tiffanyxfong & @tiffanyfongetc \ud83e\udef6 i follow back subscribers",
-    "platform": "twitter",
-    "followers": 503700,
-    "relevancy": "high",
-    "url": "https://x.com/TiffanyFong",
-    "site": null,
-    "linkedin_url": null,
-    "email": "tiffanyxfong@gmail.com",
-    "price": 200000,
-    "notes": "good",
-    "tags": [
-      "youtubers",
-      "creators"
-    ],
-    "deliverables": [
-      "quote",
-      "like",
-      "comment"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "7c0328b0-8722-4688-8873-f038113e8eed",
-    "handle": "historyinmemes",
-    "name": "Historic Vids",
-    "bio": "Daily history lessons. Education through memes!",
-    "platform": "twitter",
-    "followers": 6100000,
-    "relevancy": "high",
-    "url": "https://x.com/historyinmemes",
-    "site": null,
-    "linkedin_url": null,
-    "email": "Evan@historyinmemes.com",
-    "price": 250000,
-    "notes": "good",
-    "tags": [
-      "educators",
-      "creators",
-      "media"
-    ],
-    "deliverables": [
-      "quote",
-      "like",
-      "comment"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "4589ead4-2219-4413-82e2-bac1a01e7428",
-    "handle": "InternetH0F",
-    "name": "internet hall of fame",
-    "bio": "the internet just wouldn't be the same without these iconic posts. \ud83d\udce7 Submit Clips & Inquiries to Media@fixated.com",
-    "platform": "twitter",
-    "followers": 4000000,
-    "relevancy": "high",
-    "url": "https://x.com/InternetH0F",
-    "site": null,
-    "linkedin_url": null,
-    "email": "j@crazed.net",
-    "price": 250000,
-    "notes": "good",
-    "tags": [
-      "media",
-      "creators"
-    ],
-    "deliverables": [
-      "quote",
-      "comment"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "cc2d6875-5334-45b9-83c5-3089957c3822",
-    "handle": "interesting_aIl",
-    "name": "Interesting AF",
-    "bio": "Posting interesting history, tech, art, and more. \u2709\ufe0f Submit clips to clips@fixated.co to be featured!",
-    "platform": "twitter",
-    "followers": 2600000,
-    "relevancy": "high",
-    "url": "https://x.com/interesting_aIl",
-    "site": null,
-    "linkedin_url": null,
-    "email": "j@crazed.net",
-    "price": 250000,
-    "notes": "good",
-    "tags": [
-      "media",
-      "creators"
-    ],
-    "deliverables": [
-      "quote",
-      "comment"
     ],
     "source": "internal",
     "reached_out": false,
@@ -3840,7 +3218,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "mike@creativemints.com",
-    "price": 100000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers",
@@ -3848,32 +3226,6 @@
     ],
     "deliverables": [
       "quote"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "f639fdeb-d0dd-448e-8745-246461b8c6b4",
-    "handle": "aihighlight",
-    "name": "AI Highlight",
-    "bio": "Al and Tech move fast, we highlight what matters || Curating the most important breakthroughs and tools in Al l DM for collaborations \ud83d\udce9 hello@aihighlight.io",
-    "platform": "twitter",
-    "followers": 616200,
-    "relevancy": "high",
-    "url": "https://x.com/aihighlight",
-    "site": null,
-    "linkedin_url": null,
-    "email": "hello@futurestacked.com",
-    "price": 436200,
-    "notes": "good",
-    "tags": [
-      "ai/ml",
-      "media"
-    ],
-    "deliverables": [
-      "full"
     ],
     "source": "internal",
     "reached_out": false,
@@ -3908,59 +3260,6 @@
     "updated_at": "2026-03-20T14:36:20.722Z"
   },
   {
-    "id": "facb9be6-c561-4757-88f3-75747a15253c",
-    "handle": "aifrontliner",
-    "name": "AI Frontliner",
-    "bio": "From product launches to real world impact of AI, we highlight the moments that matter, so you stay ahead || DM for collaborations || \ud83d\udce9 hello@aifrontliner.io",
-    "platform": "twitter",
-    "followers": 420800,
-    "relevancy": "high",
-    "url": "https://x.com/aifrontliner",
-    "site": null,
-    "linkedin_url": null,
-    "email": "hello@futurestacked.com",
-    "price": null,
-    "notes": "good",
-    "tags": [
-      "ai/ml",
-      "media"
-    ],
-    "deliverables": [
-      "full"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "cb5a3356-c9ba-4105-a41a-22ef3381d352",
-    "handle": "FutureStacked",
-    "name": "Future Stacked",
-    "bio": "AI, Tech and Robotics || Bringing the future to you. || DM for collaborations || \ud83d\udce9 - hello@futurestacked.com",
-    "platform": "twitter",
-    "followers": 277700,
-    "relevancy": "high",
-    "url": "https://x.com/FutureStacked",
-    "site": null,
-    "linkedin_url": null,
-    "email": "hello@futurestacked.com",
-    "price": null,
-    "notes": "good",
-    "tags": [
-      "ai/ml",
-      "robotics",
-      "media"
-    ],
-    "deliverables": [
-      "full"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
     "id": "f4cb65a5-5e6f-4e42-bc0c-93a12a2bb443",
     "handle": "azed_ai",
     "name": "Amira Zairi",
@@ -3972,7 +3271,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "zairi.amiraa@gmail.com",
-    "price": 30000,
+    "price": null,
     "notes": "good",
     "tags": [
       "ai/ml",
@@ -3999,40 +3298,13 @@
     "site": null,
     "linkedin_url": null,
     "email": "info@godofprompt.ai",
-    "price": 120000,
+    "price": null,
     "notes": "good",
     "tags": [
       "marketers",
       "ai/ml",
       "founders",
       "saas"
-    ],
-    "deliverables": [
-      "full"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "8ff6971f-4d2c-40dd-9209-1e6cf4ed32e3",
-    "handle": "godofprompt",
-    "name": "God of Prompt",
-    "bio": "\ud83d\udd11 Sharing AI Prompts, Tips & Tricks. The Biggest Collection of AI Prompts & Guides for ChatGPT, Gemini, Grok, Claude, & Midjourney AI \u2192 http://godofprompt.ai",
-    "platform": "twitter",
-    "followers": 250000,
-    "relevancy": "high",
-    "url": "https://x.com/godofprompt",
-    "site": null,
-    "linkedin_url": null,
-    "email": "info@godofprompt.ai",
-    "price": null,
-    "notes": "good",
-    "tags": [
-      "ai/ml",
-      "creators",
-      "educators"
     ],
     "deliverables": [
       "full"
@@ -4054,7 +3326,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "Jonathan@riverstreetmedia.no",
-    "price": 125000,
+    "price": null,
     "notes": "good",
     "tags": [
       "marketers",
@@ -4080,7 +3352,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "charly@charlywargnier.com",
-    "price": 88700,
+    "price": null,
     "notes": "good",
     "tags": [
       "ai/ml",
@@ -4107,7 +3379,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "hi@jacobrodri.pro",
-    "price": 100000,
+    "price": null,
     "notes": "good",
     "tags": [
       "founders",
@@ -4133,7 +3405,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "Edward@Enigmatica.co.uk",
-    "price": 99700,
+    "price": null,
     "notes": "good",
     "tags": [
       "ai/ml",
@@ -4141,56 +3413,6 @@
     ],
     "deliverables": [
       "full"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "1cafbe58-8e0b-439a-abb8-f1e6b720e849",
-    "handle": "wallstreetmav",
-    "name": "Wall Street Mav",
-    "bio": "Finance, economics, news, memes. Follow and Tap the .... (\ud83d\udd14 +Notify)",
-    "platform": "twitter",
-    "followers": 1700000,
-    "relevancy": "high",
-    "url": "https://x.com/wallstreetmav",
-    "site": null,
-    "linkedin_url": null,
-    "email": "James@WallStreetMav.com",
-    "price": 100000,
-    "notes": "good",
-    "tags": [
-      "media"
-    ],
-    "deliverables": [
-      "quote"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "bbcf8864-78fb-4b27-aefb-02a390736c40",
-    "handle": "KobeissiLetter",
-    "name": "The Kobeissi Letter",
-    "bio": "Official X account for The Kobeissi Letter, an industry leading commentary on the global capital markets. Email us: support@thekobeissiletter.com",
-    "platform": "twitter",
-    "followers": 1500000,
-    "relevancy": "high",
-    "url": "https://x.com/KobeissiLetter",
-    "site": null,
-    "linkedin_url": null,
-    "email": "Adam@thekobeissiletter.com",
-    "price": 500000,
-    "notes": "good",
-    "tags": [
-      "media"
-    ],
-    "deliverables": [
-      "quote"
     ],
     "source": "internal",
     "reached_out": false,
@@ -4209,7 +3431,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "yahyadesign23@gmail.com",
-    "price": 40000,
+    "price": null,
     "notes": "good",
     "tags": [
       "designers",
@@ -4235,7 +3457,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "Roman.Yampolskiy@louisville.edu",
-    "price": 100000,
+    "price": null,
     "notes": "good",
     "tags": [
       "researchers",
@@ -4263,7 +3485,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "vas@varickagents.com",
-    "price": 150000,
+    "price": null,
     "notes": "good",
     "tags": [
       "founders",
@@ -4289,7 +3511,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "caiden@deliveron.org",
-    "price": 150000,
+    "price": null,
     "notes": "good",
     "tags": [
       "growth",
@@ -4317,7 +3539,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "charlie@solowriters.com",
-    "price": 20000,
+    "price": null,
     "notes": "good",
     "tags": [
       "investors"
@@ -4342,7 +3564,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "hello@stfn.co",
-    "price": 120000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "designers",
@@ -4371,7 +3593,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "Veryboringbusiness@gmail.com",
-    "price": 70000,
+    "price": null,
     "notes": "bad",
     "tags": [],
     "deliverables": [
@@ -4394,7 +3616,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "hello@dashboard-lim.com",
-    "price": 120000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "ai/ml",
@@ -4420,7 +3642,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "kailashsr38gmail.com",
-    "price": 75000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "designers",
@@ -4447,7 +3669,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "getahmed5@gmail.com",
-    "price": 130000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "designers",
@@ -4474,7 +3696,7 @@
     "site": null,
     "linkedin_url": null,
     "email": null,
-    "price": 60000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "ai/ml",
@@ -4501,7 +3723,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "hello@gizemakdag.com",
-    "price": 115000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "designers",
@@ -4510,32 +3732,6 @@
     ],
     "deliverables": [
       "full"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "f0f5fe36-0371-4e3b-b5a0-b01628218427",
-    "handle": "DailyLoud",
-    "name": "Daily Loud",
-    "bio": "#1 Source For Hip-Hop/Viral News Across The Planet | Follow Us Now & Stay Updated | For Business Or Promo TheDailyLoud@gmail.com | Turn On Notifications \ud83d\udd25\ud83d\udd14",
-    "platform": "twitter",
-    "followers": 3800000,
-    "relevancy": "high",
-    "url": "https://x.com/DailyLoud",
-    "site": null,
-    "linkedin_url": null,
-    "email": "TheDailyLoud@gmail.com",
-    "price": 150000,
-    "notes": "bad",
-    "tags": [
-      "media",
-      "music"
-    ],
-    "deliverables": [
-      "quote"
     ],
     "source": "internal",
     "reached_out": false,
@@ -4554,7 +3750,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "andrew@abdigital.cc",
-    "price": 150000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "consultants",
@@ -4564,57 +3760,6 @@
     ],
     "deliverables": [
       "thread"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "3be5363f-27dd-447f-bca1-7e26a1871a8b",
-    "handle": "stats_feed",
-    "name": "World of Statistics",
-    "bio": "There are three kinds of lies: lies, damned lies, and statistics. @Kalshi partner.",
-    "platform": "twitter",
-    "followers": 5000000,
-    "relevancy": "high",
-    "url": "https://x.com/stats_feed",
-    "site": null,
-    "linkedin_url": null,
-    "email": "statisticss.feed@gmail.com",
-    "price": 300000,
-    "notes": "bad",
-    "tags": [
-      "data scientists"
-    ],
-    "deliverables": [
-      "quote"
-    ],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "71076b27-1f97-4ec7-a7b8-4e09b939da8a",
-    "handle": "greg16676935420",
-    "name": "greg",
-    "bio": "im greg I like football and stocks and my birthday im from kentuckey. I'm a investor. I like to golf at the golf course. subscribe for just 10\u00a2 a day \u2934\ufe0f",
-    "platform": "twitter",
-    "followers": 1400000,
-    "relevancy": "high",
-    "url": "https://x.com/greg16676935420",
-    "site": null,
-    "linkedin_url": null,
-    "email": "greg16676935420@gmail.com",
-    "price": 450000,
-    "notes": "bad",
-    "tags": [
-      "investors"
-    ],
-    "deliverables": [
-      "quote",
-      "comment"
     ],
     "source": "internal",
     "reached_out": false,
@@ -4633,7 +3778,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "Salmanhamza811@gmail.com",
-    "price": 25000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "designers",
@@ -4661,7 +3806,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "markandey128@gmail.com",
-    "price": 30000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "ai/ml",
@@ -4689,7 +3834,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "crownzdesigns@gmail.com",
-    "price": 40000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "designers",
@@ -4717,7 +3862,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "nakibarbie1017@gmail.com",
-    "price": 45000,
+    "price": null,
     "notes": "bad",
     "tags": [
       "devrel",
@@ -4745,7 +3890,7 @@
     "site": null,
     "linkedin_url": null,
     "email": "charlie@solowriters.com",
-    "price": 25000,
+    "price": null,
     "notes": "good",
     "tags": [],
     "deliverables": [
@@ -4757,27 +3902,6 @@
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
     "updated_at": "2026-03-20T14:36:20.722Z"
-  },
-  {
-    "id": "a3b14c18-6651-418d-bc34-b8c78a7e8513",
-    "handle": "milesdeutscher",
-    "name": "Miles Deutscher",
-    "bio": "Obsessed with AI. Tweets aren't financial advice. Sharing early alpha in @mileshighclub_. Building @aiedge_.",
-    "platform": "twitter",
-    "followers": 658100,
-    "relevancy": "high",
-    "url": "https://x.com/milesdeutscher",
-    "site": null,
-    "linkedin_url": null,
-    "email": null,
-    "price": 0,
-    "notes": "reached_out: Yes | tweet: https://x.com/milesdeutscher/status/2032524908161544652?s=20",
-    "tags": [],
-    "deliverables": [],
-    "source": "influencer",
-    "reached_out": true,
-    "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
   },
   {
     "id": "789eb93c-4161-41f1-a801-b418d3c8bf4c",
@@ -4833,7 +3957,7 @@
     "site": null,
     "linkedin_url": null,
     "email": null,
-    "price": 0,
+    "price": null,
     "notes": "reached_out: Yes | tweet: https://x.com/mdnlabs/status/2032547509743014088?s=20 | handle may have changed to @kloss_xyz",
     "tags": [],
     "deliverables": [],
@@ -4959,7 +4083,7 @@
     "site": null,
     "linkedin_url": null,
     "email": null,
-    "price": 0,
+    "price": null,
     "notes": "reached_out: Yes | tweet: https://x.com/kloss_xyz/status/2032935697540432109?s=20",
     "tags": [],
     "deliverables": [],
@@ -5043,7 +4167,7 @@
     "site": null,
     "linkedin_url": null,
     "email": null,
-    "price": 0,
+    "price": null,
     "notes": "reached_out: Yes | tweet: https://x.com/bloggersarvesh/status/2032808110474285300?s=46&t=Pdqb9gKmUH3BIXS-Zrt3Gw",
     "tags": [],
     "deliverables": [],
@@ -5064,7 +4188,7 @@
     "site": null,
     "linkedin_url": null,
     "email": null,
-    "price": 0,
+    "price": null,
     "notes": "reached_out: Yes | tweet: https://x.com/iruletheworldmo/status/2032964133306446114?s=46&t=Pdqb9gKmUH3BIXS-Zrt3Gw | likely same person as @jessieclipping",
     "tags": [],
     "deliverables": [],

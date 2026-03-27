@@ -14,11 +14,13 @@ import {
 } from "@/components/ui/pagination";
 import { ContraDetailSheet } from "@/components/contra/ContraDetailSheet";
 import { ContraTable } from "@/components/contra/ContraTable";
-import { toastManager } from "@/components/ui/toast";
 import { useContraWorkspace } from "@/components/contra/useContraWorkspace";
-import { trpc } from "@/lib/trpc/client";
-import { DownloadIcon } from "lucide-react";
+import { FileSpreadsheetIcon, FileTextIcon } from "lucide-react";
 import { useState } from "react";
+import type { ContraLead } from "@/lib/validations/contra";
+import { trpc } from "@/lib/trpc/client";
+import { toastManager } from "@/components/ui/toast";
+import * as XLSX from "xlsx";
 
 function escapeCSV(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
@@ -27,62 +29,105 @@ function escapeCSV(value: string): string {
   return value;
 }
 
+const EXPORT_HEADERS = [
+  "Handle", "Name", "Bio", "Followers", "Platform", "Relevancy",
+  "Price", "Email", "Website", "LinkedIn", "Profile URL",
+  "Tags", "Source", "Reached Out", "Stage", "Notes",
+];
+
+function leadsToRows(leads: ContraLead[]) {
+  return leads.map((lead) => [
+    lead.handle,
+    lead.name,
+    lead.bio,
+    lead.followers,
+    lead.platform,
+    lead.relevancy ?? "",
+    lead.price ?? "",
+    lead.email ?? "",
+    lead.site ?? "",
+    lead.linkedinUrl ?? "",
+    lead.url ?? "",
+    lead.tags.join("; "),
+    lead.source ?? "",
+    lead.reachedOut ? "Yes" : "No",
+    lead.stage,
+    lead.notes ?? "",
+  ]);
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function ContraWorkspace() {
+  const router = useRouter();
   const workspace = useContraWorkspace();
   const exportQuery = trpc.contra.exportForDocs.useQuery(undefined, { enabled: false });
   const [isExporting, setIsExporting] = useState(false);
 
-  async function handleExportToGoogleDocs() {
+  async function fetchLeads() {
+    const { data: leads } = await exportQuery.refetch();
+    if (!leads || leads.length === 0) {
+      toastManager.add({ type: "info", title: "No leads to export." });
+      return null;
+    }
+    return leads;
+  }
+
+  async function handleExportCSV() {
     setIsExporting(true);
     try {
-      const { data: leads } = await exportQuery.refetch();
-      if (!leads || leads.length === 0) {
-        toastManager.add({ type: "info", title: "No leads to export." });
-        return;
-      }
+      const leads = await fetchLeads();
+      if (!leads) return;
 
-      const headers = [
-        "Handle", "Name", "Bio", "Followers", "Platform", "Relevancy",
-        "Price", "Email", "Website", "LinkedIn", "Profile URL",
-        "Tags", "Source", "Reached Out", "Stage", "Notes",
-      ];
-
-      const rows = leads.map((lead) => [
-        lead.handle,
-        lead.name,
-        lead.bio,
-        String(lead.followers),
-        lead.platform,
-        lead.relevancy ?? "",
-        lead.price != null ? String(lead.price) : "",
-        lead.email ?? "",
-        lead.site ?? "",
-        lead.linkedinUrl ?? "",
-        lead.url ?? "",
-        lead.tags.join("; "),
-        lead.source ?? "",
-        lead.reachedOut ? "Yes" : "No",
-        lead.stage,
-        lead.notes ?? "",
-      ]);
-
+      const rows = leadsToRows(leads);
       const csv = [
-        headers.map(escapeCSV).join(","),
-        ...rows.map((row) => row.map(escapeCSV).join(",")),
+        EXPORT_HEADERS.map(escapeCSV).join(","),
+        ...rows.map((row) => row.map((v) => escapeCSV(String(v))).join(",")),
       ].join("\n");
 
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `contra-leads-${new Date().toISOString().slice(0, 10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(
+        new Blob([csv], { type: "text/csv;charset=utf-8;" }),
+        `contra-leads-${new Date().toISOString().slice(0, 10)}.csv`,
+      );
+      toastManager.add({ type: "success", title: `Exported ${leads.length} leads as CSV.` });
+    } catch (err) {
+      toastManager.add({ type: "error", title: err instanceof Error ? err.message : "Export failed." });
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
-      toastManager.add({
-        type: "success",
-        title: `Exported ${leads.length} leads. Import the CSV into Google Sheets.`,
+  async function handleExportExcel() {
+    setIsExporting(true);
+    try {
+      const leads = await fetchLeads();
+      if (!leads) return;
+
+      const rows = leadsToRows(leads);
+      const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows]);
+
+      // Auto-size columns
+      ws["!cols"] = EXPORT_HEADERS.map((h, i) => {
+        const maxLen = Math.max(h.length, ...rows.map((r) => String(r[i]).length));
+        return { wch: Math.min(maxLen + 2, 50) };
       });
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Contra Leads");
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+
+      downloadBlob(
+        new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+        `contra-leads-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      );
+      toastManager.add({ type: "success", title: `Exported ${leads.length} leads as Excel.` });
     } catch (err) {
       toastManager.add({ type: "error", title: err instanceof Error ? err.message : "Export failed." });
     } finally {
@@ -99,17 +144,24 @@ export function ContraWorkspace() {
             <h1 className="text-[28px] font-medium tracking-[-0.04em]">Contra</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
               disabled={isExporting}
-              onClick={() => {
-                handleExportToGoogleDocs().catch(() => undefined);
-              }}
+              onClick={() => { handleExportCSV().catch(() => undefined); }}
             >
-              {isExporting ? <Spinner className="size-4" /> : <DownloadIcon className="size-4" />}
-              Export to Google Docs
+              {isExporting ? <Spinner className="size-4" /> : <FileTextIcon className="size-4" />}
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
+              disabled={isExporting}
+              onClick={() => { handleExportExcel().catch(() => undefined); }}
+            >
+              {isExporting ? <Spinner className="size-4" /> : <FileSpreadsheetIcon className="size-4" />}
+              Excel
             </Button>
           </div>
         </div>
@@ -231,7 +283,7 @@ export function ContraWorkspace() {
       />
 
       {workspace.selectedCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-6 pl-[var(--sidebar-width,280px)]">
+        <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-6">
           <div className="flex items-center gap-3 rounded-[14px] border border-border/70 bg-background px-4 py-2.5 shadow-lg">
             <span className="text-[0.88rem] font-medium">
               {workspace.selectedCount} selected
