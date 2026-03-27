@@ -1,0 +1,151 @@
+[
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "ngrokHQ",
+      "text": "Quantization can make an LLM 4x smaller and 2x faster, with barely any quality loss. But what *is* it? @samwhoo crafted a beautiful interactive essay explaining it from first principles, aimed at coders, not mathematicians. https:// grok.com/blog/quantization…"
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "samwhoo",
+          "name": "Sam Rose",
+          "bio": "That guy who writes visual essays about software at samwho.dev. Developer Educator @ngrokHQ.",
+          "followers": 16400,
+          "following": 1175
+        },
+        "quote_text": "I think this is the best post I've ever made.",
+        "quote_views": 576675,
+        "quote_likes": 4402,
+        "quote_reposts": 367,
+        "quote_comments": 70,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/samwhoo/status/2036845101561835968"
+      }
+    ],
+    "scraped_at": "2026-03-27T12:27:51.472083+00:00"
+  },
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "Polymarket",
+      "text": "BREAKING: Anthropic data leak reveals the existence of “Claude Mythos,” a new AI model that reportedly presents unprecedented cybersecurity risks."
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "karankendre",
+          "name": "Karan",
+          "bio": "Developer @kargulstudio | Dm for work/collab",
+          "followers": 14000,
+          "following": 1011
+        },
+        "quote_text": "Anthropic is hiding their most powerful model Claude Mythos\n\nReports say it can hack anything 💀",
+        "quote_views": 344754,
+        "quote_likes": 5184,
+        "quote_reposts": 231,
+        "quote_comments": 58,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/karankendre/status/2037404926855561452"
+      }
+    ],
+    "scraped_at": "2026-03-27T12:29:12.513223+00:00"
+  },
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "TheIshanGoswami",
+      "text": "sign of a true ceo is that he will sleep in office so that he can open the door for people when they come in the morning @WilliamBryk🫡 join exa if you want to work with people like this"
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "jeffzwang",
+          "name": "Jeffrey Wang",
+          "bio": "cofounder @exaailabs",
+          "followers": 17400,
+          "following": 1350
+        },
+        "quote_text": "my cofounder is an idiot",
+        "quote_views": 132683,
+        "quote_likes": 450,
+        "quote_reposts": 3,
+        "quote_comments": 18,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/jeffzwang/status/2037185079362150735"
+      }
+    ],
+    "scraped_at": "2026-03-27T12:29:45.256541+00:00"
+  },
+  {
+    "source": "feed_quote",
+    "original_post": {
+      "author_handle": "The_Real_Fly",
+      "text": "David Sacks says his time as Trump's crypto and AI czar has ended $BTC What a success."
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "0xnobi",
+          "name": "obi",
+          "bio": "building @slabcash @flaunchgg | angel @nobi_ventures | strategy @aavechan",
+          "followers": 12200,
+          "following": 2854
+        },
+        "quote_text": "David Sacks leaving the administration after zeroing the industry & making the Trump family over $1,000,000,000 in crypto",
+        "quote_views": 865294,
+        "quote_likes": 7141,
+        "quote_reposts": 341,
+        "quote_comments": 39,
+        "quote_bookmarks": 0,
+        "quote_images": [],
+        "quote_link": "https://x.com/0xnobi/status/2037309557135794464"
+      }
+    ],
+    "scraped_at": "2026-03-27T12:34:00.566675+00:00"
+  },
+  {
+    "source": "quotes_page",
+    "original_post": {
+      "url": "https://x.com/trychroma/status/2037243681988894950",
+      "author": {
+        "handle": "trychroma",
+        "name": "Chroma",
+        "bio": "Data infrastructure for AI\n\nApache 2.0",
+        "followers": 27400,
+        "following": 57
+      },
+      "text": "Introducing Chroma Context-1, a 20B parameter search agent.\n\n> pushes the pareto frontier of agentic search\n\n> order of magnitude faster\n\n> order of magnitude cheaper\n\n> Apache 2.0, open-source",
+      "views": 701800,
+      "likes": 3000,
+      "reposts": 424,
+      "comments": 109,
+      "quotes_count": 0,
+      "bookmarks": 2900,
+      "images": []
+    },
+    "viral_quotes": [
+      {
+        "quote_author": {
+          "handle": "jeffreyhuber",
+          "name": "Jeff Huber",
+          "bio": "founder @trychroma the best for the most for the least",
+          "followers": 10500,
+          "following": 1245
+        },
+        "quote_text": "the bitter lesson is coming for search\n\nwe're open-sourcing Context-1 - a model that is better, faster, and cheaper than any frontier model at searching\n\nwe published a 40-page technical report on our",
+        "quote_views": 211000,
+        "quote_likes": 1600,
+        "quote_reposts": 96,
+        "quote_comments": 70,
+        "quote_bookmarks": 1529,
+        "quote_images": [],
+        "quote_link": "https://x.com/jeffreyhuber/status/2037247377275576380"
+      }
+    ],
+    "scraped_at": "2026-03-27T12:49:41.034277+00:00"
+  }
+]
