@@ -312,6 +312,13 @@ export const contra = pgTable("contra", {
   notes: text("notes"),
   source: text("source"),
 
+  // Analytics
+  avgViews: integer("avg_views"),
+  avgLikes: integer("avg_likes"),
+  avgComments: integer("avg_comments"),
+  avgReposts: integer("avg_reposts"),
+  score: integer("score"),
+
   // CRM fields
   reachedOut: boolean("reached_out").notNull().default(false),
   stage: text("stage").notNull().default("found"),

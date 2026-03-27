@@ -23,7 +23,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 12662,
+    "avg_likes": 117,
+    "avg_comments": 6,
+    "avg_reposts": 2,
+    "score": 100
   },
   {
     "id": "0870f6b1-fcce-4ed3-b3b2-536b0d8b3ffd",
@@ -49,7 +54,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 70648,
+    "avg_likes": 413,
+    "avg_comments": 18,
+    "avg_reposts": 15,
+    "score": 100
   },
   {
     "id": "3939bd5d-f245-47bb-ae0a-82730c7f9790",
@@ -73,7 +83,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 15700,
+    "avg_likes": 219,
+    "avg_comments": 10,
+    "avg_reposts": 6,
+    "score": 60
   },
   {
     "id": "5540277b-c316-4dae-92b9-df0ebddf0360",
@@ -99,7 +114,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1894,
+    "avg_likes": 17,
+    "avg_comments": 2,
+    "avg_reposts": 1,
+    "score": 13
   },
   {
     "id": "7059760d-01a0-4bd1-a841-edca75badf3a",
@@ -125,7 +145,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 922,
+    "avg_likes": 17,
+    "avg_comments": 2,
+    "avg_reposts": 0,
+    "score": 5
   },
   {
     "id": "2cb4230e-e64f-4a5b-bcf1-cb5a48bc64bf",
@@ -149,7 +174,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 101643,
+    "avg_likes": 1503,
+    "avg_comments": 19,
+    "avg_reposts": 79,
+    "score": 100
   },
   {
     "id": "bfc6b2b1-240d-42a1-8c5f-97db00e70cd2",
@@ -173,7 +203,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 32863,
+    "avg_likes": 128,
+    "avg_comments": 6,
+    "avg_reposts": 4,
+    "score": 100
   },
   {
     "id": "7b03f18b-bb41-486e-a2c1-9c0881e886b3",
@@ -198,7 +233,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 20068,
+    "avg_likes": 54,
+    "avg_comments": 3,
+    "avg_reposts": 3,
+    "score": 98
   },
   {
     "id": "2fca20ca-4910-40e6-b0e2-d0a6da2eeccd",
@@ -221,7 +261,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 779,
+    "avg_likes": 8,
+    "avg_comments": 1,
+    "avg_reposts": 0,
+    "score": 5
   },
   {
     "id": "90dd2db3-1f2b-4abf-a890-76c21c7fb34a",
@@ -246,56 +291,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "11c2326d-2be8-458b-8794-0bdc7537a1a5",
-    "handle": "bobulate",
-    "name": "Liz Danzico",
-    "bio": "Chair of SVA MFA Interaction Design. UX, content design, design education.",
-    "platform": "twitter",
-    "followers": 17500,
-    "relevancy": "high",
-    "url": "https://x.com/bobulate",
-    "site": "https://bobulate.com/",
-    "linkedin_url": "https://www.linkedin.com/in/bobulate",
-    "email": "lizdanzico@microsoft.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "educators",
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "3881daf1-4e50-4549-ba80-7f5feceac382",
-    "handle": "aarron",
-    "name": "Aarron Walter",
-    "bio": "Author of 'Designing for Emotion'. VP Design Education at InVision. Emotional UX.",
-    "platform": "twitter",
-    "followers": 44800,
-    "relevancy": "high",
-    "url": "https://x.com/aarron",
-    "site": "https://www.aarronwalter.com/",
-    "linkedin_url": "https://www.linkedin.com/in/aarron",
-    "email": "aarron@aarronwalter.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "educators",
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1491,
+    "avg_likes": 6,
+    "avg_comments": 1,
+    "avg_reposts": 1,
+    "score": 4
   },
   {
     "id": "3e5c38e6-4f44-4e11-8c24-e02a21b3556d",
@@ -320,56 +321,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "c77f473e-1a70-4900-995c-bb70ecc62cca",
-    "handle": "jessicahische",
-    "name": "Jessica Hische",
-    "bio": "Lettering artist, illustrator. Author. Clients include Wes Anderson, Penguin Books.",
-    "platform": "twitter",
-    "followers": 111700,
-    "relevancy": "high",
-    "url": "https://x.com/jessicahische",
-    "site": "https://linktr.ee/jessicahische",
-    "linkedin_url": "https://www.linkedin.com/in/jessicahische",
-    "email": "hello@jessicahische.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "illustrators",
-      "artists",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "7f703f35-9257-4f3b-9f83-9cba0220e2b7",
-    "handle": "draplin",
-    "name": "Aaron Draplin",
-    "bio": "Founder of Draplin Design Co. Bold graphic design, Field Notes, logo design.",
-    "platform": "twitter",
-    "followers": 49100,
-    "relevancy": "high",
-    "url": "https://x.com/draplin",
-    "site": "https://www.draplin.com/",
-    "linkedin_url": "https://www.linkedin.com/in/draplin",
-    "email": "draplin@draplin.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "founders"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 207,
+    "avg_likes": 1,
+    "avg_comments": 0,
+    "avg_reposts": 0,
+    "score": 0
   },
   {
     "id": "4bf44c68-a0fc-481a-b0de-9d945a1fe1ab",
@@ -393,7 +350,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 5854,
+    "avg_likes": 55,
+    "avg_comments": 5,
+    "avg_reposts": 2,
+    "score": 26
   },
   {
     "id": "59249823-aa8e-432c-8ac7-692dc5bb6ffc",
@@ -418,247 +380,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "dc31fbf8-982d-4d3b-80d6-d169ad81ee4d",
-    "handle": "ucllc",
-    "name": "Armin Vit",
-    "bio": "Designer at Airbnb. Author of 'Laying the Foundations'. Design systems, components.",
-    "platform": "twitter",
-    "followers": 56900,
-    "relevancy": "high",
-    "url": "https://x.com/ucllc",
-    "site": "https://underconsideration.com/",
-    "linkedin_url": "https://www.linkedin.com/in/arminvit",
-    "email": "info@underconsideration.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "04a854c5-3b9a-4add-9cf0-20abb21d59e5",
-    "handle": "Will_Paterson10",
-    "name": "Will Paterson",
-    "bio": "Logo designer, educator, YouTuber. Logo & brand design, design education.",
-    "platform": "twitter",
-    "followers": 10900,
-    "relevancy": "high",
-    "url": "https://x.com/Will_Paterson10",
-    "site": "https://www.willpaterson.design/",
-    "linkedin_url": "https://www.linkedin.com/in/william-paterson-16929334b",
-    "email": null,
-    "price": null,
-    "notes": "couldn't find email",
-    "tags": [
-      "designers",
-      "educators",
-      "youtubers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "aff389d3-593a-4dab-b03e-20d4fa39a7f6",
-    "handle": "cghnyc",
-    "name": "Sagi Haviv",
-    "bio": "Founder of Original Champions of Design. Brand design, editorial, cultural branding.",
-    "platform": "twitter",
-    "followers": 6347,
-    "relevancy": "high",
-    "url": "https://x.com/cghnyc",
-    "site": "https://cghnyc.com/",
-    "linkedin_url": "https://www.linkedin.com/company/chermayeff-geismar-&-haviv/",
-    "email": "info@cghnyc.com",
-    "price": null,
-    "notes": "No Connect Button",
-    "tags": [
-      "founders",
-      "designers",
-      "agency owners"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "013d2d24-cda1-42f1-a231-5b3c8964ad0f",
-    "handle": "theChrisDo",
-    "name": "Chris Do",
-    "bio": "Founder of The Futur. Emmy-winning motion designer. Design business, branding.",
-    "platform": "twitter",
-    "followers": 148100,
-    "relevancy": "high",
-    "url": "https://x.com/theChrisDo",
-    "site": "https://www.thefutur.com/",
-    "linkedin_url": "https://www.linkedin.com/in/thechrisdo",
-    "email": "support@thefutur.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "designers",
-      "animators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "4b35c382-496b-4e02-965e-5766730986e0",
-    "handle": "ianspalter",
-    "name": "Ian Spalter.",
-    "bio": "Partner at IDEO. Former Head of Design at Instagram & YouTube. Design leadership.",
-    "platform": "twitter",
-    "followers": 5403,
-    "relevancy": "high",
-    "url": "https://x.com/ianspalter",
-    "site": "https://ianspalter.com/",
-    "linkedin_url": "https://www.linkedin.com/in/ianspalter",
-    "email": "ianspalter@gmail.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "ae852854-97d3-40e5-8f3c-b0838db51de4",
-    "handle": "frerejones",
-    "name": "Tobias Frere-Jones",
-    "bio": "Type designer. Created Gotham, Interstate, Whitney. Co-founder of Frere-Jones Type.",
-    "platform": "twitter",
-    "followers": 13300,
-    "relevancy": "high",
-    "url": "https://x.com/frerejones",
-    "site": "https://frerejones.com/",
-    "linkedin_url": "https://www.linkedin.com/in/tobiasfrerejones/",
-    "email": "info@frerejones.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "founders"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "d60b955b-a41b-4681-a51b-6ff9495bf894",
-    "handle": "HoeflerCo",
-    "name": "Hoefler & Co",
-    "bio": "Type foundry. Fonts for Apple, Obama campaign, NYT. Type history, craftsmanship.",
-    "platform": "twitter",
-    "followers": 245200,
-    "relevancy": "high",
-    "url": "https://x.com/HoeflerCo",
-    "site": "https://www.typography.com/",
-    "linkedin_url": "https://www.linkedin.com/company/hoeflerco/",
-    "email": "info@typography.com",
-    "price": null,
-    "notes": "No Connect Button",
-    "tags": [
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "1b5e8fb5-7dcc-473b-abfc-850cafbe2791",
-    "handle": "espiekermann",
-    "name": "Erik Spiekermann",
-    "bio": "Typographer, type designer. Created FF Meta. Deutsche Bahn, Audi, Mozilla.",
-    "platform": "twitter",
-    "followers": 245000,
-    "relevancy": "high",
-    "url": "https://x.com/espiekermann",
-    "site": "https://mastodon.online/@erikspiekermann",
-    "linkedin_url": "https://www.linkedin.com/in/espiekermann/",
-    "email": "erik@hackinggutenberg.berlin",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "b866beca-3408-4a45-95ac-304b38c169fa",
-    "handle": "kupfers",
-    "name": "Indra Kupferschmid",
-    "bio": "Typography professor, researcher. Type history, classification, type education.",
-    "platform": "twitter",
-    "followers": 6196,
-    "relevancy": "high",
-    "url": "https://x.com/kupfers",
-    "site": "https://mastodon.social/@kupfers",
-    "linkedin_url": null,
-    "email": "i.kupferschmid@hbksaar.de",
-    "price": null,
-    "notes": "couldn't find LinkedIn",
-    "tags": [
-      "educators",
-      "researchers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "bc2fec02-1112-4824-a882-4c27616b72e1",
-    "handle": "ellenlupton",
-    "name": "Ellen Lupton",
-    "bio": "Curator at Cooper Hewitt. Author of 'Thinking with Type'. Typography, graphic design.",
-    "platform": "twitter",
-    "followers": 48200,
-    "relevancy": "high",
-    "url": "https://x.com/ellenlupton",
-    "site": "https://ellenlupton.com/",
-    "linkedin_url": "https://www.linkedin.com/in/ellenlupton",
-    "email": "elupton@mica.edu",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 851,
+    "avg_likes": 4,
+    "avg_comments": 1,
+    "avg_reposts": 0,
+    "score": 2
   },
   {
     "id": "df53d0b0-2d14-4788-a857-76a61fc53bad",
@@ -682,56 +409,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "2e7649b3-3522-4473-9723-e2a5082d2b74",
-    "handle": "nadiehbremer",
-    "name": "Nadieh Bremer",
-    "bio": "Data visualization designer, astronomer. Custom, artistic data viz. Kantar award winner.",
-    "platform": "twitter",
-    "followers": 47300,
-    "relevancy": "high",
-    "url": "https://x.com/nadiehbremer",
-    "site": "https://www.visualcinnamon.com/",
-    "linkedin_url": "https://www.linkedin.com/in/nbremer/",
-    "email": "info@VisualCinnamon.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "data scientists"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "154d28f5-210f-4205-98a0-1db0f5f4b2a0",
-    "handle": "sxywu",
-    "name": "Shirley Wu",
-    "bio": "Data visualization engineer. Narrative-driven data viz, creative coding.",
-    "platform": "twitter",
-    "followers": 30700,
-    "relevancy": "high",
-    "url": "https://x.com/sxywu",
-    "site": "https://sxywu.github.io/",
-    "linkedin_url": "https://www.linkedin.com/in/shirleywu",
-    "email": "hi@shirleywu.studio",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "engineers",
-      "frontend",
-      "data scientists"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1141,
+    "avg_likes": 25,
+    "avg_comments": 2,
+    "avg_reposts": 2,
+    "score": 25
   },
   {
     "id": "89cb2101-2df5-4fce-afad-8932b6544ee6",
@@ -755,154 +438,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "dc1fd2b9-2dbe-4e59-ba30-16bdb02aded0",
-    "handle": "craftui",
-    "name": "Alla Kholmatova",
-    "bio": "Author of 'Design Systems' (Smashing Mag). Design systems, component libraries.",
-    "platform": "twitter",
-    "followers": 7091,
-    "relevancy": "high",
-    "url": "https://x.com/craftui",
-    "site": "https://www.smashingmagazine.com/design-systems-book/",
-    "linkedin_url": "https://www.linkedin.com/in/allakholmatova",
-    "email": "alla.k@apple.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "bd07878e-6b40-4950-823d-78aeb77f476d",
-    "handle": "yaili",
-    "name": "Inayaili Le\u00f3n",
-    "bio": "Design lead at GitHub, Primer design system. Design systems, inclusive design.",
-    "platform": "twitter",
-    "followers": 5302,
-    "relevancy": "high",
-    "url": "https://x.com/yaili",
-    "site": "https://www.linkedin.com/in/yaili/",
-    "linkedin_url": "https://www.linkedin.com/in/yaili",
-    "email": "inayaili.leon@microsoft.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "925c45c4-afbb-43f7-84e4-8615c6c33548",
-    "handle": "amy_hupe",
-    "name": "Amy Hupe",
-    "bio": "Content designer, design systems specialist. Former GOV.UK design systems lead.",
-    "platform": "twitter",
-    "followers": 9729,
-    "relevancy": "high",
-    "url": "https://x.com/amy_hupe",
-    "site": "https://amyhupe.co.uk/",
-    "linkedin_url": "https://www.linkedin.com/in/amy-hupe-61a3a368/",
-    "email": "amy.l.hupe@gmail.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "4685c3b6-3dbe-478b-990d-c171a93452a7",
-    "handle": "hereinthehive",
-    "name": "Dan Donald",
-    "bio": "Creator of Ridd tool. Auto-documenting Figma design systems, design system automation.",
-    "platform": "twitter",
-    "followers": 5785,
-    "relevancy": "high",
-    "url": "https://x.com/hereinthehive",
-    "site": "https://hereinthehive.com/",
-    "linkedin_url": "https://www.linkedin.com/in/hereinthehive",
-    "email": "dan.donald@hereinthehive.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "developers",
-      "designers",
-      "creators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "5922fe7b-86b1-47da-a1ee-568ac636e135",
-    "handle": "rachelandrew",
-    "name": "Rachel Andrew",
-    "bio": "CSS expert, Editor in Chief at Smashing Magazine. Co-creator of CSS Grid spec.",
-    "platform": "twitter",
-    "followers": 54100,
-    "relevancy": "high",
-    "url": "https://x.com/rachelandrew",
-    "site": "https://rachelandrew.co.uk/",
-    "linkedin_url": "https://www.linkedin.com/in/rachelandrew",
-    "email": "me@rachelandrew.co.uk",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "frontend",
-      "developers",
-      "writers",
-      "media"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "6282be64-5b50-4782-9563-7a5dfec5c443",
-    "handle": "5t3ph",
-    "name": "Stephanie Eckles.",
-    "bio": "Creator of ModernCSS.dev. Accessible, modern CSS, frontend design.",
-    "platform": "twitter",
-    "followers": 14800,
-    "relevancy": "high",
-    "url": "https://x.com/5t3ph",
-    "site": "https://thinkdobecreate.com/",
-    "linkedin_url": "https://www.linkedin.com/in/stepheckles/",
-    "email": "seckles@adobe.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "frontend",
-      "developers",
-      "creators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1249,
+    "avg_likes": 9,
+    "avg_comments": 1,
+    "avg_reposts": 1,
+    "score": 45
   },
   {
     "id": "bba05b06-0bad-49b4-be45-a55683d525c4",
@@ -926,7 +467,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2699,
+    "avg_likes": 8,
+    "avg_comments": 1,
+    "avg_reposts": 0,
+    "score": 36
   },
   {
     "id": "8828ca68-3a33-4974-8010-57eb673c28e1",
@@ -951,57 +497,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "cdf22721-fbc6-4c80-a0b8-b99e124ae390",
-    "handle": "jensimmons",
-    "name": "Jen Simmons",
-    "bio": "Apple WebKit evangelist. Championed CSS Grid & Flexbox. Web layout, browser design.",
-    "platform": "twitter",
-    "followers": 104500,
-    "relevancy": "high",
-    "url": "https://x.com/jensimmons",
-    "site": "https://jensimmons.com/",
-    "linkedin_url": "https://www.linkedin.com/in/jensimmons",
-    "email": "j_simmons@apple.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "devrel",
-      "frontend"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "d117d330-326f-4c61-86d8-1dfe1518f5b3",
-    "handle": "piccalilli_",
-    "name": "Andy Bell",
-    "bio": "Founder of Set Studio. Co-author of 'Every Layout'. CSS architecture, design principles.",
-    "platform": "twitter",
-    "followers": 15200,
-    "relevancy": "high",
-    "url": "https://x.com/piccalilli_",
-    "site": "https://piccalil.li/",
-    "linkedin_url": "https://www.linkedin.com/in/andy-bell-347971255/",
-    "email": "enquiries@set.studio",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "frontend",
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 4928,
+    "avg_likes": 24,
+    "avg_comments": 1,
+    "avg_reposts": 2,
+    "score": 13
   },
   {
     "id": "8c6fffb0-46dd-49ad-8afa-2fc158091837",
@@ -1028,134 +529,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "46f4694b-c3c8-4a8b-8ffe-427953921ed0",
-    "handle": "Gavmn",
-    "name": "Gavin Nelson",
-    "bio": "Design advocate at Figma. Figma tutorials, design process, UI tips.",
-    "platform": "twitter",
-    "followers": 63900,
-    "relevancy": "high",
-    "url": "https://x.com/Gavmn",
-    "site": "https://nelson.co/",
-    "linkedin_url": "https://www.linkedin.com/in/gavin-nelson",
-    "email": "gavin@nelson.co",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "devrel",
-      "designers",
-      "educators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "676f5504-28ce-420b-89dc-63155ac62383",
-    "handle": "aardrian",
-    "name": "Adrian Roselli",
-    "bio": "Web consultant. Accessibility, UX, web standards. Detailed technical accessibility posts.",
-    "platform": "twitter",
-    "followers": 8904,
-    "relevancy": "high",
-    "url": "https://x.com/aardrian",
-    "site": "https://adrianroselli.com/",
-    "linkedin_url": "https://www.linkedin.com/in/adrianroselli",
-    "email": null,
-    "price": null,
-    "notes": null,
-    "tags": [
-      "consultants",
-      "writers",
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "59f0a27e-c061-4d94-bca8-53c6bf7f0dac",
-    "handle": "SaraSoueidan",
-    "name": "Sara Soueidan",
-    "bio": "UI/UX developer. Accessibility, inclusive design, SVG. Course author.",
-    "platform": "twitter",
-    "followers": 117800,
-    "relevancy": "high",
-    "url": "https://x.com/SaraSoueidan",
-    "site": "https://www.sarasoueidan.com/",
-    "linkedin_url": "https://www.linkedin.com/in/sarasoueidan",
-    "email": null,
-    "price": null,
-    "notes": "LinkedIn needs email",
-    "tags": [
-      "developers",
-      "frontend",
-      "educators",
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "e1369cbc-844a-411f-952c-afd9f7ac66ae",
-    "handle": "scottohara",
-    "name": "Scott O'Hara",
-    "bio": "Comic book illustrator, cover artist. DC Comics, painterly character-driven illustration.",
-    "platform": "twitter",
-    "followers": 4772,
-    "relevancy": "high",
-    "url": "https://x.com/scottohara",
-    "site": "https://www.scottohara.me/",
-    "linkedin_url": "https://www.linkedin.com/in/scottaohara/",
-    "email": "so-hara@bakerhomeenergy.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "illustrators",
-      "creators",
-      "art"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "2373e2ca-fabe-4c3f-b2cb-a1fcb66fa443",
-    "handle": "marcysutton",
-    "name": "Marcy Sutton",
-    "bio": "Accessibility consultant, educator. Creator of Deque's axe tools. Inclusive design.",
-    "platform": "twitter",
-    "followers": 21300,
-    "relevancy": "high",
-    "url": "https://x.com/marcysutton",
-    "site": "https://marcysutton.com/",
-    "linkedin_url": "https://www.linkedin.com/in/marcysutton",
-    "email": "marcytodd@khanacademy.org",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "consultants",
-      "educators",
-      "designers",
-      "developers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 3179,
+    "avg_likes": 29,
+    "avg_comments": 2,
+    "avg_reposts": 2,
+    "score": 47
   },
   {
     "id": "80f00500-06d5-4d39-a9fa-a06e96d77025",
@@ -1182,57 +561,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "5ebd60b3-3de8-4f64-89e3-bcaefd874086",
-    "handle": "kimgoodwin",
-    "name": "Kim Goodwin",
-    "bio": "Author of 'Designing for the Digital Age'. VP Design, organizational UX consultant.",
-    "platform": "twitter",
-    "followers": 31400,
-    "relevancy": "high",
-    "url": "https://x.com/kimgoodwin",
-    "site": null,
-    "linkedin_url": "https://www.linkedin.com/in/kimgoodwin",
-    "email": null,
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "consultants",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "0149e067-776b-4543-a52c-77e507156c66",
-    "handle": "Abby_the_IA",
-    "name": "Abby Covert",
-    "bio": "Author of 'Designing for the Digital Age'. Design leadership, enterprise UX.",
-    "platform": "twitter",
-    "followers": 20400,
-    "relevancy": "high",
-    "url": "https://x.com/Abby_the_IA",
-    "site": "https://abbycovert.com/links/",
-    "linkedin_url": "https://www.linkedin.com/in/abbytheia",
-    "email": "abby@thesensemakersclub.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers",
-      "consultants"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 18269,
+    "avg_likes": 182,
+    "avg_comments": 7,
+    "avg_reposts": 34,
+    "score": 70
   },
   {
     "id": "4f7374af-7615-4c63-a0bd-6704821d1a06",
@@ -1256,59 +590,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "c147015d-aca1-460d-b46a-73978f68612e",
-    "handle": "peterme",
-    "name": "Peter Merholz",
-    "bio": "Designer, author of 'Living in Information'. Information architecture, podcaster.",
-    "platform": "twitter",
-    "followers": 20100,
-    "relevancy": "high",
-    "url": "https://x.com/peterme",
-    "site": "https://www.petermerholz.com/",
-    "linkedin_url": "https://www.linkedin.com/in/petermerholz/",
-    "email": null,
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers",
-      "podcasters"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "3cca5ee5-e33b-4d1f-a938-f5f75d622399",
-    "handle": "indiyoung",
-    "name": "Indi Young",
-    "bio": "Co-author of 'Org Design for Design Orgs'. Co-founder of Adaptive Path. Design leadership coaching.",
-    "platform": "twitter",
-    "followers": 18000,
-    "relevancy": "high",
-    "url": "https://x.com/indiyoung",
-    "site": "https://indiyoung.com/",
-    "linkedin_url": "https://www.linkedin.com/in/indiyoung",
-    "email": "indi@indiyoung.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "coaches",
-      "writers",
-      "founders",
-      "designers",
-      "consultants"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 180,
+    "avg_likes": 2,
+    "avg_comments": 0,
+    "avg_reposts": 0,
+    "score": 5
   },
   {
     "id": "3c3e1972-8dee-413b-9263-5800b2ca949b",
@@ -1333,33 +620,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "b6c82113-cf33-46c9-9454-7a70d91e9c42",
-    "handle": "mrncst",
-    "name": "Mariana Castilho",
-    "bio": "Design engineer, creative coder. Beautiful visual work",
-    "platform": "twitter",
-    "followers": 18300,
-    "relevancy": "high",
-    "url": "https://x.com/mrncst",
-    "site": "https://mrncst.design/",
-    "linkedin_url": "https://www.linkedin.com/in/marianacastilho/",
-    "email": null,
-    "price": null,
-    "notes": null,
-    "tags": [
-      "developers",
-      "designers",
-      "creators",
-      "frontend"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 30035,
+    "avg_likes": 437,
+    "avg_comments": 16,
+    "avg_reposts": 15,
+    "score": 92
   },
   {
     "id": "2988602b-a587-453d-8b94-cdcd9e946386",
@@ -1386,34 +652,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "1c13295d-5785-4121-adc5-5fedd575e21f",
-    "handle": "KevinJPowell",
-    "name": "Kevin Powell",
-    "bio": "CSS educator, 900K+ YT subscribers. Design-dev bridge",
-    "platform": "twitter",
-    "followers": 56000,
-    "relevancy": "high",
-    "url": "https://x.com/KevinJPowell",
-    "site": null,
-    "linkedin_url": null,
-    "email": null,
-    "price": null,
-    "notes": null,
-    "tags": [
-      "educators",
-      "youtubers",
-      "frontend",
-      "developers",
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2655,
+    "avg_likes": 18,
+    "avg_comments": 3,
+    "avg_reposts": 0,
+    "score": 17
   },
   {
     "id": "026c0187-150c-429b-b0ce-1a5df8b14beb",
@@ -1438,7 +682,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 49829,
+    "avg_likes": 399,
+    "avg_comments": 21,
+    "avg_reposts": 16,
+    "score": 68
   },
   {
     "id": "10f9e1d1-0cab-4c39-90ed-6c397c658b68",
@@ -1464,7 +713,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 146807,
+    "avg_likes": 1437,
+    "avg_comments": 44,
+    "avg_reposts": 48,
+    "score": 100
   },
   {
     "id": "6d32800d-9155-4578-866b-a8d0b1c00917",
@@ -1489,32 +743,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "d19a1281-47d1-4f79-9b0f-1baf1dd5daf9",
-    "handle": "joeyabanks",
-    "name": "Joey Banks",
-    "bio": "Designer at Apple. Creates design resources, Figma plugins",
-    "platform": "twitter",
-    "followers": 81600,
-    "relevancy": "high",
-    "url": "https://x.com/joeyabanks",
-    "site": "https://www.baselinedesign.com/",
-    "linkedin_url": "https://www.linkedin.com/in/joeyabanks/",
-    "email": "hello@baselinedesign.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "creators",
-      "developers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 15794,
+    "avg_likes": 225,
+    "avg_comments": 13,
+    "avg_reposts": 12,
+    "score": 34
   },
   {
     "id": "6facb08d-7550-444a-88a6-846e35f9ca82",
@@ -1537,7 +771,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 6257,
+    "avg_likes": 135,
+    "avg_comments": 3,
+    "avg_reposts": 6,
+    "score": 100
   },
   {
     "id": "ca93a525-87e7-48cb-8073-732317f6ffc4",
@@ -1562,7 +801,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 28246,
+    "avg_likes": 271,
+    "avg_comments": 4,
+    "avg_reposts": 11,
+    "score": 39
   },
   {
     "id": "df9e3037-0127-4c35-abee-b06f5f8443e9",
@@ -1587,7 +831,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 9224,
+    "avg_likes": 122,
+    "avg_comments": 4,
+    "avg_reposts": 9,
+    "score": 26
   },
   {
     "id": "eb88ca29-9f6c-48a6-8236-2d317922d5a1",
@@ -1612,7 +861,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 9457,
+    "avg_likes": 85,
+    "avg_comments": 5,
+    "avg_reposts": 4,
+    "score": 48
   },
   {
     "id": "e50049be-93c4-4e55-beba-10c373e7e146",
@@ -1636,7 +890,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 152778,
+    "avg_likes": 509,
+    "avg_comments": 28,
+    "avg_reposts": 26,
+    "score": 100
   },
   {
     "id": "1adbca32-005e-4cd1-a237-38bf2322343b",
@@ -1661,7 +920,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 6586,
+    "avg_likes": 65,
+    "avg_comments": 4,
+    "avg_reposts": 5,
+    "score": 77
   },
   {
     "id": "602b3f96-09fe-43ce-bf9d-03eae5b53920",
@@ -1687,7 +951,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 8518,
+    "avg_likes": 140,
+    "avg_comments": 5,
+    "avg_reposts": 6,
+    "score": 76
   },
   {
     "id": "3bddade3-2e1a-48b4-b720-4f02de0e8720",
@@ -1713,7 +982,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 33901,
+    "avg_likes": 982,
+    "avg_comments": 13,
+    "avg_reposts": 35,
+    "score": 100
   },
   {
     "id": "89d9eeff-79bd-41cf-9262-1ffab05d2c41",
@@ -1739,7 +1013,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1084,
+    "avg_likes": 17,
+    "avg_comments": 2,
+    "avg_reposts": 1,
+    "score": 50
   },
   {
     "id": "fecd42a5-2724-4f9e-975d-24dcd31d6358",
@@ -1765,7 +1044,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 45207,
+    "avg_likes": 906,
+    "avg_comments": 35,
+    "avg_reposts": 36,
+    "score": 100
   },
   {
     "id": "a86f2f4b-9312-44ca-97f5-b992bed3554d",
@@ -1790,7 +1074,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2999,
+    "avg_likes": 59,
+    "avg_comments": 5,
+    "avg_reposts": 2,
+    "score": 100
   },
   {
     "id": "7ef05c85-7494-4e7f-bd14-4843e83002ca",
@@ -1815,7 +1104,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 175,
+    "avg_likes": 3,
+    "avg_comments": 1,
+    "avg_reposts": 0,
+    "score": 17
   },
   {
     "id": "ff3be5d2-6008-4f61-8d7a-1407c203461c",
@@ -1840,7 +1134,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 28571,
+    "avg_likes": 463,
+    "avg_comments": 13,
+    "avg_reposts": 13,
+    "score": 100
   },
   {
     "id": "cb6f8a47-63d8-4f7a-af90-b8f8976c48a4",
@@ -1866,7 +1165,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 994,
+    "avg_likes": 34,
+    "avg_comments": 1,
+    "avg_reposts": 1,
+    "score": 37
   },
   {
     "id": "1069e93b-9819-40c5-a83d-eab3becf179c",
@@ -1891,7 +1195,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 19590,
+    "avg_likes": 373,
+    "avg_comments": 16,
+    "avg_reposts": 13,
+    "score": 40
   },
   {
     "id": "c19fed07-1d3e-4a4d-816f-74874acea16d",
@@ -1916,32 +1225,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "7b27d1db-dae0-4f60-a034-989edc7a7989",
-    "handle": "goldenkrishna",
-    "name": "Golden Krishna",
-    "bio": "Design Strategy at Google. Author of 'The Best Interface is No Interface.' Design thinker",
-    "platform": "twitter",
-    "followers": 7332,
-    "relevancy": "high",
-    "url": "https://x.com/goldenkrishna",
-    "site": "https://www.nointerface.com/",
-    "linkedin_url": "https://www.linkedin.com/in/goldenkrishna/",
-    "email": "golden.krishna@gmail.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers",
-      "product people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 594,
+    "avg_likes": 4,
+    "avg_comments": 1,
+    "avg_reposts": 0,
+    "score": 14
   },
   {
     "id": "c50dd8d2-24ad-4b70-a6e7-3a22f05e06ea",
@@ -1962,7 +1251,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 92588,
+    "avg_likes": 847,
+    "avg_comments": 43,
+    "avg_reposts": 27,
+    "score": 100
   },
   {
     "id": "91fed957-67d0-448e-92c1-55bc17a4b412",
@@ -1988,7 +1282,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 88685,
+    "avg_likes": 715,
+    "avg_comments": 32,
+    "avg_reposts": 34,
+    "score": 100
   },
   {
     "id": "136a29e7-bfbb-46c7-8270-99a252d6fc4a",
@@ -2014,7 +1313,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 12671,
+    "avg_likes": 101,
+    "avg_comments": 10,
+    "avg_reposts": 4,
+    "score": 14
   },
   {
     "id": "61e4f55e-63ae-400f-8694-b4e635ee519a",
@@ -2040,60 +1344,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "753fb43c-a1ec-49ea-84dc-9bdd2cfa8cd3",
-    "handle": "mizko",
-    "name": "Michael Wong",
-    "bio": "Founder of The Designership. Design educator, YouTuber, course creator. Active design community builder.",
-    "platform": "twitter",
-    "followers": 43800,
-    "relevancy": "high",
-    "url": "https://x.com/mizko",
-    "site": "https://mizko.substack.com/",
-    "linkedin_url": "https://www.linkedin.com/in/mizko/",
-    "email": "me@mizko.net",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "educators",
-      "youtubers",
-      "founders",
-      "creators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "cefa56ca-ad45-4546-9bbd-8b68bb19dacf",
-    "handle": "mulegirl",
-    "name": "Erika Hall",
-    "bio": "Co-founder of Mule Design. Author of Just Enough Research. Outspoken design thinker and writer.",
-    "platform": "twitter",
-    "followers": 43900,
-    "relevancy": "high",
-    "url": "https://x.com/mulegirl",
-    "site": "https://www.muledesign.com/",
-    "linkedin_url": "linkedin.com/in/erikahall",
-    "email": "erika@muledesign.com",
-    "price": null,
-    "notes": "x post sare private, don't say that you like their posts on X",
-    "tags": [
-      "designers",
-      "founders",
-      "writers",
-      "researchers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2611,
+    "avg_likes": 13,
+    "avg_comments": 1,
+    "avg_reposts": 1,
+    "score": 8
   },
   {
     "id": "df5db03e-d44a-4910-8e64-93fdd161e6d3",
@@ -2118,57 +1374,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "b0735bd2-2e28-4fa5-a467-c8875b1cff1e",
-    "handle": "pacocoursey",
-    "name": "Paco Coursey",
-    "bio": "Design engineer ex-Linear now Vercel. Known for beautiful minimal UI work. Influential in design-eng circles.",
-    "platform": "twitter",
-    "followers": 38100,
-    "relevancy": "high",
-    "url": "https://x.com/pacocoursey",
-    "site": "https://paco.me/",
-    "linkedin_url": "https://www.linkedin.com/in/pacocoursey/",
-    "email": "paco@linear.app",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "developers",
-      "engineers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "0b7f1671-ee25-4b57-9689-9f59f6280514",
-    "handle": "leeerob",
-    "name": "Lee Robinson",
-    "bio": "VP of Product at Vercel. Design-forward developer. Huge builder and maker audience.",
-    "platform": "twitter",
-    "followers": 1109,
-    "relevancy": "high",
-    "url": "https://x.com/leerob",
-    "site": "https://leerob.com/",
-    "linkedin_url": "https://www.linkedin.com/in/leeerob/",
-    "email": "lrobinson@anysphere.co",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "product people",
-      "developers",
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 23346,
+    "avg_likes": 230,
+    "avg_comments": 7,
+    "avg_reposts": 11,
+    "score": 82
   },
   {
     "id": "2037eed0-db2e-4919-89e9-a0f7bb250dc6",
@@ -2193,59 +1404,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "4731db19-6603-4252-a711-9cda40ac678a",
-    "handle": "danield0x",
-    "name": "Daniel Destefanis",
-    "bio": "Indie designer-developer. Ships design tools and templates. Active builder on X.",
-    "platform": "twitter",
-    "followers": null,
-    "relevancy": "high",
-    "url": "https://x.com/daniel__designs",
-    "site": "https://www.danield.design/",
-    "linkedin_url": "https://www.linkedin.com/in/danielrd/",
-    "email": "ddestefanis@figma.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "developers",
-      "creators",
-      "solopreneurs"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "3f79c50f-c2e9-4402-83b9-b2aac22ff9a5",
-    "handle": "marc_louvion",
-    "name": "Marc Lou",
-    "bio": "Indie hacker and maker. Ships SaaS products fast. Design-conscious builder. Very active on X.",
-    "platform": "twitter",
-    "followers": null,
-    "relevancy": "high",
-    "url": "https://x.com/marclou",
-    "site": "https://newsletter.marclou.com/",
-    "linkedin_url": "https://www.linkedin.com/in/marclouvion/",
-    "email": null,
-    "price": null,
-    "notes": "couldn't find email",
-    "tags": [
-      "founders",
-      "saas",
-      "product people",
-      "solopreneurs"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 11947,
+    "avg_likes": 82,
+    "avg_comments": 5,
+    "avg_reposts": 4,
+    "score": 61
   },
   {
     "id": "2ba3a517-3c20-4591-a049-264085500d08",
@@ -2270,7 +1434,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 3814,
+    "avg_likes": 60,
+    "avg_comments": 2,
+    "avg_reposts": 5,
+    "score": 16
   },
   {
     "id": "6db9524d-ca21-4fb5-8345-1e36076745ce",
@@ -2296,56 +1465,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "b0cf7a31-02cf-43ed-bbb9-3d47412dd2e1",
-    "handle": "jmspool",
-    "name": "Jared Spool",
-    "bio": "Founder of User Interface Engineering. 40 years in UX. Authority on usability and design strategy.",
-    "platform": "twitter",
-    "followers": 110300,
-    "relevancy": "high",
-    "url": "https://x.com/jmspool",
-    "site": "https://centercentre.com/",
-    "linkedin_url": "https://www.linkedin.com/in/jmspool/",
-    "email": "jspool@centercentre.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "founders"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "7559fa20-78c1-4e51-af9c-a6263271360f",
-    "handle": "chrismessina",
-    "name": "Chris Messina",
-    "bio": "Invented the hashtag. Product designer, ex-Google and Uber. Regularly shares design and tech insights.",
-    "platform": "twitter",
-    "followers": 99300,
-    "relevancy": "high",
-    "url": "https://x.com/chrismessina",
-    "site": "https://chrismessina.me/",
-    "linkedin_url": "https://www.linkedin.com/in/factoryjoe/",
-    "email": "messina@ridehomefund.com",
-    "price": null,
-    "notes": "x post sare private, don't say that you like their posts on X",
-    "tags": [
-      "designers",
-      "product people",
-      "tech people"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 7858,
+    "avg_likes": 41,
+    "avg_comments": 2,
+    "avg_reposts": 2,
+    "score": 6
   },
   {
     "id": "2763d95d-6c52-4552-abc9-4a92e1a5f48c",
@@ -2371,32 +1496,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "e59adb9e-f458-495b-806e-a69f432bdc51",
-    "handle": "fabriciot",
-    "name": "Fabricio Teixeira",
-    "bio": "Co-creator of UX Collective. Curates top design stories globally. Huge reach in the UX/product design community.",
-    "platform": "twitter",
-    "followers": 31700,
-    "relevancy": "high",
-    "url": "https://x.com/fabriciot",
-    "site": "https://fabricio.work/",
-    "linkedin_url": "https://www.linkedin.com/in/fabricioteixeira/",
-    "email": "fabricio.teixeira@nubank.com.br",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "founders",
-      "media"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 33535,
+    "avg_likes": 406,
+    "avg_comments": 34,
+    "avg_reposts": 17,
+    "score": 47
   },
   {
     "id": "f44f21d3-ddea-41bb-9347-984c48436ec9",
@@ -2421,7 +1526,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1907,
+    "avg_likes": 106,
+    "avg_comments": 3,
+    "avg_reposts": 4,
+    "score": 100
   },
   {
     "id": "4dbd557f-1df6-4236-a63a-4853c227bfc8",
@@ -2446,33 +1556,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "e7dbd46a-8120-457e-8394-8e3f20c77eff",
-    "handle": "chriscoyier",
-    "name": "Chris Coyier",
-    "bio": "Co-founder of CodePen. Creator of CSS-Tricks. Massive design and frontend community. Highly respected voice.",
-    "platform": "twitter",
-    "followers": 231700,
-    "relevancy": "high",
-    "url": "https://x.com/chriscoyier",
-    "site": "https://chriscoyier.net/",
-    "linkedin_url": "https://www.linkedin.com/in/chris-coyier-1aa843100/",
-    "email": "chriscoyier@gmail.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "founders",
-      "frontend",
-      "developers",
-      "educators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 18833,
+    "avg_likes": 376,
+    "avg_comments": 6,
+    "avg_reposts": 41,
+    "score": 49
   },
   {
     "id": "f4c6de4a-f705-4c0e-9e64-0ae94a8bc983",
@@ -2497,7 +1586,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 13708,
+    "avg_likes": 186,
+    "avg_comments": 19,
+    "avg_reposts": 6,
+    "score": 59
   },
   {
     "id": "50db45e8-e51e-4491-843a-9d79605e2d90",
@@ -2522,58 +1616,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "084795ea-2b97-47ee-9afc-9e4752f1f4ff",
-    "handle": "JoshWComeau",
-    "name": "Josh Comeau",
-    "bio": "Independent educator. Teaches CSS and React with beautiful interactive posts. Design-forward developer content.",
-    "platform": "twitter",
-    "followers": 124700,
-    "relevancy": "high",
-    "url": "https://x.com/JoshWComeau",
-    "site": "https://www.joshwcomeau.com/",
-    "linkedin_url": "https://www.linkedin.com/in/joshwcomeau/",
-    "email": null,
-    "price": null,
-    "notes": "couldn't find email",
-    "tags": [
-      "educators",
-      "developers",
-      "frontend"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "d77a9ba3-64de-4898-b85c-e872d29756a9",
-    "handle": "taniarascia",
-    "name": "Tania Rascia",
-    "bio": "Developer and writer. Known for beautiful tutorials on web design and development. Design-minded coder.",
-    "platform": "twitter",
-    "followers": 13900,
-    "relevancy": "high",
-    "url": "https://x.com/taniarascia",
-    "site": "https://tania.dev/me/",
-    "linkedin_url": "https://www.linkedin.com/in/taniarascia/",
-    "email": "hello@taniarascia.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "developers",
-      "writers",
-      "educators",
-      "frontend"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2635,
+    "avg_likes": 22,
+    "avg_comments": 1,
+    "avg_reposts": 1,
+    "score": 14
   },
   {
     "id": "ec8385b2-086b-48b9-87e9-8ea36bd42313",
@@ -2598,7 +1646,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1776,
+    "avg_likes": 18,
+    "avg_comments": 1,
+    "avg_reposts": 2,
+    "score": 15
   },
   {
     "id": "1f7071fa-10b8-40ed-a721-93179740dbd6",
@@ -2623,7 +1676,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 6881,
+    "avg_likes": 37,
+    "avg_comments": 3,
+    "avg_reposts": 3,
+    "score": 10
   },
   {
     "id": "5a57a8c9-9901-49da-8d6f-dfe8c88f5cae",
@@ -2649,7 +1707,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 5810,
+    "avg_likes": 35,
+    "avg_comments": 3,
+    "avg_reposts": 1,
+    "score": 16
   },
   {
     "id": "39045dd6-1813-41c5-a45a-0d928b36e824",
@@ -2673,31 +1736,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "12c107ec-9041-4731-b8bd-949883e881ff",
-    "handle": "NateBaldwinArt",
-    "name": "Nate Baldwin",
-    "bio": "Designer at Adobe. Creator of Accessible Palette. Shares practical color and accessibility design content.",
-    "platform": "twitter",
-    "followers": 3098,
-    "relevancy": "high",
-    "url": "https://x.com/NateBaldwinArt",
-    "site": "https://natebaldw.in/#/",
-    "linkedin_url": "https://www.linkedin.com/in/natebaldwindesign/",
-    "email": "nbaldwin@adobe.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "creators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 12277,
+    "avg_likes": 103,
+    "avg_comments": 7,
+    "avg_reposts": 5,
+    "score": 68
   },
   {
     "id": "68a30f9d-1992-4f48-9b69-dca085d0d42f",
@@ -2721,7 +1765,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2984,
+    "avg_likes": 31,
+    "avg_comments": 2,
+    "avg_reposts": 3,
+    "score": 14
   },
   {
     "id": "9d21178c-562c-47eb-9483-c7fd7fd7c6d6",
@@ -2746,7 +1795,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 5879,
+    "avg_likes": 27,
+    "avg_comments": 1,
+    "avg_reposts": 1,
+    "score": 17
   },
   {
     "id": "e0e535dc-5bc1-47c4-952a-d9be341ac4ff",
@@ -2770,7 +1824,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2547,
+    "avg_likes": 8,
+    "avg_comments": 4,
+    "avg_reposts": 0,
+    "score": 25
   },
   {
     "id": "37b4cc47-1a82-4f3e-ab38-8cdc90d43db9",
@@ -2794,7 +1853,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 1586,
+    "avg_likes": 11,
+    "avg_comments": 2,
+    "avg_reposts": 1,
+    "score": 6
   },
   {
     "id": "c78baafd-2291-4e7e-a54a-b96f9ea4a397",
@@ -2819,156 +1883,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "b139a359-6031-4e86-9acb-455a12d2c915",
-    "handle": "brad_frost",
-    "name": "Brad Frost",
-    "bio": "Creator of Atomic Design methodology. Author of Atomic Design book. Design systems thought leader.",
-    "platform": "twitter",
-    "followers": 112300,
-    "relevancy": "high",
-    "url": "https://x.com/brad_frost",
-    "site": "https://bradfrost.com/",
-    "linkedin_url": "https://www.linkedin.com/in/bradfrost/",
-    "email": "brad@bradfrost.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "writers",
-      "educators"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "ffe6b43b-8c46-44f3-b494-ec06636f20c6",
-    "handle": "micahgodbolt",
-    "name": "Micah Godbolt",
-    "bio": "Design systems engineer. Author of Frontend Architecture for Design Systems. Bridges design and engineering.",
-    "platform": "twitter",
-    "followers": 3703,
-    "relevancy": "high",
-    "url": "https://x.com/micahgodbolt",
-    "site": "https://www.micahgodbolt.com/",
-    "linkedin_url": "https://www.linkedin.com/in/micahgodbolt/",
-    "email": "mgodbolt@microsoft.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "engineers",
-      "frontend",
-      "designers",
-      "writers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "dac1390d-b934-4d79-acca-e4738b3cda1e",
-    "handle": "jina",
-    "name": "Jina Anne",
-    "bio": "Design systems pioneer. Co-created Salesforce Lightning Design System. Highly respected in design systems community.",
-    "platform": "twitter",
-    "followers": 31400,
-    "relevancy": "high",
-    "url": "https://x.com/jina",
-    "site": "https://www.jina.me/",
-    "linkedin_url": "https://www.linkedin.com/in/sushiandrobots/",
-    "email": null,
-    "price": null,
-    "notes": "couldn't find email",
-    "tags": [
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "6412e262-362e-471d-aaff-e5e16402f6f9",
-    "handle": "broccolini",
-    "name": "Diana Mounter",
-    "bio": "Principal designer at GitHub. Works on Primer design system. Thoughtful design systems and accessibility voice.",
-    "platform": "twitter",
-    "followers": 13300,
-    "relevancy": "high",
-    "url": "https://x.com/broccolini",
-    "site": null,
-    "linkedin_url": "https://www.linkedin.com/in/dianamounter/",
-    "email": "diana.mounter@alpha-sense.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "open source"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "1336b3a9-b2a6-4166-86b9-c7f247e8241b",
-    "handle": "MinaMarkham",
-    "name": "Mina Markham",
-    "bio": "Staff engineer at Slack. Created Pantsuit design system for Hillary Clinton campaign. Intersection of design and code.",
-    "platform": "twitter",
-    "followers": 28900,
-    "relevancy": "high",
-    "url": "https://x.com/MinaMarkham",
-    "site": "https://mina.codes/",
-    "linkedin_url": "https://www.linkedin.com/in/minamarkham/",
-    "email": null,
-    "price": null,
-    "notes": "x post sare private, don't say that you like their posts on X",
-    "tags": [
-      "engineers",
-      "frontend",
-      "designers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
-  },
-  {
-    "id": "8265259c-746a-46be-9b33-90845c80a188",
-    "handle": "TatianaTMac",
-    "name": "Tatiana Mac",
-    "bio": "Independent designer and engineer. Writes about ethical and inclusive design. Respected voice in design-tech.",
-    "platform": "twitter",
-    "followers": 30400,
-    "relevancy": "high",
-    "url": "https://x.com/TatianaTMac",
-    "site": "https://www.tatianamac.com/",
-    "linkedin_url": "https://www.linkedin.com/in/tatianamac/",
-    "email": "inquiry@tatianamac.com",
-    "price": null,
-    "notes": null,
-    "tags": [
-      "designers",
-      "engineers",
-      "writers",
-      "freelancers"
-    ],
-    "deliverables": [],
-    "source": "internal",
-    "reached_out": false,
-    "created_at": "2026-03-20T15:25:07.513Z",
-    "updated_at": "2026-03-20T15:25:07.513Z"
+    "updated_at": "2026-03-20T15:25:07.513Z",
+    "avg_views": 2115,
+    "avg_likes": 15,
+    "avg_comments": 2,
+    "avg_reposts": 2,
+    "score": 30
   },
   {
     "id": "9b372af7-2fdb-4b46-bd53-e31178a9b332",
@@ -2991,7 +1911,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 12127,
+    "avg_likes": 320,
+    "avg_comments": 4,
+    "avg_reposts": 4,
+    "score": 100
   },
   {
     "id": "269e44cc-1c51-439d-a3e4-b3079f955aa3",
@@ -3017,7 +1942,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 15004,
+    "avg_likes": 102,
+    "avg_comments": 13,
+    "avg_reposts": 3,
+    "score": 100
   },
   {
     "id": "2efeba2e-70d3-4c6c-a490-add0063e4c2e",
@@ -3045,7 +1975,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 6160,
+    "avg_likes": 133,
+    "avg_comments": 19,
+    "avg_reposts": 3,
+    "score": 96
   },
   {
     "id": "de0c77ea-9c87-4f13-9eec-0b0c266760db",
@@ -3071,7 +2006,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 20785,
+    "avg_likes": 651,
+    "avg_comments": 12,
+    "avg_reposts": 34,
+    "score": 100
   },
   {
     "id": "6e5a7760-dc64-465d-9c9a-03cdad66686a",
@@ -3098,7 +2038,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 1732,
+    "avg_likes": 73,
+    "avg_comments": 6,
+    "avg_reposts": 4,
+    "score": 47
   },
   {
     "id": "9b03b5c1-d225-4eb9-9a75-348c19dc3f4a",
@@ -3126,7 +2071,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 3730,
+    "avg_likes": 41,
+    "avg_comments": 9,
+    "avg_reposts": 3,
+    "score": 52
   },
   {
     "id": "7665d80c-97d4-4838-a77e-66ae28cb5ad3",
@@ -3152,7 +2102,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 6917,
+    "avg_likes": 73,
+    "avg_comments": 6,
+    "avg_reposts": 5,
+    "score": 47
   },
   {
     "id": "76ba9388-97d4-4996-8723-c72533054f32",
@@ -3179,7 +2134,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 5732,
+    "avg_likes": 134,
+    "avg_comments": 2,
+    "avg_reposts": 10,
+    "score": 39
   },
   {
     "id": "7135973e-8cbe-493f-814a-83c8ca6e9a9d",
@@ -3204,7 +2164,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 5478,
+    "avg_likes": 74,
+    "avg_comments": 3,
+    "avg_reposts": 7,
+    "score": 24
   },
   {
     "id": "5b771c90-b335-4483-be77-4dcc53478880",
@@ -3230,7 +2195,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 7823,
+    "avg_likes": 311,
+    "avg_comments": 9,
+    "avg_reposts": 16,
+    "score": 100
   },
   {
     "id": "403a820f-9b88-4080-b2bd-a0c661ea1f82",
@@ -3257,7 +2227,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 6461,
+    "avg_likes": 49,
+    "avg_comments": 4,
+    "avg_reposts": 15,
+    "score": 6
   },
   {
     "id": "f4cb65a5-5e6f-4e42-bc0c-93a12a2bb443",
@@ -3284,7 +2259,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 626,
+    "avg_likes": 8,
+    "avg_comments": 2,
+    "avg_reposts": 0,
+    "score": 3
   },
   {
     "id": "8f275607-237d-46a8-b514-71e3fa11dbf1",
@@ -3312,7 +2292,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 1955,
+    "avg_likes": 15,
+    "avg_comments": 2,
+    "avg_reposts": 2,
+    "score": 4
   },
   {
     "id": "2ac48485-2b85-4ccc-b658-bec1f5c7e636",
@@ -3338,7 +2323,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 59092,
+    "avg_likes": 337,
+    "avg_comments": 14,
+    "avg_reposts": 13,
+    "score": 100
   },
   {
     "id": "ce66861f-bca1-41fd-94e9-3240214ceebd",
@@ -3365,7 +2355,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 16422,
+    "avg_likes": 65,
+    "avg_comments": 4,
+    "avg_reposts": 8,
+    "score": 15
   },
   {
     "id": "7c01afd2-ab82-4149-b99d-8d08bcb4f59d",
@@ -3391,7 +2386,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 27508,
+    "avg_likes": 157,
+    "avg_comments": 11,
+    "avg_reposts": 9,
+    "score": 100
   },
   {
     "id": "8c729301-bfbf-4680-8591-27409b7ef963",
@@ -3417,7 +2417,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 2016,
+    "avg_likes": 31,
+    "avg_comments": 6,
+    "avg_reposts": 7,
+    "score": 50
   },
   {
     "id": "9b4b8fc0-5022-47e2-b14c-2d1c0c8dcb07",
@@ -3443,7 +2448,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 3576,
+    "avg_likes": 79,
+    "avg_comments": 3,
+    "avg_reposts": 4,
+    "score": 100
   },
   {
     "id": "b8d3abe8-02d7-4be5-90cf-729e8eba46b6",
@@ -3471,7 +2481,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 10804,
+    "avg_likes": 108,
+    "avg_comments": 20,
+    "avg_reposts": 15,
+    "score": 16
   },
   {
     "id": "684ee331-253a-43e6-b781-1822ac269af7",
@@ -3497,7 +2512,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 10778,
+    "avg_likes": 75,
+    "avg_comments": 7,
+    "avg_reposts": 2,
+    "score": 31
   },
   {
     "id": "5b5d156a-6d15-4e10-90c0-9bda4aded4e5",
@@ -3525,7 +2545,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 17202,
+    "avg_likes": 198,
+    "avg_comments": 12,
+    "avg_reposts": 7,
+    "score": 100
   },
   {
     "id": "0261577c-5311-4988-9b16-3889517e2d54",
@@ -3550,7 +2575,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 43689,
+    "avg_likes": 594,
+    "avg_comments": 23,
+    "avg_reposts": 21,
+    "score": 75
   },
   {
     "id": "232ede67-bbf1-46f3-9d67-629caca5d33f",
@@ -3579,7 +2609,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 13872,
+    "avg_likes": 394,
+    "avg_comments": 29,
+    "avg_reposts": 11,
+    "score": 100
   },
   {
     "id": "bc3d5245-6d9b-4f11-bc0f-1c0f71bbeb81",
@@ -3602,7 +2637,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 104086,
+    "avg_likes": 2728,
+    "avg_comments": 18,
+    "avg_reposts": 180,
+    "score": 100
   },
   {
     "id": "f5d27995-b81d-43d4-805d-97374d956010",
@@ -3628,7 +2668,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 3338,
+    "avg_likes": 53,
+    "avg_comments": 42,
+    "avg_reposts": 5,
+    "score": 50
   },
   {
     "id": "754fe999-872c-4fb8-8851-2f98bd4d8256",
@@ -3655,7 +2700,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 3260,
+    "avg_likes": 32,
+    "avg_comments": 4,
+    "avg_reposts": 1,
+    "score": 99
   },
   {
     "id": "2dcf6236-3781-4ecb-a1c9-d9e76172cd77",
@@ -3682,7 +2732,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 947,
+    "avg_likes": 31,
+    "avg_comments": 3,
+    "avg_reposts": 1,
+    "score": 31
   },
   {
     "id": "156ee22b-3bd1-4f3f-af0a-871f1984cb03",
@@ -3709,7 +2764,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 14551,
+    "avg_likes": 92,
+    "avg_comments": 11,
+    "avg_reposts": 7,
+    "score": 96
   },
   {
     "id": "77033bd4-20c1-4641-a5d7-625b4742c6bd",
@@ -3736,7 +2796,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 10023,
+    "avg_likes": 294,
+    "avg_comments": 4,
+    "avg_reposts": 23,
+    "score": 47
   },
   {
     "id": "2f936dc0-7216-4556-99fa-ddef8a585ae2",
@@ -3764,7 +2829,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 88075,
+    "avg_likes": 677,
+    "avg_comments": 707,
+    "avg_reposts": 66,
+    "score": 100
   },
   {
     "id": "10bc418c-d4dc-43d3-b474-74123b77977f",
@@ -3792,7 +2862,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 2819,
+    "avg_likes": 58,
+    "avg_comments": 23,
+    "avg_reposts": 2,
+    "score": 100
   },
   {
     "id": "e61915f6-c617-4302-b618-8fd1b4124917",
@@ -3820,7 +2895,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 8658,
+    "avg_likes": 29,
+    "avg_comments": 6,
+    "avg_reposts": 6,
+    "score": 19
   },
   {
     "id": "6d34cd1e-6561-4eff-869d-b6478d1c6708",
@@ -3848,7 +2928,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 2169,
+    "avg_likes": 101,
+    "avg_comments": 12,
+    "avg_reposts": 3,
+    "score": 100
   },
   {
     "id": "2e59f934-8373-41cc-a96e-0da53c4139be",
@@ -3876,7 +2961,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 3346,
+    "avg_likes": 89,
+    "avg_comments": 48,
+    "avg_reposts": 23,
+    "score": 14
   },
   {
     "id": "24dd9d4b-18bc-41dc-a8fd-15071c76118a",
@@ -3901,7 +2991,12 @@
     "source": "internal",
     "reached_out": false,
     "created_at": "2026-03-20T14:36:20.722Z",
-    "updated_at": "2026-03-20T14:36:20.722Z"
+    "updated_at": "2026-03-20T14:36:20.722Z",
+    "avg_views": 50228,
+    "avg_likes": 2147,
+    "avg_comments": 17,
+    "avg_reposts": 42,
+    "score": 100
   },
   {
     "id": "789eb93c-4161-41f1-a801-b418d3c8bf4c",
@@ -3922,7 +3017,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 152969,
+    "avg_likes": 493,
+    "avg_comments": 21,
+    "avg_reposts": 42,
+    "score": 100
   },
   {
     "id": "7642b13a-0e26-436c-b866-64f0ba39bc07",
@@ -3943,7 +3043,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 8759,
+    "avg_likes": 139,
+    "avg_comments": 28,
+    "avg_reposts": 7,
+    "score": 28
   },
   {
     "id": "4a2341fb-79be-4066-980c-2239e6ca1a99",
@@ -3964,7 +3069,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 7163,
+    "avg_likes": 324,
+    "avg_comments": 47,
+    "avg_reposts": 4,
+    "score": 65
   },
   {
     "id": "e7832613-e077-4cc1-a76f-b76d805e7119",
@@ -3985,7 +3095,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 184315,
+    "avg_likes": 1139,
+    "avg_comments": 57,
+    "avg_reposts": 77,
+    "score": 100
   },
   {
     "id": "4e9c088e-20df-4289-aaf4-85f56c0a3d71",
@@ -4006,7 +3121,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 81976,
+    "avg_likes": 389,
+    "avg_comments": 18,
+    "avg_reposts": 25,
+    "score": 100
   },
   {
     "id": "85edcb84-1757-4113-8047-45cd9744b7e0",
@@ -4027,7 +3147,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 182620,
+    "avg_likes": 585,
+    "avg_comments": 12,
+    "avg_reposts": 46,
+    "score": 100
   },
   {
     "id": "d835a54d-98fa-4615-8ca6-33bee66e2eea",
@@ -4048,7 +3173,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 118130,
+    "avg_likes": 1072,
+    "avg_comments": 14,
+    "avg_reposts": 64,
+    "score": 100
   },
   {
     "id": "0d1892c4-6507-432d-85dd-d82a4407544a",
@@ -4069,7 +3199,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 274248,
+    "avg_likes": 940,
+    "avg_comments": 108,
+    "avg_reposts": 68,
+    "score": 100
   },
   {
     "id": "a0ec19ec-9088-42b9-89f8-ccd1f22aa1c8",
@@ -4090,7 +3225,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 93821,
+    "avg_likes": 530,
+    "avg_comments": 19,
+    "avg_reposts": 39,
+    "score": 100
   },
   {
     "id": "22e21308-e893-49a4-8a67-a7f67a4c0546",
@@ -4111,7 +3251,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 160967,
+    "avg_likes": 679,
+    "avg_comments": 13,
+    "avg_reposts": 41,
+    "score": 100
   },
   {
     "id": "4a5de5fd-cdde-4e35-930a-577714c0c4ce",
@@ -4132,7 +3277,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 7987,
+    "avg_likes": 80,
+    "avg_comments": 11,
+    "avg_reposts": 7,
+    "score": 19
   },
   {
     "id": "2a80af54-0ac3-4b11-81be-f12048c90c8a",
@@ -4153,7 +3303,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 10483,
+    "avg_likes": 204,
+    "avg_comments": 7,
+    "avg_reposts": 12,
+    "score": 100
   },
   {
     "id": "3cfc3f58-aa0b-4504-9575-0135bd87a61c",
@@ -4174,7 +3329,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 46898,
+    "avg_likes": 100,
+    "avg_comments": 5,
+    "avg_reposts": 13,
+    "score": 100
   },
   {
     "id": "efd32d79-d8ae-4b6a-8e92-82c50de15f1a",
@@ -4195,7 +3355,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 12088,
+    "avg_likes": 148,
+    "avg_comments": 16,
+    "avg_reposts": 7,
+    "score": 29
   },
   {
     "id": "26c2a41d-d089-475f-8147-b94b9b79c304",
@@ -4216,28 +3381,12 @@
     "source": "influencer",
     "reached_out": true,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
-  },
-  {
-    "id": "ce6d7efd-4618-47b2-b8e6-e323ced98219",
-    "handle": "Tuki",
-    "name": "Tuki",
-    "bio": null,
-    "platform": "twitter",
-    "followers": null,
-    "relevancy": "high",
-    "url": null,
-    "site": null,
-    "linkedin_url": null,
-    "email": null,
-    "price": null,
-    "notes": null,
-    "tags": [],
-    "deliverables": [],
-    "source": "influencer",
-    "reached_out": false,
-    "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 44743,
+    "avg_likes": 265,
+    "avg_comments": 14,
+    "avg_reposts": 11,
+    "score": 76
   },
   {
     "id": "98fa0d4f-8279-44a0-b802-e027032849d7",
@@ -4258,7 +3407,12 @@
     "source": "influencer",
     "reached_out": false,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 32582,
+    "avg_likes": 274,
+    "avg_comments": 6,
+    "avg_reposts": 20,
+    "score": 100
   },
   {
     "id": "a8542af7-c482-4796-9700-d0f17b112d29",
@@ -4279,7 +3433,12 @@
     "source": "influencer",
     "reached_out": false,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 50447,
+    "avg_likes": 588,
+    "avg_comments": 13,
+    "avg_reposts": 26,
+    "score": 100
   },
   {
     "id": "0721a662-cdbf-478a-8eb9-8c66c87acd17",
@@ -4300,7 +3459,12 @@
     "source": "influencer",
     "reached_out": false,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 20035,
+    "avg_likes": 141,
+    "avg_comments": 15,
+    "avg_reposts": 5,
+    "score": 100
   },
   {
     "id": "9ea7bcec-b73a-4869-b90b-41125d951510",
@@ -4321,7 +3485,12 @@
     "source": "influencer",
     "reached_out": false,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 70322,
+    "avg_likes": 728,
+    "avg_comments": 9,
+    "avg_reposts": 32,
+    "score": 100
   },
   {
     "id": "a6090e25-5305-408b-ac41-246996009518",
@@ -4342,6 +3511,11 @@
     "source": "influencer",
     "reached_out": false,
     "created_at": "2026-03-27T00:00:00.000Z",
-    "updated_at": "2026-03-27T00:00:00.000Z"
+    "updated_at": "2026-03-27T00:00:00.000Z",
+    "avg_views": 18894,
+    "avg_likes": 139,
+    "avg_comments": 8,
+    "avg_reposts": 7,
+    "score": 100
   }
 ]

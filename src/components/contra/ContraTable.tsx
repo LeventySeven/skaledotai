@@ -44,7 +44,7 @@ interface ContraTableProps {
   onToggleAllSelection: (checked: boolean) => void;
   onToggleRowSelection: (leadId: string, checked: boolean) => void;
   onOpenLead: (lead: ContraLead) => void;
-  onPatch: (id: string, patch: Partial<ContraLead>) => Promise<void>;
+  onPatch: (id: string, patch: Partial<ContraLead>) => void;
 }
 
 export function ContraTable({
@@ -91,6 +91,8 @@ export function ContraTable({
               <TableHead className="min-w-[220px] border-r border-border/45">Bio</TableHead>
               <TableHead className="w-[86px] border-r border-border/45 text-center">Followers</TableHead>
               <TableHead className="w-[70px] border-r border-border/45 text-center">Relevancy</TableHead>
+              <TableHead className="w-[86px] border-r border-border/45 text-center">Avg Views</TableHead>
+              <TableHead className="w-[60px] border-r border-border/45 text-center">Score</TableHead>
               <TableHead className="w-[70px] border-r border-border/45 text-center">Price</TableHead>
               <TableHead className="w-[64px] border-r border-border/45 text-center">DM</TableHead>
               <TableHead className="w-[72px] border-r border-border/45 text-center">Reply</TableHead>
@@ -143,6 +145,22 @@ export function ContraTable({
                     {lead.relevancy ?? "—"}
                   </Badge>
                 </TableCell>
+                <TableCell className="border-r border-border/45 text-center text-[0.92rem] font-semibold">
+                  {lead.avgViews != null ? formatFollowers(lead.avgViews) : "—"}
+                </TableCell>
+                <TableCell className="border-r border-border/45 text-center">
+                  {lead.score != null ? (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-6 rounded-sm border-transparent px-1.5 text-[0.76rem] font-semibold",
+                        lead.score >= 50 ? "bg-green-100 text-green-700" : lead.score >= 20 ? "bg-yellow-100 text-yellow-700" : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {lead.score}
+                    </Badge>
+                  ) : "—"}
+                </TableCell>
                 <TableCell className="border-r border-border/45 text-center text-[0.86rem] text-muted-foreground">
                   {lead.price != null ? `$${lead.price}` : "—"}
                 </TableCell>
@@ -154,7 +172,7 @@ export function ContraTable({
                         onPatch(lead.id, {
                           stage: value ? "messaged" : "found",
                           inOutreach: Boolean(value),
-                        }).catch(() => undefined);
+                        });
                       }}
                     />
                   </div>
@@ -167,7 +185,7 @@ export function ContraTable({
                         onPatch(lead.id, {
                           stage: value ? "replied" : isDMed(lead) ? "messaged" : "found",
                           inOutreach: Boolean(value) || isDMed(lead),
-                        }).catch(() => undefined);
+                        });
                       }}
                     />
                   </div>

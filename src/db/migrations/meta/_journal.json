@@ -57,6 +57,13 @@
       "when": 1774624936681,
       "tag": "0007_lyrical_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774637994977,
+      "tag": "0008_fast_dreaming_celestial",
+      "breakpoints": true
     }
   ]
 }

@@ -352,28 +352,6 @@
     "followers": 97000
   },
   {
-    "id": "ce6d7efd-4618-47b2-b8e6-e323ced98219",
-    "userId": null,
-    "handle": "Tuki",
-    "name": "Tuki",
-    "bio": null,
-    "platform": "twitter",
-    "deliverables": [],
-    "tags": [],
-    "relevancy": "high",
-    "url": null,
-    "site": null,
-    "linkedinUrl": null,
-    "email": null,
-    "price": null,
-    "notes": null,
-    "sourceLeadId": null,
-    "lastSyncedAt": null,
-    "createdAt": "2026-03-27T00:00:00.000Z",
-    "updatedAt": "2026-03-27T00:00:00.000Z",
-    "followers": null
-  },
-  {
     "id": "98fa0d4f-8279-44a0-b802-e027032849d7",
     "userId": null,
     "handle": "samwhoo",

@@ -37,6 +37,15 @@ function toPatchInput(patch: Partial<ContraLead>) {
   return payload;
 }
 
+/** Apply a patch to a lead, converting nulls to undefined to match ContraLead types. */
+function applyPatch(lead: ContraLead, patch: Record<string, unknown>): ContraLead {
+  const merged = { ...lead };
+  for (const [key, value] of Object.entries(patch)) {
+    (merged as Record<string, unknown>)[key] = value === null ? undefined : value;
+  }
+  return merged;
+}
+
 export function useContraWorkspace() {
   const utils = trpc.useUtils();
 
@@ -62,13 +71,48 @@ export function useContraWorkspace() {
     source,
   });
 
+  const listInput = {
+    page,
+    pageSize: DEFAULT_PAGE_SIZE,
+    search: deferredSearch,
+    sort,
+    stage,
+    relevancy,
+    source,
+  };
+
   const updateLead = trpc.contra.update.useMutation({
-    onSuccess: async (lead) => {
-      setSelectedLead((current) => (current?.id === lead.id ? { ...current, ...lead } : current));
-      await utils.contra.list.invalidate();
+    onMutate: async ({ id, patch }) => {
+      await utils.contra.list.cancel();
+
+      const previousList = utils.contra.list.getData(listInput);
+      const previousSelectedLead = selectedLead;
+
+      // Optimistically update the list cache
+      utils.contra.list.setData(listInput, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          leads: old.leads.map((l) => (l.id === id ? applyPatch(l, patch) : l)),
+        };
+      });
+
+      // Optimistically update the detail sheet
+      setSelectedLead((current) => (current?.id === id ? applyPatch(current, patch) : current));
+
+      return { previousList, previousSelectedLead };
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousList !== undefined) {
+        utils.contra.list.setData(listInput, context.previousList);
+      }
+      if (context?.previousSelectedLead !== undefined) {
+        setSelectedLead(context.previousSelectedLead);
+      }
       toastManager.add({ type: "error", title: error.message });
+    },
+    onSettled: () => {
+      utils.contra.list.invalidate();
     },
   });
 
@@ -79,8 +123,8 @@ export function useContraWorkspace() {
   const allVisibleSelected = allFilteredSelected || (leads.length > 0 && leads.every((l) => selectedIds.includes(l.id)));
   const selectedCount = allFilteredSelected ? total : selectedIds.length;
 
-  async function handlePatch(id: string, patch: Partial<ContraLead>) {
-    await updateLead.mutateAsync({ id, patch: toPatchInput(patch) });
+  function handlePatch(id: string, patch: Partial<ContraLead>) {
+    updateLead.mutate({ id, patch: toPatchInput(patch) });
   }
 
   function toggleRowSelection(leadId: string, checked: boolean) {
