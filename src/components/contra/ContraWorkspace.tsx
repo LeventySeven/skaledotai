@@ -20,13 +20,16 @@ import { useState } from "react";
 import type { ContraLead } from "@/lib/validations/contra";
 import { trpc } from "@/lib/trpc/client";
 import { toastManager } from "@/components/ui/toast";
-// xlsx is dynamically imported in handleExportExcel to avoid webpack build issues
 
 function escapeCSV(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
+}
+
+function escapeXml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 const EXPORT_HEADERS = [
@@ -63,6 +66,36 @@ function downloadBlob(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Generate an Excel-compatible XML spreadsheet (no dependencies). */
+function buildExcelXml(headers: string[], rows: (string | number)[][]): string {
+  const cellsForRow = (values: (string | number)[]) =>
+    values
+      .map((v) => {
+        if (typeof v === "number")
+          return `<Cell><Data ss:Type="Number">${v}</Data></Cell>`;
+        return `<Cell><Data ss:Type="String">${escapeXml(String(v))}</Data></Cell>`;
+      })
+      .join("");
+
+  const headerRow = `<Row ss:StyleID="Bold">${cellsForRow(headers)}</Row>`;
+  const dataRows = rows.map((r) => `<Row>${cellsForRow(r)}</Row>`).join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+<Style ss:ID="Bold"><Font ss:Bold="1"/></Style>
+</Styles>
+<Worksheet ss:Name="Contra Leads">
+<Table>
+${headerRow}
+${dataRows}
+</Table>
+</Worksheet>
+</Workbook>`;
 }
 
 export function ContraWorkspace() {
@@ -109,22 +142,12 @@ export function ContraWorkspace() {
       const leads = await fetchLeads();
       if (!leads) return;
 
-      const XLSX = await import("xlsx");
       const rows = leadsToRows(leads);
-      const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows]);
-
-      ws["!cols"] = EXPORT_HEADERS.map((h, i) => {
-        const maxLen = Math.max(h.length, ...rows.map((r) => String(r[i]).length));
-        return { wch: Math.min(maxLen + 2, 50) };
-      });
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Contra Leads");
-      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const xml = buildExcelXml(EXPORT_HEADERS, rows);
 
       downloadBlob(
-        new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-        `contra-leads-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        new Blob([xml], { type: "application/vnd.ms-excel" }),
+        `contra-leads-${new Date().toISOString().slice(0, 10)}.xls`,
       );
       toastManager.add({ type: "success", title: `Exported ${leads.length} leads as Excel.` });
     } catch (err) {
