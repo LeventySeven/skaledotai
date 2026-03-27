@@ -28,7 +28,7 @@ const navItems = [
   { href: "/outreach", label: "Outreach", icon: SendIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
   { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
-  { href: "/pricing", label: "Pricing", icon: SparklesIcon },
+  // { href: "/pricing", label: "Pricing", icon: SparklesIcon },
 ];
 
 function CampaignsList({ onNav, initialProjects }: { onNav?: () => void; initialProjects?: Project[] }) {

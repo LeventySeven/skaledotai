@@ -1,7 +1,3 @@
-import { Autumn } from "autumn-js";
-
-export const autumn = new Autumn();
-
 /** Feature IDs — must match what you configure in the Autumn dashboard */
 export const FEATURES = {
   SEARCHES: "searches",
