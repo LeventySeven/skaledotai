@@ -75,7 +75,7 @@ export async function resolveHandleToXUserId(handle: string): Promise<string | n
   const cleanHandle = handle.replace(/^@/, "").trim().toLowerCase();
   if (!cleanHandle) return null;
 
-  const redis = getRedis();
+  const redis = await getRedis();
   const cacheKey = `${HANDLE_TO_ID_PREFIX}${cleanHandle}`;
 
   // Check cache first
@@ -287,7 +287,7 @@ export async function removeMonitored(userId: string, id: string): Promise<void>
 
 /** Load cached DM events from Redis for a given xUserId. */
 async function loadCachedDms(xUserId: string): Promise<DmEvent[]> {
-  const redis = getRedis();
+  const redis = await getRedis();
   const cacheKey = `${DM_CACHE_PREFIX}${xUserId}`;
   const cached = await redis.get<string>(cacheKey);
   if (!cached) return [];
@@ -302,7 +302,7 @@ async function loadCachedDms(xUserId: string): Promise<DmEvent[]> {
 /** Save DM events to Redis cache, merging new events with cached ones (deduped by id). */
 async function saveDmsToCache(xUserId: string, events: DmEvent[]): Promise<void> {
   if (events.length === 0) return;
-  const redis = getRedis();
+  const redis = await getRedis();
   const cacheKey = `${DM_CACHE_PREFIX}${xUserId}`;
   await redis.set(cacheKey, JSON.stringify(events), { ex: DM_CACHE_TTL });
 }
@@ -605,7 +605,7 @@ export async function suggestFromDms(userId: string): Promise<DmSuggestion[]> {
   }
 
   // Cache all resolved handle→ID mappings
-  const redis = getRedis();
+  const redis = await getRedis();
   for (const p of resolved) {
     const cacheKey = `${HANDLE_TO_ID_PREFIX}${p.username.toLowerCase()}`;
     await redis.set(cacheKey, p.xUserId);

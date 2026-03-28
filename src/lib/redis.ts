@@ -1,8 +1,8 @@
-import { Redis } from "@upstash/redis";
+import type { Redis } from "@upstash/redis";
 
 let _redis: Redis | null = null;
 
-export function getRedis(): Redis {
+export async function getRedis(): Promise<Redis> {
   if (_redis) return _redis;
 
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -14,6 +14,7 @@ export function getRedis(): Redis {
     );
   }
 
-  _redis = new Redis({ url, token });
+  const { Redis: RedisClient } = await import("@upstash/redis");
+  _redis = new RedisClient({ url, token });
   return _redis;
 }
