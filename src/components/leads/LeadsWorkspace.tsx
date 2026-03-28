@@ -200,9 +200,13 @@ export function LeadsWorkspace() {
               className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
               disabled={addToMonitoring.isPending}
               onClick={() => {
+                const ids = workspace.allFilteredSelected
+                  ? workspace.leads.map((l) => l.id)
+                  : workspace.selectedIds;
+                if (ids.length === 0) return;
                 addToMonitoring.mutate({
                   sourceTable: "leads",
-                  sourceIds: workspace.selectedIds,
+                  sourceIds: ids,
                 });
               }}
             >
