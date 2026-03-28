@@ -36,9 +36,9 @@ export function LeadsWorkspace() {
       <div className="mx-auto max-w-[1820px]">
         <div className="flex w-full items-start justify-between pb-6">
           <div className="flex flex-col">
-            <div className="text-[18px] font-medium text-[#111111]/40">Spreadsheet</div>
+            <div className="text-[18px] font-medium text-[#111111]/40">Database</div>
             <h1 className="text-[28px] font-medium tracking-[-0.04em]">
-              {workspace.currentProject?.name ?? "Leads"}
+              {workspace.currentProject?.name ?? "Database"}
             </h1>
           </div>
 

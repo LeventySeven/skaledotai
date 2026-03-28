@@ -24,9 +24,8 @@ function CampaignsIcon({ className }: { className?: string }) {
 
 const navItems = [
   { href: "/search", label: "Search", icon: SearchIcon },
-  { href: "/leads", label: "Leads", icon: UsersIcon },
+  { href: "/leads", label: "Database", icon: UsersIcon },
   { href: "/outreach", label: "Outreach", icon: SendIcon },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
   { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
   { href: "/contra", label: "Contra", icon: FileSpreadsheetIcon },
   { href: "/monitoring", label: "Monitoring", icon: ActivityIcon },
@@ -117,7 +116,21 @@ function NavContent({ onNav, initialProjects }: { onNav?: () => void; initialPro
 
       <SidebarProviderBadge />
 
-      <form action={signOutAction} className="border-t px-3 pb-4 pt-3">
+      <div className="border-t px-3 pt-3">
+        <Button
+          render={<Link href="/settings" onClick={onNav} />}
+          variant="ghost"
+          className={cn(
+            "h-11 w-full justify-start gap-3 rounded-2xl px-4 text-[1rem] font-normal text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+            pathname === "/settings" && "bg-accent text-foreground font-medium",
+          )}
+        >
+          <SettingsIcon className="size-4 shrink-0" />
+          Settings
+        </Button>
+      </div>
+
+      <form action={signOutAction} className="px-3 pb-4 pt-1">
         <Button
           type="submit"
           variant="ghost"
