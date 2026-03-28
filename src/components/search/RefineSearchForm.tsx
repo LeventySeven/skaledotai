@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
@@ -39,6 +40,7 @@ export function RefineSearchForm() {
 
   const utils = trpc.useUtils();
   const { provider } = useXDataProviderPreference();
+  const [enableWebSearch, setEnableWebSearch] = useState(false);
   const [minFollowers, setMinFollowers] = useState(rerunMinFollowers ? Number(rerunMinFollowers) : 1_000);
   const [targetLeadCount, setTargetLeadCount] = useState(rerunTargetLeadCount ? Number(rerunTargetLeadCount) : 100);
   const [liveSearchPending, setLiveSearchPending] = useState(false);
@@ -85,6 +87,7 @@ export function RefineSearchForm() {
     followerUsername?: string;
     minFollowers: number;
     targetLeadCount: number;
+    enableWebSearch?: boolean;
   }) {
     setLiveSearchPending(true);
     setStreamSteps([]);
@@ -199,6 +202,7 @@ export function RefineSearchForm() {
         LEAD_TARGET_BOUNDS.min,
         Math.min(LEAD_TARGET_BOUNDS.max, Number(targetLeadCount) || LEAD_TARGET_BOUNDS.min),
       ),
+      enableWebSearch,
     };
 
     if (provider === "multiagent") {
@@ -290,6 +294,14 @@ export function RefineSearchForm() {
             </Select>
           </div>
         </div>
+
+        <label className="flex items-center gap-3 text-[1rem]">
+          <Checkbox
+            checked={enableWebSearch}
+            onCheckedChange={(value) => setEnableWebSearch(Boolean(value))}
+          />
+          Web search
+        </label>
 
         <Button
           type="submit"

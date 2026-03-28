@@ -7,6 +7,8 @@ import type { XLeadCandidate } from "@/lib/x";
 import {
   isTurboPufferConfigured,
   buildNamespace,
+  getWarmNamespace,
+  getColdNamespace,
   upsertRows,
   multiQuery,
   type TurboPufferRow,
@@ -297,52 +299,81 @@ export async function searchLeadMemory(
     return [];
   }
 
-  const namespace = buildNamespace(userId);
   const topK = options?.topK ?? MEMORY_SEARCH_TOP_K;
   const startMs = Date.now();
 
   try {
-    // Generate query embedding
-    const queryVector = await generateEmbedding(query);
+    // Skip embedding for fast BM25-only search — tags + bio + search_text
+    // Vector search is optional and slow (adds ~2s for embedding generation)
+    const queryOpts = { tags: options?.tags, minFollowers: options?.minFollowers };
 
-    // Run hybrid search: vector ANN + BM25 search_text + BM25 tags + BM25 bio, fused with RRF
-    const hits = await multiQuery(namespace, queryVector, query, topK, {
-      tags: options?.tags,
-      minFollowers: options?.minFollowers,
-    });
+    // Search BOTH namespaces in parallel — warm (curated) + cold (bulk scraped)
+    const [warmHits, coldHits] = await Promise.all([
+      searchNamespaceSafe(getWarmNamespace(), null, query, topK, queryOpts),
+      searchNamespaceSafe(getColdNamespace(), null, query, topK, queryOpts),
+    ]);
+
+    // Merge: warm leads first (priority), then cold leads that aren't duplicates
+    const seenHandles = new Set<string>();
+    const allHits: LeadMemoryHit[] = [];
+
+    for (const hit of warmHits) {
+      const handle = hit.document.handle.toLowerCase();
+      if (seenHandles.has(handle)) continue;
+      seenHandles.add(handle);
+      allHits.push(hit);
+    }
+
+    for (const hit of coldHits) {
+      const handle = hit.document.handle.toLowerCase();
+      if (seenHandles.has(handle)) continue;
+      seenHandles.add(handle);
+      allHits.push(hit);
+    }
 
     const latencyMs = Date.now() - startMs;
-
-    const mapped = hits
-      .map((hit) => hitToMemoryResult(hit))
-      .filter((h): h is LeadMemoryHit => h !== null);
 
     console.log("[lead-memory][lookup]", JSON.stringify({
       userId: userId.slice(0, 8),
-      namespace,
       query: query.slice(0, 50),
-      hitCount: mapped.length,
-      topScore: mapped[0]?.score ?? 0,
+      warmHits: warmHits.length,
+      coldHits: coldHits.length,
+      totalHits: allHits.length,
       latencyMs,
     }));
 
-    return mapped;
+    return allHits;
   } catch (error) {
     const latencyMs = Date.now() - startMs;
+    console.warn("[lead-memory][lookup] error", JSON.stringify({
+      userId: userId.slice(0, 8),
+      query: query.slice(0, 50),
+      latencyMs,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+    return [];
+  }
+}
+
+async function searchNamespaceSafe(
+  namespace: string,
+  queryVector: number[] | null,
+  queryText: string,
+  topK: number,
+  options: { tags?: string[]; minFollowers?: number },
+): Promise<LeadMemoryHit[]> {
+  try {
+    const hits = await multiQuery(namespace, queryVector, queryText, topK, options);
+    return hits
+      .map((hit) => hitToMemoryResult(hit))
+      .filter((h): h is LeadMemoryHit => h !== null);
+  } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    // Namespace not found = no leads synced yet for this user, not an error
-    const isNotFound = errMsg.includes("404") || errMsg.includes("not found");
-    if (isNotFound) {
-      console.log("[lead-memory][lookup] No namespace yet for user, skipping");
-    } else {
-      console.warn("[lead-memory][lookup] error", JSON.stringify({
-        userId: userId.slice(0, 8),
-        namespace,
-        query: query.slice(0, 50),
-        latencyMs,
-        error: errMsg,
-      }));
+    if (errMsg.includes("404") || errMsg.includes("not found")) {
+      // Namespace doesn't exist yet — not an error
+      return [];
     }
+    console.warn(`[lead-memory][${namespace}] search failed:`, errMsg);
     return [];
   }
 }

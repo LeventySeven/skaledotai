@@ -57,3 +57,4 @@ Thumbs.db
 # clerk configuration (can include secrets)
 /.clerk/
 package-lock.json
+.gstack/

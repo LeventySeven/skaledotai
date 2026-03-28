@@ -48,6 +48,11 @@ import {
   searchLeadMemory,
   mapMemoryHitToCandidate,
 } from "./lead-memory";
+import {
+  getFollowerCacheStatus,
+  fetchAndCacheFollowers,
+  searchWithinFollowers,
+} from "./follower-cache";
 
 type CanonicalCandidate = XProfile & {
   samplePosts: string[];
@@ -472,10 +477,11 @@ async function discoverCandidatesWithProviderOwnedLoop(
   parseAccountsTarget: number,
   progress?: SearchProgressHandlers,
   userId?: string,
+  overrideMaxAttempts?: number,
 ): Promise<DiscoveryResult> {
   const discoveryMinFollowers = getDiscoveryMinFollowers(discoveryProvider.provider, minFollowers);
   const goalCount = getDiscoveryCandidateGoal(targetLeadCount);
-  const maxAttempts = SEARCH_DISCOVERY_METADATA.maxAttempts;
+  const maxAttempts = overrideMaxAttempts ?? SEARCH_DISCOVERY_METADATA.maxAttempts;
   type DiscoverySnapshotSummary = {
     attempt?: number;
     maxAttempts?: number;
@@ -569,6 +575,14 @@ export async function searchAndAddLeads(
     const minFollowers = input.minFollowers ?? 0;
     const parseAccountsTarget = getDiscoveryParseTarget(provider, targetLeadCount);
 
+    console.log("[search] starting", JSON.stringify({
+      query: input.query,
+      seedHandle: seedHandle ?? null,
+      enableWebSearch: input.enableWebSearch ?? false,
+      minFollowers,
+      targetLeadCount,
+    }));
+
     // Progressive trace persistence — save to DB periodically so progress survives navigation.
     // Aligned with LangGraph checkpoint pattern: "save state at every super-step."
     const collectedSteps: Array<unknown> = [];
@@ -601,37 +615,217 @@ export async function searchAndAddLeads(
       onSnapshot: progress.onSnapshot,
     } : undefined;
 
-    // ── Lead Memory: Search TurboPuffer first ────────────────────────────────
-    // If we already have high-quality leads from previous searches, use them
-    // to seed the known pool and reduce how many new leads we need to find.
+    // ── Search within followers (TurboPuffer-cached) ─────────────────────────
+    // If user specified a seed handle, search their cached verified followers first.
+    // If cache doesn't exist yet, fetch → cache → then search.
     const knownHandles = new Set<string>();
     let screenedCandidates: XLeadCandidate[] = [];
+    const enableWebSearch = input.enableWebSearch ?? false;
 
+    if (seedHandle) {
+      // ── Follower-only mode: fetch → cache → search within followers ────
+      // When a seed handle is provided, ONLY search within that user's followers.
+      // No warm/cold database search. No web search.
+
+      // Check if followers are already cached
+      const cacheStatus = await getFollowerCacheStatus(seedHandle);
+
+      if (cacheStatus.state === "missing" || cacheStatus.state === "failed") {
+        // Fetch and cache verified followers into TurboPuffer
+        trace.addStep(await emitStep(progress, {
+          id: "follower-fetch",
+          title: "Fetching Verified Followers",
+          summary: `Fetching verified followers of @${seedHandle} via TwitterAPI.io...`,
+          status: "success",
+          provider: "multiagent",
+          tools: ["TwitterAPI.io", "TurboPuffer"],
+          bullets: [`Caching @${seedHandle}'s verified followers for fast future searches.`],
+          metrics: [],
+        }));
+
+        const result = await fetchAndCacheFollowers(seedHandle);
+
+        trace.addStep(await emitStep(progress, {
+          id: "follower-cached",
+          title: "Followers Cached",
+          summary: `Cached ${result.total} verified followers of @${seedHandle}.`,
+          status: "success",
+          provider: "multiagent",
+          tools: ["TwitterAPI.io", "TurboPuffer"],
+          bullets: [`${result.total} verified followers stored in TurboPuffer.`, "Future searches will be instant."],
+          metrics: [{ label: "Followers cached", value: result.total }],
+        }));
+      } else if (cacheStatus.state === "stale") {
+        // Serve stale cache + trigger background refresh (don't block the search)
+        fetchAndCacheFollowers(seedHandle).catch((err) =>
+          console.warn("[search][follower-cache] Background refresh failed:", err instanceof Error ? err.message : String(err)),
+        );
+        trace.addStep(await emitStep(progress, {
+          id: "follower-refresh",
+          title: "Follower Cache",
+          summary: `Using cached followers of @${seedHandle} (refreshing in background).`,
+          status: "success",
+          provider: "multiagent",
+          tools: ["TurboPuffer"],
+          bullets: [`${cacheStatus.totalFetched} followers cached. Refreshing in background.`],
+          metrics: [{ label: "Cached followers", value: cacheStatus.totalFetched }],
+        }));
+      } else if (cacheStatus.state === "fetching") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Still fetching @${seedHandle}'s followers. Please wait and try again.`,
+        });
+      }
+
+      // Search within the cached followers by query (bio, tags, semantic match)
+      const followerProfiles = await searchWithinFollowers({
+        seedHandle,
+        query: input.query,
+        topK: Math.max(targetLeadCount, 100),
+        minFollowers,
+      });
+
+      for (const profile of followerProfiles) {
+        const handle = profile.username.replace(/^@/, "").toLowerCase();
+        if (knownHandles.has(handle)) continue;
+        knownHandles.add(handle);
+        screenedCandidates.push({
+          source: "multiagent",
+          niche: input.query,
+          discoverySource: "followers",
+          account: {
+            handle: profile.username,
+            name: profile.displayName,
+            bio: profile.bio,
+            followers: profile.followersCount,
+            following: profile.followingCount,
+            isVerified: profile.verified,
+            profileUrl: profile.profileUrl,
+            avatarUrl: profile.avatarUrl,
+            xUserId: profile.xUserId,
+          },
+          metrics: { avgLikes: 0, avgReplies: 0, avgReposts: 0, postsSampleSize: 0 },
+          posts: [],
+        });
+      }
+
+      trace.addStep(await emitStep(progress, {
+        id: "follower-search",
+        title: "Follower Search",
+        summary: followerProfiles.length > 0
+          ? `Found ${followerProfiles.length} matching followers of @${seedHandle}.`
+          : `No followers of @${seedHandle} match "${input.query}".`,
+        status: followerProfiles.length > 0 ? "success" : "warning",
+        provider: "multiagent",
+        tools: ["TurboPuffer"],
+        bullets: followerProfiles.length > 0
+          ? [`${followerProfiles.length} verified followers match "${input.query}".`]
+          : [`No verified followers of @${seedHandle} match this query.`],
+        metrics: [
+          { label: "Matches", value: followerProfiles.length },
+        ],
+      }));
+
+      if (screenedCandidates.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `No verified followers of @${seedHandle} match "${input.query}".`,
+        });
+      }
+
+      // Skip straight to insertion — no database search, no web search
+      const finalCandidates = screenedCandidates;
+      const profiles = finalCandidates.map((c) => ({
+        ...toXProfileFromCandidate(c),
+        samplePosts: getCandidateSampleTexts(c),
+        source: c.discoverySource,
+      }));
+
+      trace.addStep(await emitStep(progress, {
+        id: "insert",
+        title: "Spreadsheet Insert",
+        summary: `Inserted ${profiles.length} followers into ${project.name}.`,
+        status: "success",
+        provider,
+        bullets: [`Project: ${project.name}`],
+        metrics: [{ label: "Inserted", value: profiles.length }],
+        tools: [],
+      }));
+
+      const leadsList = await addProfilesToProject({
+        userId,
+        projectId: project.id,
+        profiles,
+        discoverySource: "followers",
+        discoveryQuery: input.query,
+      });
+
+      const finalTrace = trace.build(
+        `Added ${leadsList.length} followers of @${seedHandle} to ${project.name}.`,
+        "success",
+      );
+
+      await recordProjectRun({
+        projectId: project.id,
+        operationType: "search",
+        requestedProvider: provider,
+        discoveryProvider: "multiagent",
+        lookupProvider: provider,
+        networkProvider: provider,
+        tweetsProvider: provider,
+        query: input.query,
+        seedUsername: seedHandle,
+        minFollowers: input.minFollowers,
+        targetLeadCount: input.targetLeadCount,
+        leadCount: leadsList.length,
+        traceData: finalTrace,
+        status: "completed",
+      });
+
+      return {
+        leads: leadsList,
+        project: {
+          ...project,
+          sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
+        },
+        trace: finalTrace,
+      };
+    }
+
+    // ── Lead Memory: Search TurboPuffer (warm → cold) ────────────────────────
+    // No seed handle — search our general lead databases.
     try {
-      const memoryHits = await searchLeadMemory(userId, input.query, { topK: 30 });
+      const memoryHits = await searchLeadMemory(userId, input.query, {
+        topK: Math.max(targetLeadCount, 50),
+        minFollowers: minFollowers,
+      });
+
       if (memoryHits.length > 0) {
         const memoryCandidates = memoryHits.map((hit) => mapMemoryHitToCandidate(hit, input.query));
         for (const c of memoryCandidates) {
           const key = c.account.handle.replace(/^@/, "").toLowerCase();
           knownHandles.add(key);
         }
-        // Pre-seed screened candidates with memory hits
         screenedCandidates = memoryCandidates;
 
         trace.addStep(await emitStep(progress, {
           id: "lead-memory",
           title: "Lead Memory Lookup",
-          summary: `Found ${memoryHits.length} previously seen leads in memory.`,
-          status: memoryHits.length > 0 ? "success" : "warning",
+          summary: `Found ${memoryHits.length} leads from our database.`,
+          status: "success",
           provider: "multiagent",
           tools: ["TurboPuffer"],
           bullets: [
-            `${memoryHits.length} leads recalled from previous searches.`,
-            `${targetLeadCount - screenedCandidates.length} more needed from fresh discovery.`,
+            `${memoryHits.length} leads found across warm and cold databases.`,
+            screenedCandidates.length >= targetLeadCount
+              ? `Target of ~${targetLeadCount} met from database alone.`
+              : enableWebSearch
+                ? `${targetLeadCount - screenedCandidates.length} more needed — web search will run next.`
+                : `${screenedCandidates.length} leads available. Enable web search for more.`,
           ],
           metrics: [
-            { label: "Memory hits", value: memoryHits.length },
-            { label: "Remaining target", value: Math.max(0, targetLeadCount - screenedCandidates.length) },
+            { label: "Database hits", value: memoryHits.length },
+            { label: "Target", value: targetLeadCount },
           ],
         }));
       }
@@ -639,33 +833,41 @@ export async function searchAndAddLeads(
       console.warn("[search][lead-memory] Lookup failed (non-fatal):", error instanceof Error ? error.message : String(error));
     }
 
-    // ── Discover → Screen → Check → Loop architecture ──────────────────────────
-    // Screening happens IN THE MIDDLE of the pipeline, not at the end.
-    // After each pass: discover candidates → screen for relevance → check count.
-    // If not enough relevant leads, discover MORE (new ones, not duplicates).
-    // This ensures the user gets both ACCURACY and QUANTITY.
+    // ── Web discovery: only if explicitly enabled ──────────────────────────
+    if (!enableWebSearch) {
+      if (screenedCandidates.length > 0) {
+        trace.addStep(await emitStep(progress, {
+          id: "web-search-skipped",
+          title: "Web Search",
+          summary: "Web search is disabled. Using database results only.",
+          status: "success",
+          provider: discoveryProvider.provider,
+          bullets: [
+            `${screenedCandidates.length} leads from database.`,
+            "Enable web search to discover new leads from X.",
+          ],
+          metrics: [
+            { label: "From database", value: screenedCandidates.length },
+          ],
+          tools: [],
+        }));
+      }
+    }
 
-    const MAX_SEARCH_PASSES = 6;
+    // ── Discover → Screen → Check → Loop (only if web search enabled) ────────
+    // Web search: run the full pipeline once, no target cap. Separate from TurboPuffer.
+    const MAX_SEARCH_PASSES = enableWebSearch ? 1 : 0;
     let latestInterpretation: SearchInterpretation | undefined;
     let totalDiscovered = 0;
     let totalScreenedPool = 0;
-    /** Collected screening reasons across all passes for inline reasoning persistence */
     const allSelectedReasons = new Map<string, string>();
-    /** All raw discovered candidates (before screening) — used for fallback salvage */
     let allDiscoveredCandidates: XLeadCandidate[] = [];
 
     try {
 
     for (let pass = 1; pass <= MAX_SEARCH_PASSES; pass++) {
-      const remaining = targetLeadCount - screenedCandidates.length;
-      // Stop if we've met the soft target
-      if (remaining <= 0) break;
-
-      // Scale discovery target: pass 1 = full target, pass 2+ = shortfall
-      const passTarget = pass === 1 ? targetLeadCount : Math.max(20, remaining);
-      const passParseTarget = pass === 1
-        ? parseAccountsTarget
-        : Math.max(100, Math.ceil(passTarget * 3));
+      const passTarget = targetLeadCount;
+      const passParseTarget = parseAccountsTarget;
 
       const discoveryResult = discoveryProvider.provider === "multiagent"
         ? await discoverCandidatesWithProviderOwnedLoop(
@@ -677,6 +879,7 @@ export async function searchAndAddLeads(
           passParseTarget,
           progressWithPersistence,
           userId,
+          1, // Single attempt — run the pipeline once, no retries
         )
         : await discoverCandidatesUntilGoal(
           discoveryProvider,
@@ -708,7 +911,7 @@ export async function searchAndAddLeads(
         title: pass === 1 ? "Discovery" : `Discovery Pass ${pass}`,
         summary: pass === 1
           ? `Collected ${newCandidates.length} candidate accounts.`
-          : `Supplementary pass found ${newCandidates.length} new candidates (needed ~${remaining} more leads).`,
+          : `Supplementary pass found ${newCandidates.length} new candidates.`,
         status: newCandidates.length > 0 ? "success" : "warning",
         provider: discoveryProvider.provider,
         bullets: [
@@ -786,110 +989,52 @@ export async function searchAndAddLeads(
         tools: ["OpenAI"],
       }));
 
-      // Stop conditions:
-      // 1. Hit the soft target — we have enough
-      if (screenedCandidates.length >= targetLeadCount) break;
-      // 2. Diminishing returns — this pass found almost nothing new
-      if (pass >= 2 && passScreened.length < 3) break;
+      // Single pass — no stop conditions needed
     }
 
     if (screenedCandidates.length === 0) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "No relevant X leads passed AI screening for this query.",
+        message: enableWebSearch
+          ? "No relevant leads found for this query."
+          : "No matching leads found in our database. Try enabling web search to discover new leads.",
       });
     }
 
     } catch (pipelineError) {
-      // ── Fallback salvage: insert whatever we found so far ────────────────
-      // If something broke mid-pipeline, we still have candidates. Insert them
-      // so the user isn't left empty-handed. Screened leads are preferred, but
-      // if screening failed, we fall back to raw discovered candidates.
-      const salvageCandidates = screenedCandidates.length > 0
-        ? screenedCandidates
-        : allDiscoveredCandidates;
-
-      if (salvageCandidates.length > 0) {
-        console.warn("[search][salvage] Pipeline error, salvaging", salvageCandidates.length, "candidates");
-
-        try {
-          const salvageProfiles = salvageCandidates.map((c) => ({
-            ...toXProfileFromCandidate(c),
-            samplePosts: getCandidateSampleTexts(c),
-            source: c.discoverySource,
-          }));
-
-          const salvageLeads = await addProfilesToProject({
-            userId,
-            projectId: project.id,
-            profiles: salvageProfiles,
-            discoverySource: "profile_search",
-            discoveryQuery: input.query,
-          });
-
-
-          trace.addStep(await emitStep(progress, {
-            id: "salvage",
-            title: "Partial Results Saved",
-            summary: `An error occurred mid-pipeline. We saved ${salvageLeads.length} leads that were already found.`,
-            status: "warning",
-            provider: discoveryProvider.provider,
-            bullets: [
-              "Sorry, something went wrong during the search pipeline.",
-              `We saved ${salvageLeads.length} leads we had already found/parsed into your campaign.`,
-              "These results may be less filtered than usual, but they're still real accounts matching your query.",
-              "You can run the search again to find more leads.",
-            ],
-            metrics: [
-              { label: "Salvaged leads", value: salvageLeads.length },
-              { label: "Screened", value: screenedCandidates.length },
-              { label: "Raw discovered", value: allDiscoveredCandidates.length },
-            ],
-            tools: [],
-          }));
-
-          const finalTrace = trace.build(
-            `Partial results: saved ${salvageLeads.length} leads after a pipeline error.`,
-            "warning",
-          );
-
-          await recordProjectRun({
-            projectId: project.id,
-            operationType: "search",
-            requestedProvider: provider,
-            discoveryProvider: discoveryProvider.provider,
-            lookupProvider: provider,
-            networkProvider: provider,
-            tweetsProvider: provider,
-            query: input.query,
-            seedUsername: input.followerUsername?.replace(/^@/, ""),
-            minFollowers: input.minFollowers,
-            targetLeadCount: input.targetLeadCount,
-            leadCount: salvageLeads.length,
-            traceData: finalTrace,
-            status: "partial",
-          });
-
-          return {
-            leads: salvageLeads,
-            project: {
-              ...project,
-              sourceProviders: dedupeProviders([...project.sourceProviders, provider]),
-            },
-            trace: finalTrace,
-          };
-        } catch (salvageError) {
-          console.error("[search][salvage] Failed to save partial results:", salvageError);
-        }
-      }
-
-      // If salvage also failed or there were no candidates, rethrow
-      throw pipelineError;
+      // Web search loop failed — fall through to salvage below
+      console.warn("[search][web-search] Pipeline error:", pipelineError instanceof Error ? pipelineError.message : String(pipelineError));
     }
 
-    const finalCandidates = screenedCandidates;
+    // ── Salvage: if we have ANY candidates at this point, insert them ──────
+    // This covers: DB-only results, partial web search results, or mixed.
+    // The user always gets whatever we found, even if something broke.
+    const finalCandidates = screenedCandidates.length > 0
+      ? screenedCandidates
+      : allDiscoveredCandidates;
 
-    const { profiles: rawProfiles, resolution: lookupResolution } = await canonicalizeCandidates(provider, finalCandidates);
+    if (finalCandidates.length === 0) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: enableWebSearch
+          ? "No relevant leads found for this query."
+          : "No matching leads found in our database. Try enabling web search to discover new leads.",
+      });
+    }
+
+    // Skip canonicalization — candidates from TurboPuffer already have full data,
+    // and multiagent web search candidates are already hydrated with real follower counts.
+    const rawProfiles = finalCandidates.map((c) => ({
+      ...toXProfileFromCandidate(c),
+      samplePosts: getCandidateSampleTexts(c),
+      source: c.discoverySource,
+    }));
+    const lookupResolution: XProviderResolution = {
+      requestedProvider: provider,
+      effectiveProvider: provider,
+      capability: "lookup" as const,
+      usedFallback: false,
+    };
 
     // ── Strict minFollowers enforcement after canonicalization ──────────────
     // Canonicalization resolves real follower counts. Drop any leads that
@@ -917,7 +1062,7 @@ export async function searchAndAddLeads(
       metrics: [
         { label: "Rows", value: profiles.length },
       ],
-      tools: lookupResolution.effectiveProvider === "multiagent" ? ["AgentQL"] : [],
+      tools: enableWebSearch && lookupResolution.effectiveProvider === "multiagent" ? ["AgentQL"] : [],
     }));
     const leadsList = await addProfilesToProject({
       userId,

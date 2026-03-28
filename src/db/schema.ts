@@ -222,6 +222,23 @@ export const internalLeads = pgTable("internal_leads", {
   uniqueIndex("internal_leads_user_handle_platform_idx").on(table.userId, table.handle, table.platform),
 ]);
 
+// ── Follower Cache (TurboPuffer-backed) ──────────────────────────────────────
+
+export const followerCache = pgTable("follower_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seedHandle: text("seed_handle").notNull(),
+  seedUserId: text("seed_user_id"),
+  status: text("status").notNull().default("fetching"),
+  totalFetched: integer("total_fetched").notNull().default(0),
+  lastCursor: text("last_cursor"),
+  lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("follower_cache_seed_handle_idx").on(table.seedHandle),
+]);
+
 // ── DM Jobs (outreach service) ───────────────────────────────────────────────
 
 export const dmBatches = pgTable("dm_batches", {
@@ -262,6 +279,64 @@ export const dmJobs = pgTable("dm_jobs", {
   index("dm_jobs_batch_id_idx").on(table.batchId),
   index("dm_jobs_user_id_idx").on(table.userId),
   index("dm_jobs_status_idx").on(table.status),
+]);
+
+// ── Contra (unified leads table — no FK) ────────────────────────────────────
+
+export const contra = pgTable("contra", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id"),
+
+  // Identity
+  handle: text("handle").notNull(),
+  name: text("name").notNull(),
+  bio: text("bio").notNull().default(""),
+  platform: text("platform").notNull().default("twitter"),
+  followers: integer("followers").default(0),
+  following: integer("following"),
+  avatarUrl: text("avatar_url"),
+  profileUrl: text("profile_url"),
+  url: text("url"),
+  site: text("site"),
+  linkedinUrl: text("linkedin_url"),
+  email: text("email"),
+
+  // Pricing
+  price: integer("price"),
+  budget: numeric("budget", { precision: 10, scale: 2 }),
+
+  // Categorisation
+  tags: text("tags").array().notNull().default([]),
+  deliverables: text("deliverables").array().notNull().default([]),
+  relevancy: text("relevancy").default("low"),
+  notes: text("notes"),
+  source: text("source"),
+
+  // Analytics
+  avgViews: integer("avg_views"),
+  avgLikes: integer("avg_likes"),
+  avgComments: integer("avg_comments"),
+  avgReposts: integer("avg_reposts"),
+  score: integer("score"),
+
+  // CRM fields
+  reachedOut: boolean("reached_out").notNull().default(false),
+  stage: text("stage").notNull().default("found"),
+  priority: text("priority").notNull().default("P1"),
+  dmComfort: boolean("dm_comfort").notNull().default(false),
+  theAsk: text("the_ask").notNull().default(""),
+  inOutreach: boolean("in_outreach").notNull().default(false),
+  discoverySource: text("discovery_source"),
+  discoveryQuery: text("discovery_query"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("contra_user_id_idx").on(table.userId),
+  index("contra_handle_idx").on(table.handle),
+  index("contra_stage_idx").on(table.stage),
+  index("contra_relevancy_idx").on(table.relevancy),
+  uniqueIndex("contra_handle_platform_idx").on(table.handle, table.platform),
 ]);
 
 // ── API Keys ─────────────────────────────────────────────────────────────────
