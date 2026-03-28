@@ -10,10 +10,6 @@ import { Separator } from "@/components/ui/separator";
 import { signOutAction } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
-import { getXDataProviderLabel } from "@/lib/x";
-import { LangGraphIcon } from "@/components/ui/langgraph-icon";
-import { XLogoIcon } from "@/components/ui/x-icon";
-import { useXDataProviderPreference } from "@/components/providers/XDataProviderPreference";
 import type { Project } from "@/lib/validations/projects";
 
 function CampaignsIcon({ className }: { className?: string }) {
@@ -66,24 +62,6 @@ function CampaignsList({ onNav, initialProjects }: { onNav?: () => void; initial
   );
 }
 
-function SidebarProviderBadge() {
-  const { provider } = useXDataProviderPreference();
-
-  return (
-    <Link
-      href="/settings"
-      className="flex items-center justify-between border-t px-5 py-3 transition-colors hover:bg-accent/50"
-    >
-      <span className="text-[0.78rem] text-muted-foreground">Data source</span>
-      <span className="flex items-center gap-1 truncate text-[0.78rem] font-medium">
-        {provider === "x-api" ? <><XLogoIcon className="size-3" /> API</> : null}
-        {provider === "multiagent" ? <LangGraphIcon className="size-4.5" /> : null}
-        {provider !== "x-api" && provider !== "multiagent" ? getXDataProviderLabel(provider) : null}
-      </span>
-    </Link>
-  );
-}
-
 function NavContent({ onNav, initialProjects }: { onNav?: () => void; initialProjects?: Project[] }) {
   const pathname = usePathname();
   return (
@@ -113,8 +91,6 @@ function NavContent({ onNav, initialProjects }: { onNav?: () => void; initialPro
 
         <CampaignsList onNav={onNav} initialProjects={initialProjects} />
       </nav>
-
-      <SidebarProviderBadge />
 
       <div className="border-t px-3 pt-3">
         <Button

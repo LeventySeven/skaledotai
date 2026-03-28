@@ -8,7 +8,7 @@ export type XProviderCapability = "discovery" | "lookup" | "network" | "tweets";
 
 export type XProviderCapabilities = Record<XProviderCapability, boolean>;
 
-export const DEFAULT_X_DATA_PROVIDER: XDataProvider = "x-api";
+export const DEFAULT_X_DATA_PROVIDER: XDataProvider = "multiagent";
 export const X_DATA_PROVIDER_STORAGE_KEY = "skaleai.x-data-provider";
 
 export type XDataProviderDocLink = {
@@ -55,58 +55,18 @@ export const X_PROVIDER_CAPABILITIES: Record<XDataProvider, XProviderCapabilitie
   },
 };
 
+/**
+ * Only providers shown in the Settings UI selector.
+ * x-api is intentionally excluded — the app uses the agentic provider for search/discovery.
+ * x-api is still used internally (DMs, user lookups, etc).
+ */
 export const X_DATA_PROVIDER_OPTIONS: XDataProviderOption[] = [
-  {
-    value: "x-api",
-    label: "X API",
-    badge: "Native",
-    description: "Direct X API v2 access with the existing bearer token setup.",
-    integration: "Native REST endpoints for user search, lookups, follows, and post search.",
-    capabilities: X_PROVIDER_CAPABILITIES["x-api"],
-    docs: [
-      {
-        label: "X posts search",
-        href: "https://docs.x.com/x-api/posts/search/introduction",
-      },
-      {
-        label: "X user search",
-        href: "https://docs.x.com/x-api/users/search/introduction",
-      },
-      {
-        label: "X follows",
-        href: "https://docs.x.com/x-api/users/follows/introduction",
-      },
-    ],
-  },
-  {
-    value: "twitterapi",
-    label: "TwitterAPI.io",
-    badge: "Lookup + Network",
-    description: "Lookup, enrichment, and follower/following network import for X profiles.",
-    integration: "Batch user hydration and network graph traversal through TwitterAPI.io with richer profile description and location fields.",
-    capabilities: X_PROVIDER_CAPABILITIES.twitterapi,
-    docs: [
-      {
-        label: "Batch user info by ids",
-        href: "https://docs.twitterapi.io/api-reference/endpoint/batch_get_user_by_userids",
-      },
-      {
-        label: "User followers",
-        href: "https://docs.twitterapi.io/api-reference/endpoint/get_user_followers",
-      },
-      {
-        label: "User following",
-        href: "https://docs.twitterapi.io/api-reference/endpoint/get_user_followings",
-      },
-    ],
-  },
   {
     value: "multiagent",
     label: "Agentic",
-    badge: "Experimental",
+    badge: "Default",
     description: "LangGraph pipeline that plans discovery, finds X URLs, scrapes profiles, and aggregates candidates.",
     integration: "Bounded LangGraph workflow with Tavily discovery, AgentQL extraction, and GPT-5 orchestration.",
-    experimental: true,
     capabilities: X_PROVIDER_CAPABILITIES.multiagent,
     docs: [
       {
