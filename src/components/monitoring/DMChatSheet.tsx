@@ -206,7 +206,7 @@ function DMChatContent({
 }
 
 export function DMChatSheet({ lead, open, onOpenChange, onPatch, onRemove }: DMChatSheetProps) {
-  if (!lead) return null;
+  if (!lead || !open) return null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useState } from "react";
+import { useEffect, useDeferredValue, useRef, useState } from "react";
 import { toastManager } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
 import type { MonitoredLead } from "@/lib/validations/monitoring";
@@ -21,6 +21,7 @@ export function useMonitoringWorkspace() {
   const [allFilteredSelected, setAllFilteredSelected] = useState(false);
   const [selectedLead, setSelectedLead] = useState<MonitoredLead | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
   const listInput = {
     page,
@@ -32,6 +33,30 @@ export function useMonitoringWorkspace() {
   };
 
   const listQuery = trpc.monitoring.list.useQuery(listInput);
+
+  // Auto-refresh all ticked leads when page opens (once per mount)
+  const autoRefreshed = useRef(false);
+  const refreshAllMutation = trpc.monitoring.refreshAll.useMutation({
+    onSuccess: (result) => {
+      utils.monitoring.list.invalidate();
+      if (result.checked > 0) {
+        toastManager.add({
+          type: "success",
+          title: `Refreshed ${result.checked} leads, ${result.updated} updated.`,
+        });
+      }
+    },
+    onError: (error) => {
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
+
+  useEffect(() => {
+    if (!autoRefreshed.current && listQuery.data && listQuery.data.total > 0) {
+      autoRefreshed.current = true;
+      refreshAllMutation.mutate();
+    }
+  }, [listQuery.data]);
 
   const updateMutation = trpc.monitoring.update.useMutation({
     onMutate: async ({ id, patch }) => {
@@ -68,15 +93,14 @@ export function useMonitoringWorkspace() {
     },
   });
 
-  const checkAllMutation = trpc.monitoring.checkAll.useMutation({
-    onSuccess: (result) => {
+  const refreshSingleMutation = trpc.monitoring.refreshDms.useMutation({
+    onSuccess: () => {
+      setRefreshingId(null);
       utils.monitoring.list.invalidate();
-      toastManager.add({
-        type: "success",
-        title: `Checked ${result.checked} leads, ${result.updated} updated.`,
-      });
+      toastManager.add({ type: "success", title: "DMs updated." });
     },
     onError: (error) => {
+      setRefreshingId(null);
       toastManager.add({ type: "error", title: error.message });
     },
   });
@@ -111,14 +135,19 @@ export function useMonitoringWorkspace() {
     removeMutation.mutate({ id });
   }
 
-  function handleCheckAll() {
-    checkAllMutation.mutate();
+  function handleRefreshAll() {
+    refreshAllMutation.mutate();
+  }
+
+  function handleRefreshSingle(lead: MonitoredLead) {
+    setRefreshingId(lead.id);
+    refreshSingleMutation.mutate({ monitoredLeadId: lead.id });
   }
 
   function handleBulkStatus(status: "reached_out" | "answered" | "done") {
-    if (selectedIds.length === 0 && !allFilteredSelected) return;
-    // For simplicity, only bulk update visible selected IDs
-    bulkUpdateMutation.mutate({ ids: selectedIds, patch: { responseStatus: status } });
+    const ids = allFilteredSelected ? leads.map((l) => l.id) : selectedIds;
+    if (ids.length === 0) return;
+    bulkUpdateMutation.mutate({ ids, patch: { responseStatus: status } });
   }
 
   function toggleRowSelection(leadId: string, checked: boolean) {
@@ -175,7 +204,8 @@ export function useMonitoringWorkspace() {
     total,
     totalPages,
     isLoading: listQuery.isLoading,
-    isCheckingAll: checkAllMutation.isPending,
+    isRefreshingAll: refreshAllMutation.isPending,
+    refreshingId,
     allVisibleSelected,
     allFilteredSelected,
     setPage,
@@ -190,7 +220,8 @@ export function useMonitoringWorkspace() {
     openLead,
     handlePatch,
     handleRemove,
-    handleCheckAll,
+    handleRefreshAll,
+    handleRefreshSingle,
     handleBulkStatus,
   };
 }

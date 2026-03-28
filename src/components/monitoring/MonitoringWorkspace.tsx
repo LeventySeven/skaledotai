@@ -44,11 +44,11 @@ export function MonitoringWorkspace() {
             <Button
               variant="outline"
               className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
-              disabled={workspace.isCheckingAll}
-              onClick={workspace.handleCheckAll}
+              disabled={workspace.isRefreshingAll}
+              onClick={workspace.handleRefreshAll}
             >
-              {workspace.isCheckingAll ? <Spinner className="size-4" /> : <RefreshCwIcon className="size-4" />}
-              Check All DMs
+              {workspace.isRefreshingAll ? <Spinner className="size-4" /> : <RefreshCwIcon className="size-4" />}
+              Refresh All DMs
             </Button>
             <Button
               variant="outline"
@@ -108,10 +108,12 @@ export function MonitoringWorkspace() {
           selectedIds={workspace.selectedIds}
           allFilteredSelected={workspace.allFilteredSelected}
           allVisibleSelected={workspace.allVisibleSelected}
+          refreshingId={workspace.refreshingId}
           onToggleAllSelection={workspace.toggleAllSelection}
           onToggleRowSelection={workspace.toggleRowSelection}
           onOpenLead={workspace.openLead}
           onPatch={workspace.handlePatch}
+          onRefresh={workspace.handleRefreshSingle}
         />
 
         <div className="mt-4 flex flex-col gap-4 text-muted-foreground xl:flex-row xl:items-end xl:justify-between">

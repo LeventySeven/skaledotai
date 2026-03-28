@@ -220,6 +220,8 @@ function DmSuggestContent({ onAdded }: { onAdded: () => void }) {
 }
 
 export function DmSuggestPanel({ open, onOpenChange, onAdded }: DmSuggestPanelProps) {
+  if (!open) return null;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetPopup side="right">

@@ -14,7 +14,7 @@ import {
   removeMonitored,
   fetchDmsForLead,
   refreshDmsForLead,
-  checkAllMonitoredDms,
+  refreshAllMonitoredDms,
   suggestFromDms,
 } from "@/server/services/monitoring";
 
@@ -61,9 +61,9 @@ export const monitoringRouter = router({
       return refreshDmsForLead(ctx.userId, input.monitoredLeadId);
     }),
 
-  checkAll: protectedProcedure
+  refreshAll: protectedProcedure
     .mutation(async ({ ctx }) => {
-      return checkAllMonitoredDms(ctx.userId);
+      return refreshAllMonitoredDms(ctx.userId);
     }),
 
   suggestFromDms: protectedProcedure

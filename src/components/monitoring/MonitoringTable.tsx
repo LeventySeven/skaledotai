@@ -1,6 +1,6 @@
 "use client";
 
-import { ActivityIcon, SearchIcon } from "lucide-react";
+import { ActivityIcon, SearchIcon, RefreshCwIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,10 +71,12 @@ interface MonitoringTableProps {
   selectedIds: string[];
   allFilteredSelected: boolean;
   allVisibleSelected: boolean;
+  refreshingId: string | null;
   onToggleAllSelection: (checked: boolean) => void;
   onToggleRowSelection: (leadId: string, checked: boolean) => void;
   onOpenLead: (lead: MonitoredLead) => void;
   onPatch: (id: string, patch: Partial<MonitoredLead>) => void;
+  onRefresh: (lead: MonitoredLead) => void;
 }
 
 export function MonitoringTable({
@@ -87,6 +89,8 @@ export function MonitoringTable({
   onToggleRowSelection,
   onOpenLead,
   onPatch,
+  onRefresh,
+  refreshingId,
 }: MonitoringTableProps) {
   return (
     <div className="overflow-hidden rounded-md border border-border/70 bg-background shadow-[0_1px_0_rgba(0,0,0,0.02)]">
@@ -124,6 +128,7 @@ export function MonitoringTable({
               <TableHead className="w-[70px] border-r border-border/45 text-center">Monitor</TableHead>
               <TableHead className="w-[90px] border-r border-border/45 text-center">Last Check</TableHead>
               <TableHead className="w-[80px] border-r border-border/45 text-center">Source</TableHead>
+              <TableHead className="w-[70px] border-r border-border/45 text-center">Update</TableHead>
               <TableHead className="w-[80px] text-center">DM</TableHead>
             </TableRow>
           </TableHeader>
@@ -204,14 +209,21 @@ export function MonitoringTable({
                     {lead.sourceTable}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-center">
+                <TableCell className="border-r border-border/45 text-center" onClick={(event) => event.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={refreshingId === lead.id}
+                    onClick={() => onRefresh(lead)}
+                  >
+                    {refreshingId === lead.id ? <Spinner className="size-3.5" /> : <RefreshCwIcon className="size-3.5" />}
+                  </Button>
+                </TableCell>
+                <TableCell className="text-center" onClick={(event) => event.stopPropagation()}>
                   <Button
                     variant="outline"
                     className="h-7 rounded-lg px-2.5 text-[0.78rem]"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onOpenLead(lead);
-                    }}
+                    onClick={() => onOpenLead(lead)}
                   >
                     View DM
                   </Button>

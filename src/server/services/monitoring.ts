@@ -2,7 +2,7 @@ import "@/lib/server-runtime";
 import { db } from "@/db";
 import { monitoredLeads, leads, contra, account } from "@/db/schema";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
-import { getRedis } from "@/lib/redis";
+import { redis } from "@/lib/redis";
 import { lookupUsersByUsernames, lookupUsersByIds } from "@/lib/x/api";
 import { getAllDmEventsWithParticipant, getDmParticipants, type DmEvent } from "@/lib/x/dm";
 import { getXAccessToken } from "@/server/services/x-auth";
@@ -20,7 +20,11 @@ import OpenAI from "openai";
 
 const HANDLE_TO_ID_PREFIX = "handle-to-xid:";
 const DM_CACHE_PREFIX = "dm-cache:";
-const DM_CACHE_TTL = 3600; // 1 hour
+
+/** 7 days — handles can change, don't cache forever */
+const HANDLE_TTL_SECONDS = 7 * 24 * 60 * 60;
+/** 90 days — DM cache preserves history beyond X API's 30-day window */
+const DM_CACHE_TTL_SECONDS = 90 * 24 * 60 * 60;
 
 // ── Row mapping ──────────────────────────────────────────────────────────
 
@@ -75,7 +79,6 @@ export async function resolveHandleToXUserId(handle: string): Promise<string | n
   const cleanHandle = handle.replace(/^@/, "").trim().toLowerCase();
   if (!cleanHandle) return null;
 
-  const redis = await getRedis();
   const cacheKey = `${HANDLE_TO_ID_PREFIX}${cleanHandle}`;
 
   // Check cache first
@@ -87,7 +90,7 @@ export async function resolveHandleToXUserId(handle: string): Promise<string | n
     const profiles = await lookupUsersByUsernames([cleanHandle]);
     if (profiles.length > 0 && profiles[0].xUserId) {
       const xUserId = profiles[0].xUserId;
-      await redis.set(cacheKey, xUserId);
+      await redis.set(cacheKey, xUserId, { ex: HANDLE_TTL_SECONDS });
       return xUserId;
     }
   } catch (error) {
@@ -285,23 +288,22 @@ export async function removeMonitored(userId: string, id: string): Promise<void>
 
 // ── DM cache helpers ─────────────────────────────────────────────────────
 
-/** Load cached DM events from Redis for a given xUserId. */
-async function loadCachedDms(xUserId: string): Promise<DmEvent[]> {
-  const redis = await getRedis();
-  const cacheKey = `${DM_CACHE_PREFIX}${xUserId}`;
-  // Upstash auto-deserializes JSON — get<DmEvent[]> returns the array directly
-  const cached = await redis.get<DmEvent[]>(cacheKey);
+/** Build per-user DM cache key to prevent cross-user cache collisions. */
+function dmCacheKey(userId: string, xUserId: string): string {
+  return `${DM_CACHE_PREFIX}${userId}:${xUserId}`;
+}
+
+/** Load cached DM events from Redis for a given user + lead pair. */
+async function loadCachedDms(userId: string, xUserId: string): Promise<DmEvent[]> {
+  const cached = await redis.get<DmEvent[]>(dmCacheKey(userId, xUserId));
   if (!cached || !Array.isArray(cached)) return [];
   return cached;
 }
 
-/** Save DM events to Redis cache. Upstash auto-serializes the array to JSON. */
-async function saveDmsToCache(xUserId: string, events: DmEvent[]): Promise<void> {
+/** Save DM events to Redis cache with TTL. Upstash auto-serializes. */
+async function saveDmsToCache(userId: string, xUserId: string, events: DmEvent[]): Promise<void> {
   if (events.length === 0) return;
-  const redis = await getRedis();
-  const cacheKey = `${DM_CACHE_PREFIX}${xUserId}`;
-  // Upstash auto-serializes — pass the array directly, not JSON.stringify
-  await redis.set(cacheKey, events, { ex: DM_CACHE_TTL });
+  await redis.set(dmCacheKey(userId, xUserId), events, { ex: DM_CACHE_TTL_SECONDS });
 }
 
 /**
@@ -318,7 +320,35 @@ function mergeDmEvents(cached: DmEvent[], fresh: DmEvent[]): DmEvent[] {
   );
 }
 
-// ── DM fetching (single user) ────────────────────────────────────────────
+// ── Map DM events to client format ───────────────────────────────────────
+
+function toClientEvents(events: DmEvent[], leadXUserId: string): DmEventClient[] {
+  return events.map((e) => ({
+    id: e.id,
+    text: e.text,
+    senderId: e.senderId,
+    createdAt: e.createdAt,
+    eventType: e.eventType,
+    dmConversationId: e.dmConversationId,
+    isOwn: e.senderId !== leadXUserId,
+  }));
+}
+
+// ── Resolve xUserId for a lead (resolve + persist if missing) ────────────
+
+async function ensureXUserId(lead: MonitoredRow): Promise<string | null> {
+  if (lead.xUserId) return lead.xUserId;
+  const xUserId = await resolveHandleToXUserId(lead.handle);
+  if (xUserId) {
+    await db
+      .update(monitoredLeads)
+      .set({ xUserId, updatedAt: new Date() })
+      .where(eq(monitoredLeads.id, lead.id));
+  }
+  return xUserId;
+}
+
+// ── Get DMs for a lead (cache-first, transparent refresh if empty) ───────
 
 export async function fetchDmsForLead(
   userId: string,
@@ -332,74 +362,41 @@ export async function fetchDmsForLead(
 
   if (!lead) return null;
 
-  // Resolve xUserId if missing
-  let xUserId = lead.xUserId;
+  const xUserId = await ensureXUserId(lead);
   if (!xUserId) {
-    xUserId = await resolveHandleToXUserId(lead.handle);
-    if (xUserId) {
-      await db
-        .update(monitoredLeads)
-        .set({ xUserId, updatedAt: new Date() })
-        .where(eq(monitoredLeads.id, monitoredLeadId));
+    return { handle: lead.handle, name: lead.name, avatarUrl: lead.avatarUrl ?? undefined, xUserId: "", events: [] };
+  }
+
+  // Try cache first
+  let events = await loadCachedDms(userId, xUserId);
+
+  // If cache is empty, do a transparent one-time refresh
+  if (events.length === 0) {
+    try {
+      const token = await getXAccessToken(userId);
+      if (token) {
+        const freshEvents = await getAllDmEventsWithParticipant(xUserId, token);
+        if (freshEvents.length > 0) {
+          events = freshEvents;
+          await saveDmsToCache(userId, xUserId, events);
+        }
+      }
+    } catch {
+      // X API unavailable — return empty, user can manually refresh
     }
   }
-
-  if (!xUserId) {
-    return {
-      handle: lead.handle,
-      name: lead.name,
-      avatarUrl: lead.avatarUrl ?? undefined,
-      xUserId: "",
-      events: [],
-      lastFetched: new Date().toISOString(),
-    };
-  }
-
-  // Get user's X token for API calls
-  const token = await getXAccessToken(userId);
-
-  // Load cached dialogue
-  const cachedEvents = await loadCachedDms(xUserId);
-
-  let events: DmEvent[];
-
-  if (token) {
-    // Fetch fresh and merge with cache
-    const freshEvents = await getAllDmEventsWithParticipant(xUserId, token);
-    events = mergeDmEvents(cachedEvents, freshEvents);
-    await saveDmsToCache(xUserId, events);
-  } else {
-    // No token — return cached only
-    events = cachedEvents;
-  }
-
-  // Update last check time
-  await db
-    .update(monitoredLeads)
-    .set({ lastDmCheck: new Date(), updatedAt: new Date() })
-    .where(eq(monitoredLeads.id, monitoredLeadId));
-
-  const clientEvents: DmEventClient[] = events.map((e) => ({
-    id: e.id,
-    text: e.text,
-    senderId: e.senderId,
-    createdAt: e.createdAt,
-    eventType: e.eventType,
-    dmConversationId: e.dmConversationId,
-    isOwn: e.senderId !== xUserId,
-  }));
 
   return {
     handle: lead.handle,
     name: lead.name,
     avatarUrl: lead.avatarUrl ?? undefined,
     xUserId,
-    events: clientEvents,
-    lastFetched: new Date().toISOString(),
+    events: toClientEvents(events, xUserId),
+    lastFetched: lead.lastDmCheck?.toISOString(),
   };
 }
 
-// ── Force refresh DMs (bypass cache, but merge with it) ──────────────────
+// ── Refresh single lead DMs (X API call + cache merge + AI status) ───────
 
 export async function refreshDmsForLead(
   userId: string,
@@ -414,66 +411,42 @@ export async function refreshDmsForLead(
   if (!lead) return null;
 
   const token = await requireXToken(userId);
-
-  let xUserId = lead.xUserId;
-  if (!xUserId) {
-    xUserId = await resolveHandleToXUserId(lead.handle);
-    if (xUserId) {
-      await db
-        .update(monitoredLeads)
-        .set({ xUserId, updatedAt: new Date() })
-        .where(eq(monitoredLeads.id, monitoredLeadId));
-    }
-  }
+  const xUserId = await ensureXUserId(lead);
 
   if (!xUserId) {
-    return {
-      handle: lead.handle,
-      name: lead.name,
-      avatarUrl: lead.avatarUrl ?? undefined,
-      xUserId: "",
-      events: [],
-      lastFetched: new Date().toISOString(),
-    };
+    return { handle: lead.handle, name: lead.name, avatarUrl: lead.avatarUrl ?? undefined, xUserId: "", events: [] };
   }
 
-  // Load cached dialogue, fetch fresh, merge
-  const cachedEvents = await loadCachedDms(xUserId);
+  // Fetch fresh from X API, merge with existing cache, save back
+  const cachedEvents = await loadCachedDms(userId, xUserId);
   const freshEvents = await getAllDmEventsWithParticipant(xUserId, token);
   const events = mergeDmEvents(cachedEvents, freshEvents);
+  await saveDmsToCache(userId, xUserId, events);
 
-  // Update cache
-  await saveDmsToCache(xUserId, events);
-
-  // Update last check time
+  // AI-analyze status from full conversation
+  const newStatus = await analyzeResponseStatus(events, xUserId, lead.name);
   await db
     .update(monitoredLeads)
-    .set({ lastDmCheck: new Date(), updatedAt: new Date() })
+    .set({
+      ...(newStatus && newStatus !== lead.responseStatus ? { responseStatus: newStatus } : {}),
+      lastDmCheck: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(monitoredLeads.id, monitoredLeadId));
-
-  const clientEvents: DmEventClient[] = events.map((e) => ({
-    id: e.id,
-    text: e.text,
-    senderId: e.senderId,
-    createdAt: e.createdAt,
-    eventType: e.eventType,
-    dmConversationId: e.dmConversationId,
-    isOwn: e.senderId !== xUserId,
-  }));
 
   return {
     handle: lead.handle,
     name: lead.name,
     avatarUrl: lead.avatarUrl ?? undefined,
     xUserId,
-    events: clientEvents,
+    events: toClientEvents(events, xUserId),
     lastFetched: new Date().toISOString(),
   };
 }
 
-// ── Check all monitored leads DMs (cron) ─────────────────────────────────
+// ── Refresh all ticked leads (triggered on page open) ────────────────────
 
-export async function checkAllMonitoredDms(userId: string): Promise<{
+export async function refreshAllMonitoredDms(userId: string): Promise<{
   checked: number;
   updated: number;
 }> {
@@ -489,46 +462,32 @@ export async function checkAllMonitoredDms(userId: string): Promise<{
   let updated = 0;
 
   for (const lead of monitoredRows) {
-    let xUserId = lead.xUserId;
-
-    if (!xUserId) {
-      xUserId = await resolveHandleToXUserId(lead.handle);
-      if (xUserId) {
-        await db
-          .update(monitoredLeads)
-          .set({ xUserId, updatedAt: new Date() })
-          .where(eq(monitoredLeads.id, lead.id));
-      }
-    }
-
+    const xUserId = await ensureXUserId(lead);
     if (!xUserId) continue;
 
-    // Load cached dialogue, fetch fresh, merge for full context
-    const cachedEvents = await loadCachedDms(xUserId);
-    const freshEvents = await getAllDmEventsWithParticipant(xUserId, token);
-    const allEvents = mergeDmEvents(cachedEvents, freshEvents);
-    checked++;
+    try {
+      const cachedEvents = await loadCachedDms(userId, xUserId);
+      const freshEvents = await getAllDmEventsWithParticipant(xUserId, token);
+      const allEvents = mergeDmEvents(cachedEvents, freshEvents);
+      checked++;
 
-    // Update cache with merged result
-    await saveDmsToCache(xUserId, allEvents);
+      await saveDmsToCache(userId, xUserId, allEvents);
 
-    // AI-analyze status using full dialogue (cached + fresh)
-    const newStatus = await analyzeResponseStatus(allEvents, xUserId, lead.name);
-    if (newStatus && newStatus !== lead.responseStatus) {
-      await db
-        .update(monitoredLeads)
-        .set({
-          responseStatus: newStatus,
-          lastDmCheck: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(monitoredLeads.id, lead.id));
-      updated++;
-    } else {
-      await db
-        .update(monitoredLeads)
-        .set({ lastDmCheck: new Date(), updatedAt: new Date() })
-        .where(eq(monitoredLeads.id, lead.id));
+      const newStatus = await analyzeResponseStatus(allEvents, xUserId, lead.name);
+      if (newStatus && newStatus !== lead.responseStatus) {
+        await db
+          .update(monitoredLeads)
+          .set({ responseStatus: newStatus, lastDmCheck: new Date(), updatedAt: new Date() })
+          .where(eq(monitoredLeads.id, lead.id));
+        updated++;
+      } else {
+        await db
+          .update(monitoredLeads)
+          .set({ lastDmCheck: new Date(), updatedAt: new Date() })
+          .where(eq(monitoredLeads.id, lead.id));
+      }
+    } catch (error) {
+      console.error(`[Monitoring] Failed to refresh DMs for @${lead.handle}:`, error);
     }
   }
 
@@ -602,10 +561,9 @@ export async function suggestFromDms(userId: string): Promise<DmSuggestion[]> {
   }
 
   // Cache all resolved handle→ID mappings
-  const redis = await getRedis();
   for (const p of resolved) {
     const cacheKey = `${HANDLE_TO_ID_PREFIX}${p.username.toLowerCase()}`;
-    await redis.set(cacheKey, p.xUserId);
+    await redis.set(cacheKey, p.xUserId, { ex: HANDLE_TTL_SECONDS });
   }
 
   return resolved.map((p) => ({
