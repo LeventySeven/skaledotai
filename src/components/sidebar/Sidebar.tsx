@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, LogOutIcon, SparklesIcon, FileSpreadsheetIcon } from "lucide-react";
+import { SearchIcon, UsersIcon, SendIcon, SettingsIcon, MenuIcon, XIcon, LogOutIcon, SparklesIcon, FileSpreadsheetIcon, ActivityIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { signOutAction } from "@/app/(auth)/actions";
@@ -29,6 +29,7 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: SettingsIcon },
   { href: "/projects", label: "Campaigns", icon: CampaignsIcon },
   { href: "/contra", label: "Contra", icon: FileSpreadsheetIcon },
+  { href: "/monitoring", label: "Monitoring", icon: ActivityIcon },
   // { href: "/pricing", label: "Pricing", icon: SparklesIcon },
 ];
 

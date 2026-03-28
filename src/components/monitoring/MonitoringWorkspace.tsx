@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
@@ -12,63 +13,55 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { LeadDetailSheet } from "@/components/leads/LeadDetailSheet";
-import { LeadsTable } from "@/components/leads/LeadsTable";
-import { toastManager } from "@/components/ui/toast";
-import { useLeadsWorkspace } from "@/components/leads/useLeadsWorkspace";
-import { trpc } from "@/lib/trpc/client";
-import { ActivityIcon } from "lucide-react";
+import { MonitoringTable } from "@/components/monitoring/MonitoringTable";
+import { DMChatSheet } from "@/components/monitoring/DMChatSheet";
+import { DmSuggestPanel } from "@/components/monitoring/DmSuggestPanel";
+import { useMonitoringWorkspace } from "@/components/monitoring/useMonitoringWorkspace";
+import { RefreshCwIcon, MailCheckIcon, UsersIcon } from "lucide-react";
 
-export function LeadsWorkspace() {
-  const workspace = useLeadsWorkspace();
-  const addToMonitoring = trpc.monitoring.add.useMutation({
-    onSuccess: (count) => {
-      toastManager.add({ type: "success", title: `Added ${count} leads to monitoring.` });
-      workspace.clearSelection();
-    },
-    onError: (error) => {
-      toastManager.add({ type: "error", title: error.message });
-    },
-  });
+export function MonitoringWorkspace() {
+  const workspace = useMonitoringWorkspace();
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   return (
     <div className="px-8 py-8">
       <div className="mx-auto max-w-[1820px]">
         <div className="flex w-full items-start justify-between pb-6">
           <div className="flex flex-col">
-            <div className="text-[18px] font-medium text-[#111111]/40">Spreadsheet</div>
-            <h1 className="text-[28px] font-medium tracking-[-0.04em]">
-              {workspace.currentProject?.name ?? "Leads"}
-            </h1>
+            <div className="text-[18px] font-medium text-[#111111]/40">Monitoring</div>
+            <h1 className="text-[28px] font-medium tracking-[-0.04em]">DM Monitoring</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
-              disabled={workspace.isRefreshingStats || workspace.leads.length === 0}
-              onClick={() => {
-                workspace.handleScanBios().catch((error: unknown) => {
-                  toastManager.add({ type: "error", title: error instanceof Error ? error.message : "Scan failed." });
-                });
-              }}
+              onClick={() => setSuggestOpen(true)}
             >
-              {workspace.isRefreshingStats ? <Spinner className="size-4" /> : null}
-              {workspace.isRefreshingStats ? "Scanning..." : "Scan Bios"}
+              <UsersIcon className="size-4" />
+              Suggest from DMs
             </Button>
-
             <Button
               variant="outline"
               className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
-              disabled={workspace.isEnrichingEmails}
-              onClick={() => {
-                workspace.handleEnrichEmails().catch((error: unknown) => {
-                  toastManager.add({ type: "error", title: error instanceof Error ? error.message : "Enrichment failed." });
-                });
-              }}
+              disabled={workspace.isCheckingAll}
+              onClick={workspace.handleCheckAll}
             >
-              {workspace.isEnrichingEmails ? <Spinner className="size-4" /> : null}
-              Enrich Emails
+              {workspace.isCheckingAll ? <Spinner className="size-4" /> : <RefreshCwIcon className="size-4" />}
+              Check All DMs
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
+              onClick={() => {
+                if (workspace.leads.length > 0) {
+                  workspace.openLead(workspace.leads[0]);
+                }
+              }}
+              disabled={workspace.leads.length === 0}
+            >
+              <MailCheckIcon className="size-4" />
+              View All DMs
             </Button>
           </div>
         </div>
@@ -76,35 +69,15 @@ export function LeadsWorkspace() {
 
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Select
-              value={workspace.projectId}
-              onValueChange={(val) => workspace.updateProjectFilter(val as string)}
-            >
-              <SelectTrigger className="h-8 min-w-[200px] rounded-[10px] text-[0.88rem]">
-                <span className="flex-1 truncate">
-                  {workspace.currentProject?.name ?? "All Projects"}
-                </span>
-              </SelectTrigger>
-              <SelectPopup>
-                <SelectItem value="">All Projects</SelectItem>
-                {workspace.projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectPopup>
-            </Select>
-
-            <Select value={workspace.stage} onValueChange={(val) => workspace.updateStageFilter(val as typeof workspace.stage)}>
+            <Select value={workspace.status} onValueChange={(val) => workspace.updateStatusFilter(val as "all" | "reached_out" | "answered" | "done")}>
               <SelectTrigger className="h-8 min-w-[150px] rounded-[10px] text-[0.88rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectPopup>
-                <SelectItem value="all">all</SelectItem>
-                <SelectItem value="found">found</SelectItem>
-                <SelectItem value="messaged">messaged</SelectItem>
-                <SelectItem value="replied">replied</SelectItem>
-                <SelectItem value="agreed">agreed</SelectItem>
+                <SelectItem value="all">all statuses</SelectItem>
+                <SelectItem value="reached_out">reached out</SelectItem>
+                <SelectItem value="answered">answered</SelectItem>
+                <SelectItem value="done">done</SelectItem>
               </SelectPopup>
             </Select>
 
@@ -113,6 +86,7 @@ export function LeadsWorkspace() {
                 <SelectValue />
               </SelectTrigger>
               <SelectPopup>
+                <SelectItem value="recent">recently updated</SelectItem>
                 <SelectItem value="followers-desc">followers-desc</SelectItem>
                 <SelectItem value="followers-asc">followers-asc</SelectItem>
                 <SelectItem value="name-asc">name-asc</SelectItem>
@@ -122,13 +96,13 @@ export function LeadsWorkspace() {
 
           <Input
             className="h-8 w-full max-w-[230px] rounded-[10px] text-[0.88rem]"
-            placeholder="Search leads..."
+            placeholder="Search monitored..."
             value={workspace.search}
             onChange={(event) => workspace.updateSearch(event.target.value)}
           />
         </div>
 
-        <LeadsTable
+        <MonitoringTable
           leads={workspace.leads}
           isLoading={workspace.isLoading}
           selectedIds={workspace.selectedIds}
@@ -143,7 +117,7 @@ export function LeadsWorkspace() {
         <div className="mt-4 flex flex-col gap-4 text-muted-foreground xl:flex-row xl:items-end xl:justify-between">
           <div className="text-[0.92rem]">
             <div>{workspace.total}</div>
-            <div>leads</div>
+            <div>monitored leads</div>
           </div>
 
           <Pagination className="mx-0 w-auto justify-start xl:justify-end">
@@ -178,18 +152,24 @@ export function LeadsWorkspace() {
         </div>
       </div>
 
-      <LeadDetailSheet
+      <DMChatSheet
         lead={workspace.selectedLead}
         open={workspace.sheetOpen}
         onOpenChange={workspace.setSheetOpen}
         onPatch={workspace.handlePatch}
-        niche={workspace.currentProject?.query}
-        projectId={workspace.currentProject?.id}
-        enableReasoning={workspace.currentProject?.sourceProviders.includes("multiagent")}
+        onRemove={workspace.handleRemove}
+      />
+
+      <DmSuggestPanel
+        open={suggestOpen}
+        onOpenChange={setSuggestOpen}
+        onAdded={() => {
+          workspace.setPage(1);
+        }}
       />
 
       {workspace.selectedCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-6 pl-[var(--sidebar-width,280px)]">
+        <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-6">
           <div className="flex items-center gap-3 rounded-[14px] border border-border/70 bg-background px-4 py-2.5 shadow-lg">
             <span className="text-[0.88rem] font-medium">
               {workspace.selectedCount} selected
@@ -198,16 +178,23 @@ export function LeadsWorkspace() {
             <Button
               variant="outline"
               className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
-              disabled={addToMonitoring.isPending}
-              onClick={() => {
-                addToMonitoring.mutate({
-                  sourceTable: "leads",
-                  sourceIds: workspace.selectedIds,
-                });
-              }}
+              onClick={() => workspace.handleBulkStatus("reached_out")}
             >
-              <ActivityIcon className="size-4" />
-              {addToMonitoring.isPending ? "Adding..." : "Add to Monitoring"}
+              Reached Out
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
+              onClick={() => workspace.handleBulkStatus("answered")}
+            >
+              Answered
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
+              onClick={() => workspace.handleBulkStatus("done")}
+            >
+              Done
             </Button>
             <div className="h-4 w-px bg-border" />
             <Button

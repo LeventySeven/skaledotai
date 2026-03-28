@@ -64,6 +64,13 @@
       "when": 1774637994977,
       "tag": "0008_fast_dreaming_celestial",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1774720698558,
+      "tag": "0009_bitter_diamondback",
+      "breakpoints": true
     }
   ]
 }

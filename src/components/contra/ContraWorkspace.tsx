@@ -15,7 +15,7 @@ import {
 import { ContraDetailSheet } from "@/components/contra/ContraDetailSheet";
 import { ContraTable } from "@/components/contra/ContraTable";
 import { useContraWorkspace } from "@/components/contra/useContraWorkspace";
-import { FileSpreadsheetIcon, FileTextIcon } from "lucide-react";
+import { FileSpreadsheetIcon, FileTextIcon, ActivityIcon } from "lucide-react";
 import { useState } from "react";
 import type { ContraLead } from "@/lib/validations/contra";
 import { trpc } from "@/lib/trpc/client";
@@ -102,6 +102,15 @@ export function ContraWorkspace() {
   const workspace = useContraWorkspace();
   const exportQuery = trpc.contra.exportForDocs.useQuery(undefined, { enabled: false });
   const [isExporting, setIsExporting] = useState(false);
+  const addToMonitoring = trpc.monitoring.add.useMutation({
+    onSuccess: (count) => {
+      toastManager.add({ type: "success", title: `Added ${count} leads to monitoring.` });
+      workspace.clearSelection();
+    },
+    onError: (error) => {
+      toastManager.add({ type: "error", title: error.message });
+    },
+  });
 
   async function fetchLeads() {
     const { data: leads } = await exportQuery.refetch();
@@ -310,6 +319,21 @@ export function ContraWorkspace() {
             <span className="text-[0.88rem] font-medium">
               {workspace.selectedCount} selected
             </span>
+            <div className="h-4 w-px bg-border" />
+            <Button
+              variant="outline"
+              className="h-8 rounded-[10px] px-3.5 text-[0.88rem]"
+              disabled={addToMonitoring.isPending}
+              onClick={() => {
+                addToMonitoring.mutate({
+                  sourceTable: "contra",
+                  sourceIds: workspace.selectedIds,
+                });
+              }}
+            >
+              <ActivityIcon className="size-4" />
+              {addToMonitoring.isPending ? "Adding..." : "Add to Monitoring"}
+            </Button>
             <div className="h-4 w-px bg-border" />
             <Button
               variant="outline"

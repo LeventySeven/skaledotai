@@ -339,6 +339,41 @@ export const contra = pgTable("contra", {
   uniqueIndex("contra_handle_platform_idx").on(table.handle, table.platform),
 ]);
 
+// ── Monitored Leads (DM monitoring) ──────────────────────────────────────
+
+export const monitoredLeads = pgTable("monitored_leads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+
+  // Identity
+  handle: text("handle").notNull(),
+  name: text("name").notNull(),
+  bio: text("bio").notNull().default(""),
+  platform: text("platform").notNull().default("twitter"),
+  followers: integer("followers").notNull().default(0),
+  avatarUrl: text("avatar_url"),
+
+  // X user ID — cached from handle→ID conversion
+  xUserId: text("x_user_id"),
+
+  // Origin — which table + id this was exported from
+  sourceTable: text("source_table").notNull(), // "leads" | "contra"
+  sourceId: text("source_id").notNull(),
+
+  // Monitoring
+  monitoring: boolean("monitoring").notNull().default(true),
+  responseStatus: text("response_status").notNull().default("reached_out"), // reached_out | answered | done
+  lastDmCheck: timestamp("last_dm_check", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("monitored_leads_user_id_idx").on(table.userId),
+  uniqueIndex("monitored_leads_user_handle_idx").on(table.userId, table.handle, table.platform),
+  index("monitored_leads_monitoring_idx").on(table.monitoring),
+  index("monitored_leads_response_status_idx").on(table.responseStatus),
+]);
+
 // ── API Keys ─────────────────────────────────────────────────────────────────
 
 export const apiKeys = pgTable("api_keys", {

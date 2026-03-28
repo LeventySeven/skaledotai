@@ -8,6 +8,7 @@ import { outreachRouter } from "./routers/outreach";
 import { settingsRouter } from "./routers/settings";
 // import { billingRouter } from "./routers/billing";
 import { contraRouter } from "./routers/contra";
+import { monitoringRouter } from "./routers/monitoring";
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -18,6 +19,7 @@ export const appRouter = router({
   settings: settingsRouter,
   // billing: billingRouter,
   contra: contraRouter,
+  monitoring: monitoringRouter,
 });
 
 export type AppRouter = typeof appRouter;
