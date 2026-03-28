@@ -113,7 +113,10 @@ export async function sendDirectMessage(
 // ── DM Lookup (read conversations) ────────────────────────────────────────
 //
 // All lookup functions require the user's OAuth 2.0 access token with dm.read
-// scope. Obtain it via getXAccessToken(userId) from src/server/services/x-auth.ts.
+// scope. Obtain via getXAccessToken(userId) from src/server/services/x-auth.ts.
+//
+// Docs: https://docs.x.com/x-api/direct-messages/get-dm-events-for-a-dm-conversation
+// Docs: https://docs.x.com/x-api/direct-messages/get-dm-events
 
 export type DmEvent = {
   id: string;
@@ -140,6 +143,22 @@ type RawDmEvent = {
   participant_ids?: string[];
 };
 
+type XDmResponse = {
+  data?: RawDmEvent[];
+  includes?: {
+    users?: Array<{
+      id: string;
+      name: string;
+      username: string;
+      profile_image_url?: string;
+      description?: string;
+      public_metrics?: { followers_count?: number; following_count?: number };
+    }>;
+  };
+  meta?: { next_token?: string; previous_token?: string; result_count?: number };
+  errors?: Array<{ detail?: string; title?: string; type?: string }>;
+};
+
 function mapRawEvents(data: RawDmEvent[]): DmEvent[] {
   return data.map((e) => ({
     id: e.id,
@@ -152,12 +171,34 @@ function mapRawEvents(data: RawDmEvent[]): DmEvent[] {
   }));
 }
 
+async function xDmRequest(path: string, token: string, params: Record<string, string> = {}): Promise<XDmResponse> {
+  const url = new URL(`${X_API_V2_BASE}${path}`);
+  for (const [k, v] of Object.entries(params)) {
+    if (v) url.searchParams.set(k, v);
+  }
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    const status = response.status;
+    if (status === 401) throw new Error("X authentication expired. Reconnect your X account in Settings.");
+    if (status === 403) throw new Error(`X API forbidden (403): ${errText}. Your app may lack dm.read scope.`);
+    if (status === 429) throw new Error("X API rate limit reached. Try again in a few minutes.");
+    throw new Error(`X DM API error (${status}): ${errText}`);
+  }
+
+  return response.json() as Promise<XDmResponse>;
+}
+
+const DM_EVENT_FIELDS = "id,text,sender_id,created_at,event_type,dm_conversation_id,participant_ids";
+
 /**
- * Fetch DM events for a conversation with a specific participant.
- *
- * Endpoint: GET /2/dm_conversations/with/:participant_id/dm_events
- * Auth: OAuth 2.0 user-context token with dm.read scope
- * Rate limits: 300 requests per 15 minutes (per user)
+ * GET /2/dm_conversations/with/:participant_id/dm_events
+ * Fetch DM events for a 1:1 conversation with a specific user.
  */
 export async function getDmEventsWithParticipant(
   participantId: string,
@@ -166,34 +207,19 @@ export async function getDmEventsWithParticipant(
   paginationToken?: string,
 ): Promise<DmLookupResult> {
   if (!participantId || !/^\d{1,19}$/.test(participantId)) {
-    return { events: [] };
+    throw new Error(`Invalid participant ID: "${participantId}". Must be a numeric X user ID.`);
   }
 
-  const url = new URL(`${X_API_V2_BASE}/dm_conversations/with/${participantId}/dm_events`);
-  url.searchParams.set("max_results", String(Math.min(100, Math.max(1, maxResults))));
-  url.searchParams.set("dm_event.fields", "id,text,sender_id,created_at,event_type,dm_conversation_id,participant_ids");
-  if (paginationToken) {
-    url.searchParams.set("pagination_token", paginationToken);
-  }
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${userAccessToken}`,
-      "Content-Type": "application/json",
+  const body = await xDmRequest(
+    `/dm_conversations/with/${participantId}/dm_events`,
+    userAccessToken,
+    {
+      max_results: String(Math.min(100, Math.max(1, maxResults))),
+      "dm_event.fields": DM_EVENT_FIELDS,
+      event_types: "MessageCreate",
+      ...(paginationToken ? { pagination_token: paginationToken } : {}),
     },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error(`[DM Lookup] Failed (${response.status}): ${errText}`);
-    return { events: [] };
-  }
-
-  const body = await response.json() as {
-    data?: RawDmEvent[];
-    meta?: { next_token?: string; result_count?: number };
-  };
+  );
 
   return {
     events: mapRawEvents(body.data ?? []),
@@ -202,7 +228,7 @@ export async function getDmEventsWithParticipant(
 }
 
 /**
- * Fetch all DM events with a participant (paginated, up to a limit).
+ * Fetch all DM events with a participant (paginated).
  */
 export async function getAllDmEventsWithParticipant(
   participantId: string,
@@ -219,81 +245,7 @@ export async function getAllDmEventsWithParticipant(
     if (!nextToken) break;
   }
 
-  // Reverse so oldest messages come first
   return allEvents.reverse();
-}
-
-/**
- * Fetch all recent DM events across ALL conversations (for discovering DM participants).
- *
- * Endpoint: GET /2/dm_events
- * Auth: OAuth 2.0 user-context token with dm.read scope
- * Rate limits: 300 requests per 15 minutes (per user)
- *
- * Returns events with participant_ids so we can extract unique contacts.
- */
-export async function getAllRecentDmEvents(
-  userAccessToken: string,
-  maxPages = 3,
-): Promise<DmEvent[]> {
-  const allEvents: DmEvent[] = [];
-  let nextToken: string | undefined;
-
-  for (let page = 0; page < maxPages; page++) {
-    const url = new URL(`${X_API_V2_BASE}/dm_events`);
-    url.searchParams.set("max_results", "100");
-    url.searchParams.set("dm_event.fields", "id,text,sender_id,created_at,event_type,dm_conversation_id,participant_ids");
-    url.searchParams.set("expansions", "sender_id,participant_ids");
-    url.searchParams.set("user.fields", "id,name,username,profile_image_url,public_metrics,description");
-    if (nextToken) {
-      url.searchParams.set("pagination_token", nextToken);
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${userAccessToken}`,
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error(`[DM Events] Failed (${response.status}): ${errText}`);
-      break;
-    }
-
-    const body = await response.json() as {
-      data?: RawDmEvent[];
-      includes?: {
-        users?: Array<{
-          id: string;
-          name: string;
-          username: string;
-          profile_image_url?: string;
-          description?: string;
-          public_metrics?: {
-            followers_count?: number;
-            following_count?: number;
-          };
-        }>;
-      };
-      meta?: { next_token?: string; result_count?: number };
-    };
-
-    allEvents.push(...mapRawEvents(body.data ?? []));
-
-    // Store user data on events for later profile resolution
-    if (body.includes?.users) {
-      (allEvents as unknown as { _includedUsers?: typeof body.includes.users })._includedUsers =
-        body.includes.users;
-    }
-
-    nextToken = body.meta?.next_token;
-    if (!nextToken || (body.data?.length ?? 0) === 0) break;
-  }
-
-  return allEvents;
 }
 
 export type DmParticipant = {
@@ -306,60 +258,27 @@ export type DmParticipant = {
 };
 
 /**
- * Extract unique DM participants from all recent DM events.
- * Returns profiles of people the user has DM'd with (excluding the user themselves).
+ * GET /2/dm_events — list all recent DM events across all conversations.
+ * Extracts unique participants (people the user has DM'd with).
  */
 export async function getDmParticipants(
   userAccessToken: string,
   ownXUserId: string,
 ): Promise<DmParticipant[]> {
-  const allEvents: DmEvent[] = [];
   const includedUsers = new Map<string, DmParticipant>();
   let nextToken: string | undefined;
 
   for (let page = 0; page < 3; page++) {
-    const url = new URL(`${X_API_V2_BASE}/dm_events`);
-    url.searchParams.set("max_results", "100");
-    url.searchParams.set("dm_event.fields", "id,sender_id,dm_conversation_id,participant_ids");
-    url.searchParams.set("expansions", "participant_ids");
-    url.searchParams.set("user.fields", "id,name,username,profile_image_url,public_metrics,description");
-    if (nextToken) {
-      url.searchParams.set("pagination_token", nextToken);
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${userAccessToken}`,
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
+    const body = await xDmRequest("/dm_events", userAccessToken, {
+      max_results: "100",
+      "dm_event.fields": "id,sender_id,dm_conversation_id,participant_ids",
+      expansions: "participant_ids",
+      "user.fields": "id,name,username,profile_image_url,public_metrics,description",
+      event_types: "MessageCreate",
+      ...(nextToken ? { pagination_token: nextToken } : {}),
     });
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error(`[DM Participants] Failed (${response.status}): ${errText}`);
-      break;
-    }
-
-    const body = await response.json() as {
-      data?: RawDmEvent[];
-      includes?: {
-        users?: Array<{
-          id: string;
-          name: string;
-          username: string;
-          profile_image_url?: string;
-          description?: string;
-          public_metrics?: {
-            followers_count?: number;
-            following_count?: number;
-          };
-        }>;
-      };
-      meta?: { next_token?: string; result_count?: number };
-    };
-
-    // Collect included user profiles
+    // Collect expanded user profiles
     for (const user of body.includes?.users ?? []) {
       if (user.id !== ownXUserId && !includedUsers.has(user.id)) {
         includedUsers.set(user.id, {
@@ -373,25 +292,15 @@ export async function getDmParticipants(
       }
     }
 
-    // Also extract from participant_ids in case includes don't cover all
+    // Extract from participant_ids for users not in includes
     for (const event of body.data ?? []) {
       for (const pid of event.participant_ids ?? []) {
         if (pid !== ownXUserId && !includedUsers.has(pid)) {
-          // Placeholder — profile will be resolved later if needed
-          includedUsers.set(pid, {
-            xUserId: pid,
-            username: "",
-            name: "",
-          });
+          includedUsers.set(pid, { xUserId: pid, username: "", name: "" });
         }
       }
-      // Also check sender_id
       if (event.sender_id && event.sender_id !== ownXUserId && !includedUsers.has(event.sender_id)) {
-        includedUsers.set(event.sender_id, {
-          xUserId: event.sender_id,
-          username: "",
-          name: "",
-        });
+        includedUsers.set(event.sender_id, { xUserId: event.sender_id, username: "", name: "" });
       }
     }
 

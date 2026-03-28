@@ -4,7 +4,7 @@ import { monitoredLeads, leads, contra, account } from "@/db/schema";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getRedis } from "@/lib/redis";
 import { lookupUsersByUsernames, lookupUsersByIds } from "@/lib/x/api";
-import { getAllDmEventsWithParticipant, getDmParticipants, type DmEvent, type DmParticipant } from "@/lib/x/dm";
+import { getAllDmEventsWithParticipant, getDmParticipants, type DmEvent } from "@/lib/x/dm";
 import { getXAccessToken } from "@/server/services/x-auth";
 import { TRPCError } from "@trpc/server";
 import type {
@@ -289,22 +289,19 @@ export async function removeMonitored(userId: string, id: string): Promise<void>
 async function loadCachedDms(xUserId: string): Promise<DmEvent[]> {
   const redis = await getRedis();
   const cacheKey = `${DM_CACHE_PREFIX}${xUserId}`;
-  const cached = await redis.get<string>(cacheKey);
-  if (!cached) return [];
-  try {
-    const parsed = typeof cached === "string" ? JSON.parse(cached) : cached;
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  // Upstash auto-deserializes JSON — get<DmEvent[]> returns the array directly
+  const cached = await redis.get<DmEvent[]>(cacheKey);
+  if (!cached || !Array.isArray(cached)) return [];
+  return cached;
 }
 
-/** Save DM events to Redis cache, merging new events with cached ones (deduped by id). */
+/** Save DM events to Redis cache. Upstash auto-serializes the array to JSON. */
 async function saveDmsToCache(xUserId: string, events: DmEvent[]): Promise<void> {
   if (events.length === 0) return;
   const redis = await getRedis();
   const cacheKey = `${DM_CACHE_PREFIX}${xUserId}`;
-  await redis.set(cacheKey, JSON.stringify(events), { ex: DM_CACHE_TTL });
+  // Upstash auto-serializes — pass the array directly, not JSON.stringify
+  await redis.set(cacheKey, events, { ex: DM_CACHE_TTL });
 }
 
 /**

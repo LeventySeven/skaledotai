@@ -2,6 +2,10 @@ import type { Redis } from "@upstash/redis";
 
 let _redis: Redis | null = null;
 
+/**
+ * Singleton Redis client using dynamic import for webpack compatibility.
+ * Uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars.
+ */
 export async function getRedis(): Promise<Redis> {
   if (_redis) return _redis;
 
