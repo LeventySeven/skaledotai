@@ -13,7 +13,7 @@ import {
 } from "@/server/services/projects";
 import { analyzeProjectsIntoNewProject } from "@/server/services/analysis";
 import { AnalyzeProjectsInputSchema, CreateProjectInputSchema } from "@/lib/validations/projects";
-import { billing } from "@/server/services/billing";
+// import { billing } from "@/server/services/billing";
 
 export const projectsRouter = router({
   list: protectedProcedure
@@ -25,11 +25,11 @@ export const projectsRouter = router({
   create: protectedProcedure
     .input(CreateProjectInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const { allowed } = await billing.checkProjects(ctx.userId);
-      if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "Project limit reached. Upgrade your plan." });
+      // const { allowed } = await billing.checkProjects(ctx.userId);
+      // if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "Project limit reached. Upgrade your plan." });
 
       const result = await createProject(ctx.userId, input);
-      await billing.trackProject(ctx.userId);
+      // await billing.trackProject(ctx.userId);
       return result;
     }),
 

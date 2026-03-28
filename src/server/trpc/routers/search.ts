@@ -6,19 +6,19 @@ import { assertProject } from "@/server/services/projects";
 import { importAccountNetwork, searchAndAddLeads } from "@/server/services/search";
 import { getProjectRunTrace } from "@/server/services/project-runs";
 import { ImportNetworkInputSchema, SearchLeadInputSchema } from "@/lib/validations/search";
-import { billing } from "@/server/services/billing";
+// import { billing } from "@/server/services/billing";
 
 export const searchRouter = router({
   run: protectedProcedure
     .input(SearchLeadInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const { allowed } = await billing.checkSearches(ctx.userId);
-      if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "Search limit reached. Upgrade your plan." });
+      // const { allowed } = await billing.checkSearches(ctx.userId);
+      // if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "Search limit reached. Upgrade your plan." });
 
       if (input.projectId) await assertProject(ctx.userId, input.projectId);
       const result = await searchAndAddLeads(ctx.userId, input, ctx.xDataProvider);
 
-      await billing.trackSearch(ctx.userId);
+      // await billing.trackSearch(ctx.userId);
       return result;
     }),
 

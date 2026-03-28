@@ -7,7 +7,7 @@ import {
   getOutreachQueue,
   getStandardOutreachTemplates,
 } from "@/server/services/outreach";
-import { billing } from "@/server/services/billing";
+// import { billing } from "@/server/services/billing";
 import {
   deleteOutreachTemplate,
   listOutreachTemplates,
@@ -82,11 +82,11 @@ export const outreachRouter = router({
       })).min(1).max(50),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { allowed } = await billing.checkDmOutreach(ctx.userId);
-      if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "DM limit reached. Upgrade your plan." });
+      // const { allowed } = await billing.checkDmOutreach(ctx.userId);
+      // if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "DM limit reached. Upgrade your plan." });
 
       const result = await enqueueDmBatch(ctx.userId, input.leads);
-      await billing.trackDm(ctx.userId, input.leads.length);
+      // await billing.trackDm(ctx.userId, input.leads.length);
       return result;
     }),
 
